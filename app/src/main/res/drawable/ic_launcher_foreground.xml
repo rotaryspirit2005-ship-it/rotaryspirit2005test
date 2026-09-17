@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Calendar body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,38 L78,38 L78,80 A4,4 0 0 1 74,84 L34,84 A4,4 0 0 1 30,80 Z" />
+    <!-- Calendar header -->
+    <path
+        android:fillColor="#A5D6A7"
+        android:pathData="M30,38 L78,38 L78,48 L30,48 Z" />
+    <!-- Link icon: two overlapping rounded rectangles representing linked plans -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M40,58 h14 a7,7 0 0 1 0,14 h-4 v-6 h4 a1,1 0 0 0 0,-2 h-14 a1,1 0 0 0 0,2 h4 v6 h-4 a7,7 0 0 1 0,-14 Z" />
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M54,66 h14 a7,7 0 0 1 0,14 h-14 a7,7 0 0 1 0,-14 Z M54,70 a3,3 0 0 0 0,6 h14 a3,3 0 0 0 0,-6 Z" />
+</vector>
