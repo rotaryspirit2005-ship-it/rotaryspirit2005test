@@ -15,6 +15,27 @@
 <main>
   <section class="panel" id="form-panel">
     <h2>入力条件</h2>
+    <p style="font-size:0.78rem;color:var(--muted);margin:-4px 0 12px;">
+      入力内容はこのブラウザに自動保存され、次回開いたときに復元されます。
+    </p>
+
+    <div class="field">
+      <label for="preset-select">保存済み設定を呼び出す</label>
+      <div class="field-row" style="grid-template-columns: 1fr auto auto;">
+        <select id="preset-select"><option value="">-- 選択 --</option></select>
+        <button type="button" id="preset-load-btn" class="btn-sm">呼び出す</button>
+        <button type="button" id="preset-delete-btn" class="btn-sm">削除</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="preset-name">現在の入力を名前を付けて保存</label>
+      <div class="field-row" style="grid-template-columns: 1fr auto;">
+        <input type="text" id="preset-name" placeholder="例: ガレージ案A" />
+        <button type="button" id="preset-save-btn" class="btn-sm">保存</button>
+      </div>
+    </div>
+    <hr style="border-color: var(--border); margin: 4px 0 14px;" />
+
     <form id="sim-form">
       <div class="field">
         <label>緯度・経度 (GPS座標)

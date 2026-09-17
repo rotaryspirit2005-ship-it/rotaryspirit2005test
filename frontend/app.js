@@ -1,9 +1,118 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
+  const FIELD_IDS = [
+    "latitude", "longitude", "date", "orientation", "garden-width", "garden-depth",
+    "veranda-height", "garage-enabled", "garage-x", "garage-y", "garage-width",
+    "garage-depth", "garage-height", "garage-rotation",
+  ];
+  const LAST_PARAMS_KEY = "gardenSim:lastParams";
+  const PRESETS_KEY = "gardenSim:presets";
+
+  function getFieldValue(id) {
+    const el = $(id);
+    return el.type === "checkbox" ? el.checked : el.value;
+  }
+
+  function setFieldValue(id, value) {
+    const el = $(id);
+    if (!el || value === undefined || value === null) return;
+    if (el.type === "checkbox") el.checked = !!value;
+    else el.value = value;
+  }
+
+  function collectParams() {
+    const obj = {};
+    FIELD_IDS.forEach((id) => (obj[id] = getFieldValue(id)));
+    return obj;
+  }
+
+  function applyParams(obj) {
+    FIELD_IDS.forEach((id) => {
+      if (Object.prototype.hasOwnProperty.call(obj, id)) setFieldValue(id, obj[id]);
+    });
+  }
+
+  function loadJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveJSON(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // localStorage unavailable (private browsing, storage full, ...) -- silently skip.
+    }
+  }
+
+  function saveLastParams() {
+    saveJSON(LAST_PARAMS_KEY, collectParams());
+  }
+
+  function refreshPresetSelect(selectName) {
+    const presets = loadJSON(PRESETS_KEY, {});
+    const select = $("preset-select");
+    select.innerHTML = '<option value="">-- 選択 --</option>';
+    Object.keys(presets).sort().forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    if (selectName && presets[selectName] !== undefined) select.value = selectName;
+  }
+
   const dateInput = $("date");
   const today = new Date();
   dateInput.value = today.toISOString().slice(0, 10);
+
+  // Restore the last-used inputs (if any) after setting the today-default,
+  // so a previously saved date/location/garage config takes precedence.
+  const savedLastParams = loadJSON(LAST_PARAMS_KEY, null);
+  if (savedLastParams) applyParams(savedLastParams);
+  refreshPresetSelect();
+
+  FIELD_IDS.forEach((id) => {
+    $(id).addEventListener("change", saveLastParams);
+  });
+
+  $("preset-save-btn").addEventListener("click", () => {
+    const name = $("preset-name").value.trim();
+    if (!name) {
+      alert("保存する名前を入力してください。");
+      return;
+    }
+    const presets = loadJSON(PRESETS_KEY, {});
+    presets[name] = collectParams();
+    saveJSON(PRESETS_KEY, presets);
+    $("preset-name").value = "";
+    refreshPresetSelect(name);
+  });
+
+  $("preset-load-btn").addEventListener("click", () => {
+    const name = $("preset-select").value;
+    if (!name) return;
+    const presets = loadJSON(PRESETS_KEY, {});
+    if (presets[name]) {
+      applyParams(presets[name]);
+      saveLastParams();
+    }
+  });
+
+  $("preset-delete-btn").addEventListener("click", () => {
+    const name = $("preset-select").value;
+    if (!name) return;
+    if (!confirm(`「${name}」を削除しますか?`)) return;
+    const presets = loadJSON(PRESETS_KEY, {});
+    delete presets[name];
+    saveJSON(PRESETS_KEY, presets);
+    refreshPresetSelect();
+  });
 
   $("geo-btn").addEventListener("click", () => {
     if (!navigator.geolocation) {
@@ -14,6 +123,7 @@
       (pos) => {
         $("latitude").value = pos.coords.latitude.toFixed(5);
         $("longitude").value = pos.coords.longitude.toFixed(5);
+        saveLastParams();
       },
       (err) => alert("位置情報の取得に失敗しました: " + err.message)
     );
@@ -46,6 +156,7 @@
 
   $("sim-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    saveLastParams();
     const statusEl = $("status");
     const btn = $("run-btn");
     btn.disabled = true;

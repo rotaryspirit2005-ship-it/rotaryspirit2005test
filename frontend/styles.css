@@ -114,6 +114,28 @@ button#run-btn:disabled {
   cursor: default;
 }
 
+.btn-sm {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-sm:hover {
+  background: #f3f1e9;
+}
+
+#preset-select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
 #status {
   font-size: 0.82rem;
   color: var(--muted);
