@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>庭ガレージ日照シミュレーター</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header>
+  <h1>庭ガレージ日照シミュレーター</h1>
+  <p>GPS座標と庭の寸法を入力し、庭に直方体(ガレージ等)を設置した場合に縁側へ入る日光がどう変わるかを計算します。</p>
+</header>
+
+<main>
+  <section class="panel" id="form-panel">
+    <h2>入力条件</h2>
+    <form id="sim-form">
+      <div class="field">
+        <label>緯度・経度 (GPS座標)
+          <button type="button" id="geo-btn" style="margin-left:6px;font-size:0.7rem;">現在地を使う</button>
+        </label>
+        <div class="field-row">
+          <input type="number" step="0.0001" id="latitude" value="35.681" required />
+          <input type="number" step="0.0001" id="longitude" value="139.767" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="date">シミュレーション日</label>
+        <input type="date" id="date" required />
+      </div>
+
+      <div class="field">
+        <label for="orientation">縁側が向く方角 (0=北,90=東,180=南,270=西)</label>
+        <input type="number" id="orientation" min="0" max="360" step="1" value="180" />
+      </div>
+
+      <div class="field">
+        <label>庭の寸法 (幅 x 奥行, m)</label>
+        <div class="field-row">
+          <input type="number" id="garden-width" min="1" step="0.5" value="10" required />
+          <input type="number" id="garden-depth" min="1" step="0.5" value="8" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="veranda-height">縁側で日照を測る高さ (m)</label>
+        <input type="number" id="veranda-height" min="0" step="0.1" value="1.0" />
+      </div>
+
+      <hr style="border-color: var(--border); margin: 14px 0;" />
+
+      <div class="field" style="flex-direction: row; align-items: center; gap: 8px;">
+        <input type="checkbox" id="garage-enabled" checked style="width:auto;" />
+        <label for="garage-enabled" style="margin:0;">ガレージ(直方体)を設置する</label>
+      </div>
+
+      <div class="field">
+        <label>ガレージ位置 (家からの距離 x, y ・m)</label>
+        <div class="field-row">
+          <input type="number" id="garage-x" step="0.1" value="2" />
+          <input type="number" id="garage-y" step="0.1" value="2" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>ガレージ寸法 (幅 x 奥行 x 高さ・m)</label>
+        <div class="field-row">
+          <input type="number" id="garage-width" min="0.1" step="0.1" value="5" />
+          <input type="number" id="garage-depth" min="0.1" step="0.1" value="5" />
+        </div>
+        <input type="number" id="garage-height" min="0.1" step="0.1" value="2.8" style="margin-top:6px;" />
+      </div>
+
+      <div class="field">
+        <label for="garage-rotation">ガレージの向き (回転角度, deg)</label>
+        <input type="number" id="garage-rotation" step="1" value="0" />
+      </div>
+
+      <button type="submit" id="run-btn">シミュレーション実行</button>
+      <div id="status"></div>
+    </form>
+  </section>
+
+  <section id="results" style="display:none;">
+    <div class="viz-row">
+      <div class="panel">
+        <h2>庭の平面図と影の動き</h2>
+        <canvas id="plan-canvas" width="600" height="480"></canvas>
+        <div class="time-control">
+          <input type="range" id="time-slider" min="0" max="95" value="48" />
+          <span id="time-label">--:--</span>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:var(--sun)"></span>日照あり</span>
+          <span><span class="dot" style="background:#555"></span>日陰</span>
+          <span><span class="dot" style="background:#8a6d3b"></span>ガレージ</span>
+          <span>太陽高度: <b id="sun-alt">-</b>° / 方位: <b id="sun-az">-</b>°</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>1日の日照(縁側)</h2>
+        <canvas id="chart-canvas" width="600" height="480"></canvas>
+        <div class="legend">
+          <span><span class="dot" style="background:#d97706"></span>ガレージなし</span>
+          <span><span class="dot" style="background:#2563eb"></span>ガレージあり</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>結果サマリー <span class="source-tag" id="source-tag"></span></h2>
+      <div class="summary-grid">
+        <div class="stat"><div class="label">日照時間 (ガレージなし)</div><div class="value" id="sum-hours-without">-</div></div>
+        <div class="stat"><div class="label">日照時間 (ガレージあり)</div><div class="value" id="sum-hours-with">-</div></div>
+        <div class="stat"><div class="label">減少した日照時間</div><div class="value bad" id="sum-hours-lost">-</div></div>
+        <div class="stat"><div class="label">日射量の減少率</div><div class="value bad" id="sum-irr-lost">-</div></div>
+        <div class="stat"><div class="label">積算日射量 (ガレージなし)</div><div class="value" id="sum-irr-without">-</div></div>
+        <div class="stat"><div class="label">積算日射量 (ガレージあり)</div><div class="value" id="sum-irr-with">-</div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  太陽位置はMeeus/NOAAの太陽位置アルゴリズムに基づき自前で計算しています。日射量データは
+  <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> の実測・予報データ(shortwave / direct / diffuse radiation)を参照します
+  (取得できない場合は簡易的な晴天モデルで代替します)。影の計算は庭を平坦な地面、家を y=0 の不透明な壁、ガレージを単純な直方体とみなした近似モデルであり、
+  実際の建築設計における日照検討の代わりにはなりません。
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
