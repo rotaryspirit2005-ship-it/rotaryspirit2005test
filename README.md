@@ -26,6 +26,33 @@ uvicorn app.main:app --reload --port 8000
 
 ブラウザで `http://localhost:8000/` を開くと、フォームとAPIが同一オリジンで動作します。
 
+## スマートフォンなど外部から使う(インターネット公開)
+
+このリポジトリには [Render](https://render.com/) 用の `render.yaml` (Blueprint) を用意しています。
+Renderの無料プランを使えば、公開URL経由でスマートフォンからも利用できます。
+
+1. https://render.com/ でアカウントを作成し、GitHubアカウントと連携する
+2. Renderダッシュボードで **New +** → **Blueprint** を選択
+3. このGitHubリポジトリ (`rotaryspirit2005-ship-it/rotaryspirit2005test`) を選択し、ブランチは
+   `claude/garden-sunlight-simulator-xpt7hu` (またはマージ後の既定ブランチ) を指定する
+4. `render.yaml` が自動検出され、サービス名 `garden-sunlight-simulator` (Freeプラン) が表示されるので
+   **Apply** してデプロイする
+5. デプロイ完了後に発行される `https://garden-sunlight-simulator-xxxx.onrender.com` のようなURLを
+   スマートフォンのブラウザで開く
+
+Blueprintを使わず手動でWeb Serviceを作成する場合は、以下の設定を入力してください。
+
+| 項目 | 値 |
+| --- | --- |
+| Root Directory | `backend` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Plan | Free |
+
+補足:
+- 無料プランはアクセスが一定時間ないとスリープし、次回アクセス時に起動まで数十秒かかることがあります。
+- サーバー側で外部日射データ(Open-Meteo)を取得するため、Render側からの外部通信が必要です。取得できない場合は自動的に簡易晴天モデルにフォールバックします。
+
 ## テスト
 
 ```bash
