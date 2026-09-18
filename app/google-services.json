@@ -12,7 +12,20 @@
           "package_name": "com.example.schedulelink"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "356863890444-6qtlf5hj15uf6j2ljrf47ddfsujv7htn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.schedulelink",
+            "certificate_hash": "5fc734211a8919da50480303328d46de822cdc0d"
+          }
+        },
+        {
+          "client_id": "356863890444-lvs9t4df5248t217s133uu6692fer5pp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBP307MhDMnj6la6-ZkUN5hhmysdnimPXY"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356863890444-lvs9t4df5248t217s133uu6692fer5pp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
