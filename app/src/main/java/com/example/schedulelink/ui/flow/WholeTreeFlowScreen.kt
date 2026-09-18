@@ -55,21 +55,27 @@ private val TIER_GAP = 36.dp
 private val RULER_HEIGHT = 48.dp
 private val MARGIN = 24.dp
 
-/** これ以上ズームインすると、月の目盛りに加えて日の目盛り(線のみ)を出す。 */
-private const val DAY_TICK_MIN_SCALE = 2f
-/** これ以上ズームインすると、日の目盛りに日付の数字も出す。 */
-private const val DAY_LABEL_MIN_SCALE = 4f
+/** 日の目盛り(線)は、この拡大率から常にうっすらグレーで見えている。 */
+private const val DAY_TICK_FADE_START = 0.4f
+/** 日の数字は線より少し遅れて、この拡大率あたりから見え始める。 */
+private const val DAY_LABEL_FADE_START = 1.5f
+/** ここまで拡大すると、線・数字とも真っ白(完全に見える状態)になる。 */
+private const val DAY_DETAIL_FADE_END = 4f
 /** 期間が長すぎる場合、日の目盛りは大量になりすぎるので出さない。 */
 private const val MAX_DAY_MARKS = 1000
 
 private val TREE_LINE_COLOR = Color(0xFFD8D4C9)
 private val PEER_LINK_COLOR = Color(0xFFD946EF)
 private val RULER_LINE_COLOR = Color(0xFFE7E3D8)
+private val DAY_DETAIL_GRAY = Color(0xFF6B6B6B)
 private val GOAL_COLOR = Color(0xFFFF6B4A)
 private val MILESTONE_COLOR = Color(0xFF2EC4B6)
 private val SCHEDULE_COLOR = Color(0xFF4D96FF)
 /** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
 private const val CARD_TINT_RATIO = 0.30f
+
+/** 日の目盛りが常に「ちらっと見える」最低限の透明度。 */
+private const val DAY_TICK_MIN_ALPHA = 0.12f
 
 private fun TreeTier.color(): Color = when (this) {
     TreeTier.GOAL -> GOAL_COLOR
@@ -223,8 +229,13 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
     val contentWidth = dateToX(tree.maxDate) + NODE_WIDTH + MARGIN
 
     ZoomPanBox(modifier = Modifier.fillMaxSize()) { scale ->
-        val showDayTicks = scale >= DAY_TICK_MIN_SCALE
-        val showDayLabels = scale >= DAY_LABEL_MIN_SCALE
+        // 拡大率に応じて0〜1で滑らかに変化する進捗値。日の目盛りは常に薄く見えており、
+        // 拡大するほどグレーから白へ、じわじわ濃く・明るくなっていく(数字は線より少し遅れて追いつく)。
+        val tickProgress = ((scale - DAY_TICK_FADE_START) / (DAY_DETAIL_FADE_END - DAY_TICK_FADE_START)).coerceIn(0f, 1f)
+        val labelProgress = ((scale - DAY_LABEL_FADE_START) / (DAY_DETAIL_FADE_END - DAY_LABEL_FADE_START)).coerceIn(0f, 1f)
+        val dayTickColor = lerp(DAY_DETAIL_GRAY, Color.White, tickProgress)
+            .copy(alpha = DAY_TICK_MIN_ALPHA + (1f - DAY_TICK_MIN_ALPHA) * tickProgress)
+        val dayLabelColor = lerp(DAY_DETAIL_GRAY, Color.White, labelProgress).copy(alpha = labelProgress)
 
         Box(modifier = Modifier.width(contentWidth).height(contentHeight)) {
             Canvas(modifier = Modifier.width(contentWidth).height(contentHeight)) {
@@ -243,25 +254,14 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     )
                 }
 
-                if (showDayTicks) {
-                    dayMarksList.forEach { date ->
-                        val x = dateToX(date).toPx()
-                        if (showDayLabels) {
-                            drawLine(
-                                color = RULER_LINE_COLOR.copy(alpha = 0.5f),
-                                start = Offset(x, RULER_HEIGHT.toPx()),
-                                end = Offset(x, contentHeight.toPx()),
-                                strokeWidth = hairline
-                            )
-                        } else {
-                            drawLine(
-                                color = RULER_LINE_COLOR,
-                                start = Offset(x, (RULER_HEIGHT - 10.dp).toPx()),
-                                end = Offset(x, RULER_HEIGHT.toPx()),
-                                strokeWidth = hairline
-                            )
-                        }
-                    }
+                dayMarksList.forEach { date ->
+                    val x = dateToX(date).toPx()
+                    drawLine(
+                        color = dayTickColor,
+                        start = Offset(x, RULER_HEIGHT.toPx()),
+                        end = Offset(x, contentHeight.toPx()),
+                        strokeWidth = hairline
+                    )
                 }
 
                 tree.treeEdges.forEach { (parentId, childId) ->
@@ -302,12 +302,12 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                 )
             }
 
-            if (showDayLabels) {
+            if (labelProgress > 0f) {
                 dayMarksList.forEach { date ->
                     Text(
                         text = date.dayOfMonth.toString(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        color = dayLabelColor,
                         modifier = Modifier
                             .offset(x = dateToX(date) + 2.dp, y = 26.dp)
                             .counterScale(scale)
