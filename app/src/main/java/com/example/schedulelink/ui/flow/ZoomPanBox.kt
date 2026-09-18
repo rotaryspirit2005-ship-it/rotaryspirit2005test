@@ -66,6 +66,11 @@ fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable (scale: Float
                     if (isSecondTapOfDoubleTap) {
                         val referenceY = down.position.y
                         val referenceScale = scale
+                        // 2回目にタップした場所を拡大縮小の中心にする。その場所が
+                        // 指す「コンテンツ上の点」を先に求めておき、スケールが変わる
+                        // たびにその点が同じ画面位置に留まるようoffsetを補正し続ける。
+                        val focalScreen = down.position
+                        val focalContent = (focalScreen - offset) / referenceScale
                         while (true) {
                             val event = awaitPointerEvent(pass = PointerEventPass.Initial)
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -73,7 +78,9 @@ fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable (scale: Float
                             val deltaY = change.position.y - referenceY
                             // 上にドラッグ(deltaYが負)ほど縮小、下にドラッグほど拡大する。
                             val factor = exp(deltaY / sensitivityPx)
-                            scale = (referenceScale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
+                            val newScale = (referenceScale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
+                            scale = newScale
+                            offset = focalScreen - focalContent * newScale
                             change.consume()
                         }
                         lastUpTimeMillis = 0L
