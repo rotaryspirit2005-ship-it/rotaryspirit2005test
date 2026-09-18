@@ -46,8 +46,15 @@ private val NODE_WIDTH = 120.dp
 private val NODE_HEIGHT = 52.dp
 private val LANE_HEIGHT = NODE_HEIGHT + 14.dp
 private val TIER_GAP = 36.dp
-private val RULER_HEIGHT = 40.dp
+private val RULER_HEIGHT = 48.dp
 private val MARGIN = 24.dp
+
+/** これ以上ズームインすると、月の目盛りに加えて日の目盛り(線のみ)を出す。 */
+private const val DAY_TICK_MIN_SCALE = 2f
+/** これ以上ズームインすると、日の目盛りに日付の数字も出す。 */
+private const val DAY_LABEL_MIN_SCALE = 4f
+/** 期間が長すぎる場合、日の目盛りは大量になりすぎるので出さない。 */
+private const val MAX_DAY_MARKS = 1000
 
 private val TREE_LINE_COLOR = Color(0xFFD8D4C9)
 private val PEER_LINK_COLOR = Color(0xFF8B5CF6)
@@ -139,11 +146,24 @@ private fun monthMarks(minDate: LocalDate, maxDate: LocalDate): List<Pair<LocalD
     return marks
 }
 
+/** ズームインしたときに月の目盛りの間へ差し込む、日ごとの目盛り。 */
+private fun dayMarks(minDate: LocalDate, maxDate: LocalDate): List<LocalDate> {
+    if (ChronoUnit.DAYS.between(minDate, maxDate) > MAX_DAY_MARKS) return emptyList()
+    val marks = mutableListOf<LocalDate>()
+    var cursor = minDate
+    while (!cursor.isAfter(maxDate)) {
+        marks += cursor
+        cursor = cursor.plusDays(1)
+    }
+    return marks
+}
+
 @Composable
 private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
     val nodesById = remember(tree) { tree.nodes.associateBy { it.id } }
     val nodesByTier = remember(tree) { tree.nodes.groupBy { it.tier } }
     val marks = remember(tree) { monthMarks(tree.minDate, tree.maxDate) }
+    val dayMarksList = remember(tree) { dayMarks(tree.minDate, tree.maxDate) }
 
     fun dateToX(date: LocalDate): Dp =
         MARGIN + (ChronoUnit.DAYS.between(tree.minDate, date) * PX_PER_DAY).dp
@@ -176,7 +196,10 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
 
     val contentWidth = dateToX(tree.maxDate) + NODE_WIDTH + MARGIN
 
-    ZoomPanBox(modifier = Modifier.fillMaxSize()) {
+    ZoomPanBox(modifier = Modifier.fillMaxSize()) { scale ->
+        val showDayTicks = scale >= DAY_TICK_MIN_SCALE
+        val showDayLabels = scale >= DAY_LABEL_MIN_SCALE
+
         Box(modifier = Modifier.width(contentWidth).height(contentHeight)) {
             Canvas(modifier = Modifier.width(contentWidth).height(contentHeight)) {
                 marks.forEach { (date, _) ->
@@ -187,6 +210,27 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                         end = Offset(x, contentHeight.toPx()),
                         strokeWidth = 1.dp.toPx()
                     )
+                }
+
+                if (showDayTicks) {
+                    dayMarksList.forEach { date ->
+                        val x = dateToX(date).toPx()
+                        if (showDayLabels) {
+                            drawLine(
+                                color = RULER_LINE_COLOR.copy(alpha = 0.5f),
+                                start = Offset(x, RULER_HEIGHT.toPx()),
+                                end = Offset(x, contentHeight.toPx()),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        } else {
+                            drawLine(
+                                color = RULER_LINE_COLOR,
+                                start = Offset(x, (RULER_HEIGHT - 10.dp).toPx()),
+                                end = Offset(x, RULER_HEIGHT.toPx()),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                    }
                 }
 
                 tree.treeEdges.forEach { (parentId, childId) ->
@@ -221,8 +265,19 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.offset(x = dateToX(date) + 4.dp, y = 8.dp)
+                    modifier = Modifier.offset(x = dateToX(date) + 4.dp, y = 6.dp)
                 )
+            }
+
+            if (showDayLabels) {
+                dayMarksList.forEach { date ->
+                    Text(
+                        text = date.dayOfMonth.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.offset(x = dateToX(date) + 2.dp, y = 26.dp)
+                    )
+                }
             }
 
             tree.nodes.forEach { node ->

@@ -14,14 +14,16 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 
 private const val MIN_SCALE = 0.4f
-private const val MAX_SCALE = 3f
+private const val MAX_SCALE = 8f
 
 /**
  * ピンチで拡大・縮小、ドラッグでパンできるコンテナ。
  * フロー表示全体を俯瞰したり、一部を拡大して読みやすくしたりするために使う。
+ * 現在の拡大率を[content]に渡すので、呼び出し側は「どれくらい拡大されているか」に
+ * 応じて表示する情報の細かさ(例: 月の目盛りだけ出すか、日の目盛りまで出すか)を変えられる。
  */
 @Composable
-fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable (scale: Float) -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
@@ -43,7 +45,7 @@ fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
             )
         ) {
-            content()
+            content(scale)
         }
     }
 }
