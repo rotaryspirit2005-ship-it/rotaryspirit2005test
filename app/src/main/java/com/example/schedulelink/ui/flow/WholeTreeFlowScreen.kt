@@ -243,7 +243,9 @@ private fun TreeNodeCard(node: TreeNode, modifier: Modifier = Modifier, onClick:
         modifier = modifier
             .width(NODE_WIDTH)
             .clip(RoundedCornerShape(10.dp))
-            .background(node.tier.color().copy(alpha = 0.14f))
+            // 背後の線を完全に隠すため、透過なしの単色で塗りつぶす
+            // (階層色は縁取りと文字色だけで示す)。
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.5.dp, node.tier.color(), RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp)
