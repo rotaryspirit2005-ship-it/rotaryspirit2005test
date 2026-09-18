@@ -68,9 +68,11 @@ private const val DAY_DETAIL_FADE_END = 4f
 /** 期間が長すぎる場合、日の目盛りは大量になりすぎるので出さない。 */
 private const val MAX_DAY_MARKS = 1000
 
-private val TREE_LINE_COLOR = Color(0xFFD8D4C9)
+// 月の目盛り(背景)とツリーの接続線(前景)がほぼ同じ明るさのベージュで見分けにくかったため、
+// 目盛りは背景に馴染む暗さに、接続線ははっきり浮き上がる明るさにして、はっきり区別する。
+private val TREE_LINE_COLOR = Color(0xFFF2F2ED)
 private val PEER_LINK_COLOR = Color(0xFFD946EF)
-private val RULER_LINE_COLOR = Color(0xFFE7E3D8)
+private val RULER_LINE_COLOR = Color(0xFF433F37)
 private val DAY_DETAIL_GRAY = Color(0xFF6B6B6B)
 /** 「警告」っぽく見える赤系ではなく、大きな目標らしい高揚感のある金色にする。 */
 private val GOAL_COLOR = Color(0xFFFFB300)
