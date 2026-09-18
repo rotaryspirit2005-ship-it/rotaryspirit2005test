@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import java.time.LocalDate
 
 class WholeTreeViewModel(
     goalRepository: GoalRepository,
@@ -25,6 +26,6 @@ class WholeTreeViewModel(
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        WholeTree(emptyList(), emptyList(), emptyList(), 0f)
+        WholeTree(emptyList(), emptyList(), emptyList(), LocalDate.now(), LocalDate.now())
     )
 }
