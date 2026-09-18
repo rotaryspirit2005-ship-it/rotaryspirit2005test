@@ -4,13 +4,17 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -35,6 +39,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -58,11 +63,13 @@ private const val DAY_LABEL_MIN_SCALE = 4f
 private const val MAX_DAY_MARKS = 1000
 
 private val TREE_LINE_COLOR = Color(0xFFD8D4C9)
-private val PEER_LINK_COLOR = Color(0xFF8B5CF6)
+private val PEER_LINK_COLOR = Color(0xFFD946EF)
 private val RULER_LINE_COLOR = Color(0xFFE7E3D8)
-private val GOAL_COLOR = Color(0xFFC08A2E)
-private val MILESTONE_COLOR = Color(0xFF2F8F7A)
-private val SCHEDULE_COLOR = Color(0xFF3B5BDB)
+private val GOAL_COLOR = Color(0xFFFF6B4A)
+private val MILESTONE_COLOR = Color(0xFF2EC4B6)
+private val SCHEDULE_COLOR = Color(0xFF4D96FF)
+/** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
+private const val CARD_TINT_RATIO = 0.30f
 
 private fun TreeTier.color(): Color = when (this) {
     TreeTier.GOAL -> GOAL_COLOR
@@ -323,33 +330,45 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
 
 @Composable
 private fun TreeNodeCard(node: TreeNode, scale: Float, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // 無地ではなく階層色をうっすら混ぜた塗り(不透明)にして、ポップな印象にする。
+    // 線を完全に隠すため透過なしで塗る点は変えない。
+    val fillColor = lerp(MaterialTheme.colorScheme.surfaceVariant, node.tier.color(), CARD_TINT_RATIO)
     Column(
         modifier = modifier
             .width(NODE_WIDTH)
             .counterScale(scale)
-            .clip(RoundedCornerShape(10.dp))
-            // 背後の線を完全に隠すため、透過なしの単色で塗りつぶす
-            // (階層色は縁取りと文字色だけで示す)。
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.5.dp, node.tier.color(), RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(fillColor)
+            .border(2.dp, node.tier.color(), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = node.title,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (node.tier == TreeTier.GOAL) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(node.tier.color())
+            )
+            Text(
+                text = node.title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
         if (node.subtitle.isNotBlank()) {
             Text(
                 text = node.subtitle,
                 style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = node.tier.color()
+                color = node.tier.color(),
+                modifier = Modifier.padding(start = 14.dp)
             )
         }
     }

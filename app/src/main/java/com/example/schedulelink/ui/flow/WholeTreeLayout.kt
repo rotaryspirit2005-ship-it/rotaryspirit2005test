@@ -124,8 +124,10 @@ fun buildWholeTree(
         return WholeTree(emptyList(), emptyList(), emptyList(), today, today)
     }
 
-    val minDate = rawNodes.minOf { it.date }.minusDays(3)
-    val maxDate = rawNodes.maxOf { it.date }.plusDays(3)
+    // 前後にゆとりを持たせておくことで、端まで拡大・パンしても目盛りが
+    // 画面いっぱいに続いているように見える(データの範囲ぴったりで途切れない)。
+    val minDate = rawNodes.minOf { it.date }.minusDays(21)
+    val maxDate = rawNodes.maxOf { it.date }.plusDays(21)
 
     val nodes = mutableListOf<TreeNode>()
     for (tier in TreeTier.entries) {
