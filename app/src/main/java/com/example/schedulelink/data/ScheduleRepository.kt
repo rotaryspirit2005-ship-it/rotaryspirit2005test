@@ -48,6 +48,13 @@ class ScheduleRepository(
         collection.observeAsFlow()
             .map { snap -> snap.documents.map { it.toSchedule() }.sortedWith(byDateTime) }
 
+    /** 月表示・週表示で使う、日付範囲(両端含む)の予定一覧。 */
+    fun schedulesInRange(start: LocalDate, end: LocalDate): Flow<List<ScheduleEntity>> =
+        collection.whereGreaterThanOrEqualTo("date", start.toString())
+            .whereLessThanOrEqualTo("date", end.toString())
+            .observeAsFlow()
+            .map { snap -> snap.documents.map { it.toSchedule() }.sortedWith(byDateTime) }
+
     fun schedulesForDate(date: LocalDate): Flow<List<ScheduleWithLinkCount>> =
         collection.whereEqualTo("date", date.toString()).observeAsFlow()
             .map { snap ->

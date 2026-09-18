@@ -1,6 +1,7 @@
 package com.example.schedulelink.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -32,8 +33,15 @@ import com.example.schedulelink.ui.milestone.MilestoneDetailScreen
 import com.example.schedulelink.ui.milestone.MilestoneDetailViewModel
 import com.example.schedulelink.ui.milestone.MilestoneEditScreen
 import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
+import com.example.schedulelink.ui.month.MonthScreen
+import com.example.schedulelink.ui.month.MonthViewModel
+import com.example.schedulelink.ui.week.WeekScreen
+import com.example.schedulelink.ui.week.WeekViewModel
+import java.time.LocalDate
 
-private const val ROUTE_LIST = "list"
+private const val ROUTE_MONTH = "month"
+private const val ROUTE_WEEK = "week/{date}"
+private const val ROUTE_LIST = "list?date={date}"
 private const val ROUTE_DETAIL = "detail/{id}"
 private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}"
 private const val ROUTE_GOALS = "goals"
@@ -58,17 +66,47 @@ fun ScheduleNavHost(
     val navController = rememberNavController()
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository) }
 
-    NavHost(navController = navController, startDestination = ROUTE_LIST) {
-        composable(ROUTE_LIST) {
-            val vm: ScheduleListViewModel = viewModel(factory = factory)
-            ScheduleListScreen(
+    NavHost(navController = navController, startDestination = ROUTE_MONTH) {
+        composable(ROUTE_MONTH) {
+            val vm: MonthViewModel = viewModel(factory = factory)
+            MonthScreen(
                 viewModel = vm,
-                onAddClick = { navController.navigate("edit") },
-                onItemClick = { id -> navController.navigate("detail/$id") },
+                onDayClick = { date -> navController.navigate("week/$date") },
                 onGoalMapClick = { navController.navigate(ROUTE_GOALS) },
                 onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                 onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
                 onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) }
+            )
+        }
+
+        composable(
+            ROUTE_WEEK,
+            arguments = listOf(navArgument("date") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val date = LocalDate.parse(backStackEntry.arguments!!.getString("date")!!)
+            val vm: WeekViewModel = viewModel(factory = factory)
+            WeekScreen(
+                viewModel = vm,
+                initialDate = date,
+                onDayClick = { d -> navController.navigate("list?date=$d") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            ROUTE_LIST,
+            arguments = listOf(navArgument("date") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { backStackEntry ->
+            val dateArg = backStackEntry.arguments?.getString("date")?.let { LocalDate.parse(it) }
+            val vm: ScheduleListViewModel = viewModel(factory = factory)
+            LaunchedEffect(dateArg) {
+                dateArg?.let { vm.selectDate(it) }
+            }
+            ScheduleListScreen(
+                viewModel = vm,
+                onAddClick = { navController.navigate("edit") },
+                onItemClick = { id -> navController.navigate("detail/$id") },
+                onBack = { navController.popBackStack() }
             )
         }
 

@@ -12,16 +12,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -53,52 +50,31 @@ fun ScheduleListScreen(
     viewModel: ScheduleListViewModel,
     onAddClick: () -> Unit,
     onItemClick: (String) -> Unit,
-    onGoalMapClick: () -> Unit,
-    onFamilySettingsClick: () -> Unit,
-    onImportIcsClick: () -> Unit,
-    onImportCalendarClick: () -> Unit
+    onBack: () -> Unit
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val schedules by viewModel.schedules.collectAsState()
     val flowRows by viewModel.flowRows.collectAsState()
     var showFlow by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(selectedDate.format(dateFormatter)) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.goToPreviousDay() }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の日")
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "週表示に戻る")
                     }
                 },
                 actions = {
-                    IconButton(onClick = onGoalMapClick) {
-                        Icon(Icons.Default.Flag, contentDescription = "目的マップ")
+                    IconButton(onClick = { viewModel.goToPreviousDay() }) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の日")
                     }
                     IconButton(onClick = { viewModel.goToToday() }) {
                         Icon(Icons.Default.Today, contentDescription = "今日")
                     }
                     IconButton(onClick = { viewModel.goToNextDay() }) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "次の日")
-                    }
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "その他")
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("家族グループの設定") },
-                            onClick = { showMenu = false; onFamilySettingsClick() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(".icsファイルから読み込む") },
-                            onClick = { showMenu = false; onImportIcsClick() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("端末のカレンダーから読み込む") },
-                            onClick = { showMenu = false; onImportCalendarClick() }
-                        )
                     }
                 }
             )

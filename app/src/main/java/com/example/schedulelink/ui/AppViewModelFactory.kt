@@ -13,6 +13,8 @@ import com.example.schedulelink.ui.goal.GoalListViewModel
 import com.example.schedulelink.ui.list.ScheduleListViewModel
 import com.example.schedulelink.ui.milestone.MilestoneDetailViewModel
 import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
+import com.example.schedulelink.ui.month.MonthViewModel
+import com.example.schedulelink.ui.week.WeekViewModel
 
 class AppViewModelFactory(
     private val repository: ScheduleRepository,
@@ -38,6 +40,10 @@ class AppViewModelFactory(
                 MilestoneEditViewModel(milestoneRepository) as T
             modelClass.isAssignableFrom(MilestoneDetailViewModel::class.java) ->
                 MilestoneDetailViewModel(milestoneRepository, repository) as T
+            modelClass.isAssignableFrom(MonthViewModel::class.java) ->
+                MonthViewModel(repository) as T
+            modelClass.isAssignableFrom(WeekViewModel::class.java) ->
+                WeekViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
