@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -67,6 +68,24 @@ private fun TreeTier.color(): Color = when (this) {
     TreeTier.GOAL -> GOAL_COLOR
     TreeTier.MILESTONE -> MILESTONE_COLOR
     TreeTier.SCHEDULE -> SCHEDULE_COLOR
+}
+
+/**
+ * 標準の大きさ(scale=1)より拡大されている分だけを打ち消す係数。
+ * 縮小方向(scale<1、俯瞰して見るとき)はそのまま自然に小さくなってよいので触らず、
+ * 拡大方向(scale>1、日の目盛りを出すためにつまんで拡大したとき)だけ、
+ * カードや文字・線が際限なく大きくならないよう抑える。
+ */
+private fun capScale(scale: Float): Float = if (scale <= 1f) 1f else 1f / scale
+
+/**
+ * 地図のピンのように、大きく拡大しても画面上の見た目のサイズが際限なく
+ * 大きくならないようにする。実際の位置はズームに合わせて広がるが、
+ * カードや文字自体は標準の大きさ以上には育たない。
+ */
+private fun Modifier.counterScale(scale: Float): Modifier {
+    val factor = capScale(scale)
+    return this.graphicsLayer(scaleX = factor, scaleY = factor)
 }
 
 /**
@@ -202,13 +221,18 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
 
         Box(modifier = Modifier.width(contentWidth).height(contentHeight)) {
             Canvas(modifier = Modifier.width(contentWidth).height(contentHeight)) {
+                // 線の太さも、拡大しすぎたときだけ際限なく太くならないよう抑える。
+                val strokeFactor = capScale(scale)
+                val hairline = (1.dp * strokeFactor).toPx()
+                val edgeStroke = (1.5.dp * strokeFactor).toPx()
+
                 marks.forEach { (date, _) ->
                     val x = dateToX(date).toPx()
                     drawLine(
                         color = RULER_LINE_COLOR,
                         start = Offset(x, RULER_HEIGHT.toPx()),
                         end = Offset(x, contentHeight.toPx()),
-                        strokeWidth = 1.dp.toPx()
+                        strokeWidth = hairline
                     )
                 }
 
@@ -220,14 +244,14 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                                 color = RULER_LINE_COLOR.copy(alpha = 0.5f),
                                 start = Offset(x, RULER_HEIGHT.toPx()),
                                 end = Offset(x, contentHeight.toPx()),
-                                strokeWidth = 1.dp.toPx()
+                                strokeWidth = hairline
                             )
                         } else {
                             drawLine(
                                 color = RULER_LINE_COLOR,
                                 start = Offset(x, (RULER_HEIGHT - 10.dp).toPx()),
                                 end = Offset(x, RULER_HEIGHT.toPx()),
-                                strokeWidth = 1.dp.toPx()
+                                strokeWidth = hairline
                             )
                         }
                     }
@@ -242,7 +266,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                         color = TREE_LINE_COLOR,
                         start = Offset(from.x.dp.toPx(), from.y.dp.toPx()),
                         end = Offset(to.x.dp.toPx(), to.y.dp.toPx()),
-                        strokeWidth = 1.5.dp.toPx()
+                        strokeWidth = edgeStroke
                     )
                 }
                 tree.peerLinks.forEach { link ->
@@ -254,7 +278,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                         color = PEER_LINK_COLOR,
                         start = Offset(a.x.dp.toPx(), a.y.dp.toPx()),
                         end = Offset(b.x.dp.toPx(), b.y.dp.toPx()),
-                        strokeWidth = 1.5.dp.toPx(),
+                        strokeWidth = edgeStroke,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
                     )
                 }
@@ -265,7 +289,9 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.offset(x = dateToX(date) + 4.dp, y = 6.dp)
+                    modifier = Modifier
+                        .offset(x = dateToX(date) + 4.dp, y = 6.dp)
+                        .counterScale(scale)
                 )
             }
 
@@ -275,7 +301,9 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                         text = date.dayOfMonth.toString(),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                        modifier = Modifier.offset(x = dateToX(date) + 2.dp, y = 26.dp)
+                        modifier = Modifier
+                            .offset(x = dateToX(date) + 2.dp, y = 26.dp)
+                            .counterScale(scale)
                     )
                 }
             }
@@ -284,6 +312,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                 val topLeft = topLeftOf(node)
                 TreeNodeCard(
                     node = node,
+                    scale = scale,
                     modifier = Modifier.offset(x = topLeft.x.dp, y = topLeft.y.dp),
                     onClick = { onNodeClick(node) }
                 )
@@ -293,10 +322,11 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
 }
 
 @Composable
-private fun TreeNodeCard(node: TreeNode, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun TreeNodeCard(node: TreeNode, scale: Float, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
         modifier = modifier
             .width(NODE_WIDTH)
+            .counterScale(scale)
             .clip(RoundedCornerShape(10.dp))
             // 背後の線を完全に隠すため、透過なしの単色で塗りつぶす
             // (階層色は縁取りと文字色だけで示す)。
