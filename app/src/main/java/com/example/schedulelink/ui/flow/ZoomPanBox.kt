@@ -71,8 +71,8 @@ fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable (scale: Float
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (change.changedToUpIgnoreConsumed()) break
                             val deltaY = change.position.y - referenceY
-                            // 上にドラッグ(deltaYが負)ほど拡大、下にドラッグほど縮小する。
-                            val factor = exp(-deltaY / sensitivityPx)
+                            // 上にドラッグ(deltaYが負)ほど縮小、下にドラッグほど拡大する。
+                            val factor = exp(deltaY / sensitivityPx)
                             scale = (referenceScale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
                             change.consume()
                         }
