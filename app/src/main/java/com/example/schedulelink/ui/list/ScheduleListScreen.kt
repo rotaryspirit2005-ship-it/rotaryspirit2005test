@@ -1,5 +1,8 @@
 package com.example.schedulelink.ui.list
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,16 +41,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleWithLinkCount
 import com.example.schedulelink.ui.flow.FlowScreen
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.runtime.collectAsState
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Locale.JAPAN)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun ScheduleListScreen(
     viewModel: ScheduleListViewModel,
+    initialDate: LocalDate,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onAddClick: () -> Unit,
     onItemClick: (String) -> Unit,
     onBack: () -> Unit
@@ -57,7 +64,18 @@ fun ScheduleListScreen(
     val flowRows by viewModel.flowRows.collectAsState()
     var showFlow by remember { mutableStateOf(false) }
 
+    // 週表示の該当カードから、この画面全体がコンテナ変形でせり出してくるように見せる。
+    // ここで使うキーは、画面に入った時点の日付(initialDate)で固定しておく
+    // (この画面の中で前後の日付に移動しても、遷移アニメーション用のキーは変えない)。
+    val screenModifier = with(sharedTransitionScope) {
+        Modifier.sharedBounds(
+            rememberSharedContentState(key = "day-$initialDate"),
+            animatedVisibilityScope = animatedVisibilityScope
+        )
+    }
+
     Scaffold(
+        modifier = screenModifier,
         topBar = {
             TopAppBar(
                 title = { Text(selectedDate.format(dateFormatter)) },

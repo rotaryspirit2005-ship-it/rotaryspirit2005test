@@ -1,5 +1,12 @@
 package com.example.schedulelink.ui.navigation
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -53,6 +60,12 @@ private const val ROUTE_FAMILY_SETTINGS = "familySettings"
 private const val ROUTE_IMPORT_ICS = "importIcs"
 private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
 
+/** すべての画面遷移に使う既定のフェード+スケールアニメーション。 */
+private val defaultEnter = fadeIn(tween(220)) + scaleIn(initialScale = 0.94f, animationSpec = tween(220))
+private val defaultExit = fadeOut(tween(180))
+private val defaultPopExit = fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
+
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ScheduleNavHost(
     repository: ScheduleRepository,
@@ -66,52 +79,67 @@ fun ScheduleNavHost(
     val navController = rememberNavController()
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository) }
 
-    NavHost(navController = navController, startDestination = ROUTE_MONTH) {
-        composable(ROUTE_MONTH) {
-            val vm: MonthViewModel = viewModel(factory = factory)
-            MonthScreen(
-                viewModel = vm,
-                onDayClick = { date -> navController.navigate("week/$date") },
-                onGoalMapClick = { navController.navigate(ROUTE_GOALS) },
-                onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
-                onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
-                onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) }
-            )
-        }
-
-        composable(
-            ROUTE_WEEK,
-            arguments = listOf(navArgument("date") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val date = LocalDate.parse(backStackEntry.arguments!!.getString("date")!!)
-            val vm: WeekViewModel = viewModel(factory = factory)
-            WeekScreen(
-                viewModel = vm,
-                initialDate = date,
-                onDayClick = { d -> navController.navigate("list?date=$d") },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            ROUTE_LIST,
-            arguments = listOf(navArgument("date") { type = NavType.StringType; nullable = true; defaultValue = null })
-        ) { backStackEntry ->
-            val dateArg = backStackEntry.arguments?.getString("date")?.let { LocalDate.parse(it) }
-            val vm: ScheduleListViewModel = viewModel(factory = factory)
-            LaunchedEffect(dateArg) {
-                dateArg?.let { vm.selectDate(it) }
+    SharedTransitionLayout {
+        NavHost(
+            navController = navController,
+            startDestination = ROUTE_MONTH,
+            enterTransition = { defaultEnter },
+            exitTransition = { defaultExit },
+            popEnterTransition = { defaultEnter },
+            popExitTransition = { defaultPopExit }
+        ) {
+            composable(ROUTE_MONTH) {
+                val vm: MonthViewModel = viewModel(factory = factory)
+                MonthScreen(
+                    viewModel = vm,
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@composable,
+                    onDayClick = { date -> navController.navigate("week/$date") },
+                    onGoalMapClick = { navController.navigate(ROUTE_GOALS) },
+                    onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
+                    onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
+                    onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) }
+                )
             }
-            ScheduleListScreen(
-                viewModel = vm,
-                onAddClick = { navController.navigate("edit") },
-                onItemClick = { id -> navController.navigate("detail/$id") },
-                onBack = { navController.popBackStack() }
-            )
-        }
 
-        composable(
-            ROUTE_DETAIL,
+            composable(
+                ROUTE_WEEK,
+                arguments = listOf(navArgument("date") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val date = LocalDate.parse(backStackEntry.arguments!!.getString("date")!!)
+                val vm: WeekViewModel = viewModel(factory = factory)
+                WeekScreen(
+                    viewModel = vm,
+                    initialDate = date,
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@composable,
+                    onDayClick = { d -> navController.navigate("list?date=$d") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                ROUTE_LIST,
+                arguments = listOf(navArgument("date") { type = NavType.StringType; nullable = true; defaultValue = null })
+            ) { backStackEntry ->
+                val dateArg = backStackEntry.arguments?.getString("date")?.let { LocalDate.parse(it) }
+                val vm: ScheduleListViewModel = viewModel(factory = factory)
+                LaunchedEffect(dateArg) {
+                    dateArg?.let { vm.selectDate(it) }
+                }
+                ScheduleListScreen(
+                    viewModel = vm,
+                    initialDate = dateArg ?: LocalDate.now(),
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@composable,
+                    onAddClick = { navController.navigate("edit") },
+                    onItemClick = { id -> navController.navigate("detail/$id") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                ROUTE_DETAIL,
             arguments = listOf(navArgument("id") { type = NavType.StringType })
         ) { backStackEntry ->
             val id = backStackEntry.arguments!!.getString("id")!!
@@ -242,6 +270,7 @@ fun ScheduleNavHost(
                 repository = repository,
                 onBack = { navController.popBackStack() }
             )
+        }
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.example.schedulelink.ui.week
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,11 +52,13 @@ private const val ZOOM_IN_THRESHOLD = 1.3f
  * 週表示。日ごとにその日の予定を要約したカードを縦に並べ、
  * タップまたはカード上でのピンチアウトでその日のフロー表示(ScheduleListScreen)へ進める。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun WeekScreen(
     viewModel: WeekViewModel,
     initialDate: LocalDate,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
     onBack: () -> Unit
 ) {
@@ -97,6 +102,8 @@ fun WeekScreen(
                     date = date,
                     isToday = date == today,
                     schedules = schedulesByDate[date].orEmpty(),
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
                     onClick = { onDayClick(date) },
                     onZoomIn = { onDayClick(date) }
                 )
@@ -105,19 +112,29 @@ fun WeekScreen(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun WeekDayCard(
     date: LocalDate,
     isToday: Boolean,
     schedules: List<ScheduleEntity>,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onClick: () -> Unit,
     onZoomIn: () -> Unit
 ) {
     var accumulatedZoom by remember(date) { mutableFloatStateOf(1f) }
+    val cardModifier = with(sharedTransitionScope) {
+        Modifier
+            .fillMaxWidth()
+            .sharedBounds(
+                rememberSharedContentState(key = "day-$date"),
+                animatedVisibilityScope = animatedVisibilityScope
+            )
+    }
     Card(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = cardModifier
             .pointerInput(date) {
                 detectTransformGestures { _, _, zoom, _ ->
                     accumulatedZoom = (accumulatedZoom * zoom).coerceIn(0.3f, 4f)

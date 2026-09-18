@@ -1,5 +1,8 @@
 package com.example.schedulelink.ui.month
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -36,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
@@ -57,10 +62,12 @@ private const val ZOOM_IN_THRESHOLD = 1.3f
  * トップ画面。月全体を俯瞰し、日付をタップするか、その付近をピンチアウトすると
  * その日を含む週の表示(WeekScreen)へ進める。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun MonthScreen(
     viewModel: MonthViewModel,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
     onGoalMapClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
@@ -116,6 +123,8 @@ fun MonthScreen(
             MonthGrid(
                 month = currentMonth,
                 schedulesByDate = schedulesByDate,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope,
                 onDayClick = onDayClick,
                 onPinchZoomDate = onDayClick
             )
@@ -158,10 +167,13 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
     return cells.chunked(7)
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun MonthGrid(
     month: YearMonth,
     schedulesByDate: Map<LocalDate, List<ScheduleEntity>>,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
     onPinchZoomDate: (LocalDate) -> Unit
 ) {
@@ -202,6 +214,8 @@ private fun MonthGrid(
                                 columnIndex = columnIndex,
                                 isToday = date == today,
                                 scheduleCount = schedulesByDate[date]?.size ?: 0,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedVisibilityScope = animatedVisibilityScope,
                                 onClick = { onDayClick(date) }
                             )
                         }
@@ -212,56 +226,69 @@ private fun MonthGrid(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun DayCell(
     date: LocalDate,
     columnIndex: Int,
     isToday: Boolean,
     scheduleCount: Int,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(onClick = onClick)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
+    // このマスを起点に、週表示の同じ日付のカードへ「コンテナごと」滑らかに
+    // 拡大していく(Material Design で言うコンテナ変形)。日付ごとに同じキーを
+    // 使うことで、タップ/ピンチした日だけがWeekScreen側の該当カードと結びつく。
+    with(sharedTransitionScope) {
+        Column(
             modifier = Modifier
-                .size(28.dp)
-                .then(
-                    if (isToday) {
-                        Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .sharedBounds(
+                    rememberSharedContentState(key = "day-$date"),
+                    animatedVisibilityScope = animatedVisibilityScope
+                )
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onClick)
+                .padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isToday) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    weekdayColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onSurface }
-                }
-            )
-        }
-        if (scheduleCount > 0) {
             Box(
                 modifier = Modifier
-                    .padding(top = 2.dp)
-                    .size(6.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape)
-            )
-            if (scheduleCount > 1) {
+                    .size(28.dp)
+                    .then(
+                        if (isToday) {
+                            Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = scheduleCount.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = date.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isToday) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        weekdayColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onSurface }
+                    }
                 )
+            }
+            if (scheduleCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .size(6.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                )
+                if (scheduleCount > 1) {
+                    Text(
+                        text = scheduleCount.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
