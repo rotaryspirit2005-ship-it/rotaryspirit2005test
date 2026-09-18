@@ -6,8 +6,6 @@ import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
-import com.example.schedulelink.ui.flow.FlowRow
-import com.example.schedulelink.ui.flow.observeFlowRows
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -20,12 +18,6 @@ class MilestoneDetailViewModel(
 
     fun schedules(milestoneId: String): Flow<List<ScheduleEntity>> =
         scheduleRepository.schedulesForMilestone(milestoneId)
-
-    fun flowRows(milestoneId: String): Flow<List<FlowRow>> =
-        observeFlowRows(
-            schedulesFlow = scheduleRepository.schedulesForMilestone(milestoneId),
-            repository = scheduleRepository
-        )
 
     fun deleteMilestone(id: String, onDone: () -> Unit) {
         viewModelScope.launch {

@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,14 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleWithLinkCount
-import com.example.schedulelink.ui.flow.FlowScreen
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -61,8 +56,6 @@ fun ScheduleListScreen(
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val schedules by viewModel.schedules.collectAsState()
-    val flowRows by viewModel.flowRows.collectAsState()
-    var showFlow by remember { mutableStateOf(false) }
 
     // 週表示の該当カードから、この画面全体がコンテナ変形でせり出してくるように見せる。
     // ここで使うキーは、画面に入った時点の日付(initialDate)で固定しておく
@@ -103,32 +96,16 @@ fun ScheduleListScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        if (schedules.isEmpty()) {
+            EmptyState(modifier = Modifier.fillMaxSize().padding(padding))
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(selected = !showFlow, onClick = { showFlow = false }, label = { Text("リスト") })
-                FilterChip(selected = showFlow, onClick = { showFlow = true }, label = { Text("フロー") })
-            }
-
-            if (schedules.isEmpty()) {
-                EmptyState()
-            } else if (showFlow) {
-                FlowScreen(
-                    rows = flowRows,
-                    onItemClick = onItemClick,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(schedules, key = { it.schedule.id }) { item ->
-                        ScheduleListItem(item = item, onClick = { onItemClick(item.schedule.id) })
-                    }
+                items(schedules, key = { it.schedule.id }) { item ->
+                    ScheduleListItem(item = item, onClick = { onItemClick(item.schedule.id) })
                 }
             }
         }
@@ -136,9 +113,9 @@ fun ScheduleListScreen(
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Text(

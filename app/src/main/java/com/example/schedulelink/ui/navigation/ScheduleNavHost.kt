@@ -26,6 +26,8 @@ import com.example.schedulelink.ui.detail.ScheduleDetailScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailViewModel
 import com.example.schedulelink.ui.edit.ScheduleEditScreen
 import com.example.schedulelink.ui.edit.ScheduleEditViewModel
+import com.example.schedulelink.ui.flow.WholeTreeFlowScreen
+import com.example.schedulelink.ui.flow.WholeTreeViewModel
 import com.example.schedulelink.ui.goal.GoalDetailScreen
 import com.example.schedulelink.ui.goal.GoalDetailViewModel
 import com.example.schedulelink.ui.goal.GoalEditScreen
@@ -52,6 +54,7 @@ private const val ROUTE_LIST = "list?date={date}"
 private const val ROUTE_DETAIL = "detail/{id}"
 private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}"
 private const val ROUTE_GOALS = "goals"
+private const val ROUTE_WHOLE_TREE = "wholeTree"
 private const val ROUTE_GOAL_EDIT = "goalEdit?id={id}"
 private const val ROUTE_GOAL_DETAIL = "goalDetail/{id}"
 private const val ROUTE_MILESTONE_EDIT = "milestoneEdit/{goalId}?id={id}"
@@ -95,7 +98,7 @@ fun ScheduleNavHost(
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@composable,
                     onDayClick = { date -> navController.navigate("week/$date") },
-                    onGoalMapClick = { navController.navigate(ROUTE_GOALS) },
+                    onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
                     onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) }
@@ -168,6 +171,19 @@ fun ScheduleNavHost(
                 initialMilestoneId = milestoneId,
                 viewModel = vm,
                 onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(ROUTE_WHOLE_TREE) {
+            val vm: WholeTreeViewModel = viewModel(factory = factory)
+            WholeTreeFlowScreen(
+                viewModel = vm,
+                onGoalClick = { id -> navController.navigate("goalDetail/$id") },
+                onMilestoneClick = { id -> navController.navigate("milestoneDetail/$id") },
+                onScheduleClick = { id -> navController.navigate("detail/$id") },
+                onAddGoalClick = { navController.navigate("goalEdit") },
+                onGoalListClick = { navController.navigate(ROUTE_GOALS) },
                 onBack = { navController.popBackStack() }
             )
         }

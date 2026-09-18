@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,7 +18,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
-import com.example.schedulelink.ui.flow.FlowScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,8 +48,6 @@ fun MilestoneDetailScreen(
 ) {
     val milestone by viewModel.milestone(milestoneId).collectAsState(initial = null)
     val schedules by viewModel.schedules(milestoneId).collectAsState(initial = emptyList())
-    val flowRows by viewModel.flowRows(milestoneId).collectAsState(initial = emptyList())
-    var showFlow by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -84,13 +79,6 @@ fun MilestoneDetailScreen(
             milestone?.memo?.takeIf { it.isNotBlank() }?.let {
                 Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(selected = !showFlow, onClick = { showFlow = false }, label = { Text("リスト") })
-                FilterChip(selected = showFlow, onClick = { showFlow = true }, label = { Text("フロー") })
-            }
 
             if (schedules.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -100,12 +88,6 @@ fun MilestoneDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            } else if (showFlow) {
-                FlowScreen(
-                    rows = flowRows,
-                    onItemClick = onScheduleClick,
-                    modifier = Modifier.fillMaxSize()
-                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
