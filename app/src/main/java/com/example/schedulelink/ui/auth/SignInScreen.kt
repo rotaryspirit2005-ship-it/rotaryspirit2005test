@@ -22,15 +22,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.schedulelink.R
 import com.example.schedulelink.data.AuthRepository
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.launch
+
+/**
+ * "default_web_client_id" は google-services.json に Web クライアント(Firebase
+ * コンソールでGoogleサインインを有効にすると自動生成される)が含まれている場合にのみ
+ * ビルド時に生成される。存在しない設定ファイルでもアプリ全体のビルドが壊れないよう、
+ * 生成されたRクラスを直接参照せず、実行時にリソースIDを探す。
+ */
+private fun findDefaultWebClientId(context: android.content.Context): String? {
+    val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+    return if (resId != 0) context.getString(resId) else null
+}
 
 @Composable
 fun SignInScreen(authRepository: AuthRepository) {
@@ -38,8 +47,33 @@ fun SignInScreen(authRepository: AuthRepository) {
     val scope = rememberCoroutineScope()
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val webClientId = stringResource(R.string.default_web_client_id)
-    val signInClient = remember {
+    val webClientId = remember { findDefaultWebClientId(context) }
+
+    if (webClientId == null) {
+        Scaffold { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("予定リンク", style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Googleサインインの設定が完了していません。\n" +
+                        "Firebaseコンソールの「Authentication」で Google サインインを有効にしてから、\n" +
+                        "google-services.json を再ダウンロードして差し替えてください。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        return
+    }
+
+    val signInClient = remember(webClientId) {
         val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(webClientId)
             .requestEmail()
