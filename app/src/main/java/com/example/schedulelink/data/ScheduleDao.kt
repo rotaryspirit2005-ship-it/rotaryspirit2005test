@@ -28,6 +28,12 @@ interface ScheduleDao {
     @Query("SELECT * FROM schedules WHERE id = :id")
     fun observeById(id: Long): Flow<ScheduleEntity?>
 
+    @Query("SELECT * FROM schedules WHERE milestoneId = :milestoneId ORDER BY date, startTime")
+    fun observeByMilestone(milestoneId: Long): Flow<List<ScheduleEntity>>
+
+    @Query("SELECT COUNT(*) FROM schedules WHERE milestoneId = :milestoneId")
+    fun observeCountForMilestone(milestoneId: Long): Flow<Int>
+
     @Insert
     suspend fun insert(schedule: ScheduleEntity): Long
 

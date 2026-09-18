@@ -4,11 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinkCount
+import com.example.schedulelink.ui.flow.FlowRow
+import com.example.schedulelink.ui.flow.observeFlowRows
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -18,10 +22,15 @@ class ScheduleListViewModel(private val repository: ScheduleRepository) : ViewMo
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @OptIn(ExperimentalCoroutinesApi::class)
     val schedules: StateFlow<List<ScheduleWithLinkCount>> = _selectedDate
         .flatMapLatest { date -> repository.schedulesForDate(date) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val flowRows: StateFlow<List<FlowRow>> = observeFlowRows(
+        schedulesFlow = schedules.map { list -> list.map { it.schedule } },
+        repository = repository
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date

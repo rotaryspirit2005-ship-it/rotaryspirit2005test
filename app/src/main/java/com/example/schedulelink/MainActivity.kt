@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val repository = (application as ScheduleLinkApplication).repository
+        val app = application as ScheduleLinkApplication
 
         setContent {
             ScheduleLinkTheme {
@@ -22,7 +22,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ScheduleNavHost(repository = repository)
+                    ScheduleNavHost(
+                        repository = app.repository,
+                        goalRepository = app.goalRepository,
+                        milestoneRepository = app.milestoneRepository
+                    )
                 }
             }
         }

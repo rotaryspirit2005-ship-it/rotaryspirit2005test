@@ -16,4 +16,16 @@ class Converters {
 
     @TypeConverter
     fun toLocalTime(value: String?): LocalTime? = value?.let { LocalTime.parse(it) }
+
+    @TypeConverter
+    fun fromGoalType(type: GoalType): String = type.name
+
+    @TypeConverter
+    fun toGoalType(value: String): GoalType = GoalType.valueOf(value)
+
+    @TypeConverter
+    fun fromMilestoneStatus(status: MilestoneStatus): String = status.name
+
+    @TypeConverter
+    fun toMilestoneStatus(value: String): MilestoneStatus = MilestoneStatus.valueOf(value)
 }

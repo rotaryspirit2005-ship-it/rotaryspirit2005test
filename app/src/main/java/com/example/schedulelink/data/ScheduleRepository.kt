@@ -13,6 +13,11 @@ class ScheduleRepository(private val dao: ScheduleDao) {
 
     fun scheduleById(id: Long): Flow<ScheduleEntity?> = dao.observeById(id)
 
+    fun schedulesForMilestone(milestoneId: Long): Flow<List<ScheduleEntity>> =
+        dao.observeByMilestone(milestoneId)
+
+    fun countForMilestone(milestoneId: Long): Flow<Int> = dao.observeCountForMilestone(milestoneId)
+
     fun linkedSchedules(id: Long): Flow<List<ScheduleEntity>> = dao.observeLinkedSchedules(id)
 
     fun linkedIds(id: Long): Flow<List<Long>> = dao.observeLinkedIds(id)

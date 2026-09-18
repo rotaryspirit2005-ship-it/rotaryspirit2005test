@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
@@ -22,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +54,7 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Lo
 @Composable
 fun ScheduleEditScreen(
     scheduleId: Long?,
+    initialMilestoneId: Long?,
     viewModel: ScheduleEditViewModel,
     onSaved: () -> Unit,
     onBack: () -> Unit
@@ -62,12 +65,14 @@ fun ScheduleEditScreen(
     var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var linkedIds by remember { mutableStateOf(setOf<Long>()) }
+    var milestoneId by remember { mutableStateOf(initialMilestoneId) }
     var loaded by remember { mutableStateOf(scheduleId == null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
+    var showMilestonePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(scheduleId) {
         if (scheduleId != null) {
@@ -78,6 +83,7 @@ fun ScheduleEditScreen(
                 startTime = schedule.startTime
                 endTime = schedule.endTime
                 linkedIds = links
+                milestoneId = schedule.milestoneId
                 loaded = true
             }
         }
@@ -85,6 +91,8 @@ fun ScheduleEditScreen(
 
     val allSchedules by viewModel.allSchedules.collectAsState()
     val candidateLinks = allSchedules.filter { it.id != (scheduleId ?: -1L) }
+    val allMilestones by viewModel.allMilestones.collectAsState()
+    val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
     Scaffold(
         topBar = {
@@ -144,6 +152,10 @@ fun ScheduleEditScreen(
                     ) {
                         Text("終了: $endTime")
                     }
+                }
+
+                OutlinedButton(onClick = { showMilestonePicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("所属する中日程: $selectedMilestoneTitle")
                 }
 
                 Text(
@@ -206,7 +218,8 @@ fun ScheduleEditScreen(
                                     memo = memo.trim(),
                                     date = date,
                                     startTime = startTime,
-                                    endTime = endTime
+                                    endTime = endTime,
+                                    milestoneId = milestoneId
                                 )
                                 viewModel.save(schedule, linkedIds) { onSaved() }
                             }
@@ -272,6 +285,52 @@ fun ScheduleEditScreen(
             onConfirm = {
                 endTime = LocalTime.of(state.hour, state.minute)
                 showEndTimePicker = false
+            }
+        )
+    }
+
+    if (showMilestonePicker) {
+        AlertDialog(
+            onDismissRequest = { showMilestonePicker = false },
+            title = { Text("所属する中日程を選択") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                milestoneId = null
+                                showMilestonePicker = false
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = milestoneId == null, onClick = {
+                            milestoneId = null
+                            showMilestonePicker = false
+                        })
+                        Text("なし")
+                    }
+                    allMilestones.forEach { milestone ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    milestoneId = milestone.id
+                                    showMilestonePicker = false
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = milestoneId == milestone.id, onClick = {
+                                milestoneId = milestone.id
+                                showMilestonePicker = false
+                            })
+                            Text(milestone.title)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMilestonePicker = false }) { Text("閉じる") }
             }
         )
     }
