@@ -18,6 +18,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // GitHub Actions は毎回まっさらな環境でビルドするため、標準のデバッグ用
+            // キーストアだと署名(=SHA-1)がビルドのたびに変わってしまい、
+            // Firebaseに登録したSHA-1とズレてGoogleサインインが失敗する。
+            // 常に同じ鍵で署名されるよう、リポジトリに同梱した専用のデバッグ用
+            // キーストアを使う。
+            storeFile = file("debug-keystore.jks")
+            storePassword = "android"
+            keyAlias = "schedulelink-debug"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
