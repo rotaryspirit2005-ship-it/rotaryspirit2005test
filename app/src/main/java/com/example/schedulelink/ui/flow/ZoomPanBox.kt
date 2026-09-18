@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.exp
 
@@ -37,14 +40,30 @@ private const val ONE_FINGER_ZOOM_SENSITIVITY_DP = 250f
  *
  * 地図アプリと同じく、1本指でダブルタップした状態のまま上下にドラッグしても
  * 拡大縮小できる(片手操作用)。
+ *
+ * [initialFocusX]を指定すると、最初に表示されたときにその横位置が画面の中央に
+ * 来るようパン位置を合わせる(例: 「今日」の日付を中央にして開く)。
  */
 @Composable
-fun ZoomPanBox(modifier: Modifier = Modifier, content: @Composable (scale: Float) -> Unit) {
+fun ZoomPanBox(
+    modifier: Modifier = Modifier,
+    initialFocusX: Dp? = null,
+    content: @Composable (scale: Float) -> Unit
+) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var hasAppliedInitialFocus by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
 
     Box(
         modifier = modifier
+            .onSizeChanged { size ->
+                if (!hasAppliedInitialFocus && initialFocusX != null) {
+                    hasAppliedInitialFocus = true
+                    val focusPx = with(density) { initialFocusX.toPx() }
+                    offset = Offset(size.width / 2f - focusPx, offset.y)
+                }
+            }
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     scale = (scale * zoom).coerceIn(MIN_SCALE, MAX_SCALE)

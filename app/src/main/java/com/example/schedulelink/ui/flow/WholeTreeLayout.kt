@@ -2,6 +2,7 @@ package com.example.schedulelink.ui.flow
 
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.MilestoneEntity
+import com.example.schedulelink.data.MilestoneStatus
 import com.example.schedulelink.data.ScheduleEntity
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -9,6 +10,9 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 enum class TreeTier { GOAL, MILESTONE, SCHEDULE }
+
+/** ノードの進み具合。マップ上での見た目(完了は少し暗くする等)に使う。 */
+enum class NodeStatus { DONE, ACTIVE, UPCOMING }
 
 data class TreeNode(
     val id: String,
@@ -18,7 +22,8 @@ data class TreeNode(
     /** タイムライン上の位置を決める日付。 */
     val date: LocalDate,
     /** 同じ階層で日付が近いノードどうしが重ならないよう、縦にずらすためのレーン番号。 */
-    val lane: Int
+    val lane: Int,
+    val status: NodeStatus
 )
 
 /** 小日程どうしの横のリンク(親子関係とは別の、同じ階層内のつながり)。 */
@@ -44,7 +49,8 @@ private data class RawNode(
     val tier: TreeTier,
     val title: String,
     val subtitle: String,
-    val date: LocalDate
+    val date: LocalDate,
+    val status: NodeStatus
 )
 
 /**
@@ -77,25 +83,47 @@ fun buildWholeTree(
         return childDates.minOrNull() ?: today
     }
 
+    fun scheduleStatus(schedule: ScheduleEntity): NodeStatus = when {
+        schedule.date.isBefore(today) -> NodeStatus.DONE
+        schedule.date.isEqual(today) -> NodeStatus.ACTIVE
+        else -> NodeStatus.UPCOMING
+    }
+
+    fun milestoneStatus(milestone: MilestoneEntity): NodeStatus = when (milestone.status) {
+        MilestoneStatus.DONE -> NodeStatus.DONE
+        MilestoneStatus.ACTIVE -> NodeStatus.ACTIVE
+        MilestoneStatus.UPCOMING -> NodeStatus.UPCOMING
+    }
+
+    // 大目的自体には完了フラグが無いので、配下の中日程の状態から推測する。
+    // (中日程が1つも無い場合だけ、目的自身の開始日・終了日から推測する。)
+    fun goalStatus(goal: GoalEntity, milestoneStatuses: List<NodeStatus>): NodeStatus = when {
+        milestoneStatuses.isNotEmpty() && milestoneStatuses.all { it == NodeStatus.DONE } -> NodeStatus.DONE
+        milestoneStatuses.any { it == NodeStatus.DONE || it == NodeStatus.ACTIVE } -> NodeStatus.ACTIVE
+        milestoneStatuses.isNotEmpty() -> NodeStatus.UPCOMING
+        goal.endDate != null && goal.endDate.isBefore(today) -> NodeStatus.DONE
+        goal.startDate != null && !goal.startDate.isAfter(today) -> NodeStatus.ACTIVE
+        else -> NodeStatus.UPCOMING
+    }
+
     val rawNodes = mutableListOf<RawNode>()
     val edges = mutableListOf<Pair<String, String>>()
 
     for (goal in goals) {
-        rawNodes += RawNode(
-            id = goal.id,
-            tier = TreeTier.GOAL,
-            title = goal.title,
-            subtitle = formatRangeSubtitle(goal.startDate, goal.endDate),
-            date = goalDate(goal)
-        )
-        for (milestone in milestonesByGoal[goal.id].orEmpty()) {
+        val goalMilestones = milestonesByGoal[goal.id].orEmpty()
+        val milestoneStatuses = mutableListOf<NodeStatus>()
+
+        for (milestone in goalMilestones) {
             edges += goal.id to milestone.id
+            val mStatus = milestoneStatus(milestone)
+            milestoneStatuses += mStatus
             rawNodes += RawNode(
                 id = milestone.id,
                 tier = TreeTier.MILESTONE,
                 title = milestone.title,
                 subtitle = formatRangeSubtitle(milestone.startDate, milestone.endDate),
-                date = milestoneDateById.getValue(milestone.id)
+                date = milestoneDateById.getValue(milestone.id),
+                status = mStatus
             )
             for (schedule in schedulesByMilestone[milestone.id].orEmpty()) {
                 edges += milestone.id to schedule.id
@@ -104,10 +132,20 @@ fun buildWholeTree(
                     tier = TreeTier.SCHEDULE,
                     title = schedule.title,
                     subtitle = "${schedule.date.format(monthDayFormatter)} ${schedule.startTime}",
-                    date = schedule.date
+                    date = schedule.date,
+                    status = scheduleStatus(schedule)
                 )
             }
         }
+
+        rawNodes += RawNode(
+            id = goal.id,
+            tier = TreeTier.GOAL,
+            title = goal.title,
+            subtitle = formatRangeSubtitle(goal.startDate, goal.endDate),
+            date = goalDate(goal),
+            status = goalStatus(goal, milestoneStatuses)
+        )
     }
 
     for (schedule in orphanSchedules) {
@@ -116,7 +154,8 @@ fun buildWholeTree(
             tier = TreeTier.SCHEDULE,
             title = schedule.title,
             subtitle = "${schedule.date.format(monthDayFormatter)} ${schedule.startTime}",
-            date = schedule.date
+            date = schedule.date,
+            status = scheduleStatus(schedule)
         )
     }
 
@@ -144,7 +183,7 @@ fun buildWholeTree(
             } else {
                 laneFreeFromDay[lane] = startDay + MIN_GAP_DAYS
             }
-            nodes += TreeNode(raw.id, raw.tier, raw.title, raw.subtitle, raw.date, lane)
+            nodes += TreeNode(raw.id, raw.tier, raw.title, raw.subtitle, raw.date, lane, raw.status)
         }
     }
 

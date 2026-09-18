@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -37,7 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
@@ -68,9 +71,12 @@ private val TREE_LINE_COLOR = Color(0xFFD8D4C9)
 private val PEER_LINK_COLOR = Color(0xFFD946EF)
 private val RULER_LINE_COLOR = Color(0xFFE7E3D8)
 private val DAY_DETAIL_GRAY = Color(0xFF6B6B6B)
-private val GOAL_COLOR = Color(0xFFFF6B4A)
+/** 「警告」っぽく見える赤系ではなく、大きな目標らしい高揚感のある金色にする。 */
+private val GOAL_COLOR = Color(0xFFFFB300)
 private val MILESTONE_COLOR = Color(0xFF2EC4B6)
 private val SCHEDULE_COLOR = Color(0xFF4D96FF)
+/** 「今日」を示す縦線。他のどの階層色とも被らない赤にして、カレンダーの定番配色に合わせる。 */
+private val TODAY_LINE_COLOR = Color(0xFFFF3B30)
 /** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
 private const val CARD_TINT_RATIO = 0.30f
 
@@ -227,8 +233,13 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
     }
 
     val contentWidth = dateToX(tree.maxDate) + NODE_WIDTH + MARGIN
+    val today = remember { LocalDate.now() }
+    val todayInRange = !today.isBefore(tree.minDate) && !today.isAfter(tree.maxDate)
 
-    ZoomPanBox(modifier = Modifier.fillMaxSize()) { scale ->
+    ZoomPanBox(
+        modifier = Modifier.fillMaxSize(),
+        initialFocusX = if (todayInRange) dateToX(today) else null
+    ) { scale ->
         // 拡大率に応じて0〜1で滑らかに変化する進捗値。日の目盛りは常に薄く見えており、
         // 拡大するほどグレーから白へ、じわじわ濃く・明るくなっていく(数字は線より少し遅れて追いつく)。
         val tickProgress = ((scale - DAY_TICK_FADE_START) / (DAY_DETAIL_FADE_END - DAY_TICK_FADE_START)).coerceIn(0f, 1f)
@@ -269,11 +280,26 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     val child = nodesById[childId] ?: return@forEach
                     val from = centerOf(parent)
                     val to = centerOf(child)
+                    val fromPx = Offset(from.x.dp.toPx(), from.y.dp.toPx())
+                    val toPx = Offset(to.x.dp.toPx(), to.y.dp.toPx())
+                    // 斜めの直線だと枝が増えたときに交差して読みにくいので、
+                    // 組織図のような直角(エルボー)の線でつなぐ。
+                    val midY = (fromPx.y + toPx.y) / 2f
+                    val elbow = Path().apply {
+                        moveTo(fromPx.x, fromPx.y)
+                        lineTo(fromPx.x, midY)
+                        lineTo(toPx.x, midY)
+                        lineTo(toPx.x, toPx.y)
+                    }
+                    drawPath(path = elbow, color = TREE_LINE_COLOR, style = Stroke(width = edgeStroke))
+                }
+                if (todayInRange) {
+                    val todayX = dateToX(today).toPx()
                     drawLine(
-                        color = TREE_LINE_COLOR,
-                        start = Offset(from.x.dp.toPx(), from.y.dp.toPx()),
-                        end = Offset(to.x.dp.toPx(), to.y.dp.toPx()),
-                        strokeWidth = edgeStroke
+                        color = TODAY_LINE_COLOR,
+                        start = Offset(todayX, 0f),
+                        end = Offset(todayX, contentHeight.toPx()),
+                        strokeWidth = edgeStroke * 1.6f
                     )
                 }
                 tree.peerLinks.forEach { link ->
@@ -333,24 +359,35 @@ private fun TreeNodeCard(node: TreeNode, scale: Float, modifier: Modifier = Modi
     // 無地ではなく階層色をうっすら混ぜた塗り(不透明)にして、ポップな印象にする。
     // 線を完全に隠すため透過なしで塗る点は変えない。
     val fillColor = lerp(MaterialTheme.colorScheme.surfaceVariant, node.tier.color(), CARD_TINT_RATIO)
+    val isDone = node.status == NodeStatus.DONE
     Column(
         modifier = modifier
             .width(NODE_WIDTH)
             .counterScale(scale)
+            // 完了したものは少し暗くして、進み具合が一目でわかるようにする。
+            .graphicsLayer(alpha = if (isDone) 0.55f else 1f)
             .clip(RoundedCornerShape(16.dp))
             .background(fillColor)
             .border(2.dp, node.tier.color(), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(node.tier.color())
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (isDone) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "完了",
+                    tint = node.tier.color(),
+                    modifier = Modifier.size(10.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(node.tier.color())
+                )
+            }
             Text(
                 text = node.title,
                 style = MaterialTheme.typography.labelMedium,
