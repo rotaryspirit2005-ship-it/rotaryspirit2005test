@@ -53,9 +53,18 @@ SHA-1 を入力し忘れて登録してしまっても大丈夫です。Firebase
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // サインイン中のユーザー本人の「どの家族に所属しているか」を保存する場所。
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     match /families/{familyId} {
-      allow read: if request.auth != null &&
-        request.auth.uid in resource.data.members;
+      // 招待コードで検索して参加する際、まだメンバーになっていない状態でも
+      // familyドキュメント自体(名前・招待コード)は読める必要があるため、
+      // サインインしていれば読み取りは許可する(実際の予定データは下の
+      // サブコレクションのルールで、メンバーだけに制限している)。
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update: if request.auth != null &&
         request.auth.uid in resource.data.members;
@@ -68,6 +77,10 @@ service cloud.firestore {
   }
 }
 ```
+
+> **重要**: 上記は最初に案内したものから修正しています。もしすでにルールを保存済みの場合は、
+> 上記の内容で上書きして再度「公開」してください。(`users` コレクションのルールが
+> 抜けていたため、サインイン直後にアプリが落ちる不具合がありました。)
 
 ## 5. 差し替えたら
 
