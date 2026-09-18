@@ -1,9 +1,10 @@
 package com.example.schedulelink.ui.flow
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,15 +33,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +83,15 @@ private const val CARD_TINT_RATIO = 0.30f
 
 /** 日の目盛りが常に「ちらっと見える」最低限の透明度。 */
 private const val DAY_TICK_MIN_ALPHA = 0.12f
+
+/**
+ * 同じ階層の間(親子の隙間)に、線の高さをずらして重なりを減らすための段数。
+ * 隣り合う親どうしに別の段を割り当てることで、水平線が同じ高さに集まりにくくする。
+ */
+private const val BUS_SLOT_COUNT = 3
+
+/** 選択中のノードと無関係な線を薄くする際の透明度。 */
+private const val DIMMED_LINE_ALPHA = 0.15f
 
 private fun TreeTier.color(): Color = when (this) {
     TreeTier.GOAL -> GOAL_COLOR
@@ -196,12 +206,26 @@ private fun dayMarks(minDate: LocalDate, maxDate: LocalDate): List<LocalDate> {
     return marks
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
     val nodesById = remember(tree) { tree.nodes.associateBy { it.id } }
     val nodesByTier = remember(tree) { tree.nodes.groupBy { it.tier } }
     val marks = remember(tree) { monthMarks(tree.minDate, tree.maxDate) }
     val dayMarksList = remember(tree) { dayMarks(tree.minDate, tree.maxDate) }
+    // 兄弟(同じ親を持つ子)をまとめて1本の共通の縦線+横のバスでつなぐことで、
+    // 子1つずつに水平線を引いていたときの重なりを減らす(組織図と同じ考え方)。
+    val parentGroups = remember(tree) {
+        tree.treeEdges.groupBy({ it.first }, { it.second })
+            .toList()
+            .sortedBy { (parentId, _) -> nodesById[parentId]?.date ?: LocalDate.MIN }
+    }
+    // 隣り合う親どうしのバスの高さが同じ位置に集まらないよう、段をずらして割り当てる。
+    val busSlotByParent = remember(parentGroups) {
+        parentGroups.mapIndexed { index, (parentId, _) -> parentId to (index % BUS_SLOT_COUNT) }.toMap()
+    }
+    // 長押しで選んだノードに関わる線だけをくっきり見せ、他は薄くして見やすくする。
+    var selectedNodeId by remember(tree) { mutableStateOf<String?>(null) }
 
     fun dateToX(date: LocalDate): Dp =
         MARGIN + (ChronoUnit.DAYS.between(tree.minDate, date) * PX_PER_DAY).dp
@@ -220,6 +244,19 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
         TreeTier.GOAL -> goalBaseY
         TreeTier.MILESTONE -> milestoneBaseY
         TreeTier.SCHEDULE -> scheduleBaseY
+    }
+
+    // 親の階層と子の階層の間の隙間の中で、段(slot)に応じた高さにバスを置く。
+    // この隙間はどのレーンの組み合わせでも必ず親より下・子より上になるので、
+    // 線が上下逆になることはない。
+    fun busY(parentTier: TreeTier, slot: Int): Dp {
+        val (gapTop, gapBottom) = when (parentTier) {
+            TreeTier.GOAL -> goalBaseY + goalTierHeight to milestoneBaseY
+            TreeTier.MILESTONE -> milestoneBaseY + milestoneTierHeight to scheduleBaseY
+            TreeTier.SCHEDULE -> scheduleBaseY to scheduleBaseY
+        }
+        val fraction = (slot + 1f) / (BUS_SLOT_COUNT + 1f)
+        return gapTop + (gapBottom - gapTop) * fraction
     }
 
     fun topLeftOf(node: TreeNode): Offset = Offset(
@@ -275,23 +312,40 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     )
                 }
 
-                tree.treeEdges.forEach { (parentId, childId) ->
+                parentGroups.forEach { (parentId, childIds) ->
                     val parent = nodesById[parentId] ?: return@forEach
-                    val child = nodesById[childId] ?: return@forEach
-                    val from = centerOf(parent)
-                    val to = centerOf(child)
-                    val fromPx = Offset(from.x.dp.toPx(), from.y.dp.toPx())
-                    val toPx = Offset(to.x.dp.toPx(), to.y.dp.toPx())
-                    // 斜めの直線だと枝が増えたときに交差して読みにくいので、
-                    // 組織図のような直角(エルボー)の線でつなぐ。
-                    val midY = (fromPx.y + toPx.y) / 2f
-                    val elbow = Path().apply {
-                        moveTo(fromPx.x, fromPx.y)
-                        lineTo(fromPx.x, midY)
-                        lineTo(toPx.x, midY)
-                        lineTo(toPx.x, toPx.y)
+                    val children = childIds.mapNotNull { nodesById[it] }
+                    if (children.isEmpty()) return@forEach
+
+                    val slot = busSlotByParent[parentId] ?: 0
+                    val bus = busY(parent.tier, slot).toPx()
+                    val parentCenter = centerOf(parent)
+                    val parentPx = Offset(parentCenter.x.dp.toPx(), parentCenter.y.dp.toPx())
+                    val childPxList = children.map { child ->
+                        val c = centerOf(child)
+                        Triple(child.id, Offset(c.x.dp.toPx(), c.y.dp.toPx()), child)
                     }
-                    drawPath(path = elbow, color = TREE_LINE_COLOR, style = Stroke(width = edgeStroke))
+                    val minX = minOf(parentPx.x, childPxList.minOf { it.second.x })
+                    val maxX = maxOf(parentPx.x, childPxList.maxOf { it.second.x })
+
+                    val isParentSelected = selectedNodeId != null && selectedNodeId == parentId
+                    val groupHighlighted = selectedNodeId == null ||
+                        isParentSelected ||
+                        childPxList.any { it.first == selectedNodeId }
+                    val trunkColor = if (groupHighlighted) TREE_LINE_COLOR else TREE_LINE_COLOR.copy(alpha = DIMMED_LINE_ALPHA)
+                    val trunkStroke = if (selectedNodeId != null && groupHighlighted) edgeStroke * 1.4f else edgeStroke
+
+                    // 幹: 親から、複数の子をまとめる共通のバス(横線)まで一本で下ろす。
+                    drawLine(color = trunkColor, start = parentPx, end = Offset(parentPx.x, bus), strokeWidth = trunkStroke)
+                    // バス: 兄弟をまとめる横線。子1つずつに水平線を引かないことで重なりを減らす。
+                    drawLine(color = trunkColor, start = Offset(minX, bus), end = Offset(maxX, bus), strokeWidth = trunkStroke)
+                    // 枝: バスから各子へ下ろす。
+                    childPxList.forEach { (childId, childPx, _) ->
+                        val isChildHighlighted = selectedNodeId == null || isParentSelected || selectedNodeId == childId
+                        val branchColor = if (isChildHighlighted) TREE_LINE_COLOR else TREE_LINE_COLOR.copy(alpha = DIMMED_LINE_ALPHA)
+                        val branchStroke = if (selectedNodeId != null && isChildHighlighted) edgeStroke * 1.4f else edgeStroke
+                        drawLine(color = branchColor, start = Offset(childPx.x, bus), end = childPx, strokeWidth = branchStroke)
+                    }
                 }
                 if (todayInRange) {
                     val todayX = dateToX(today).toPx()
@@ -307,11 +361,15 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     val to = nodesById[link.toId] ?: return@forEach
                     val a = centerOf(from)
                     val b = centerOf(to)
+                    val isHighlighted = selectedNodeId == null ||
+                        selectedNodeId == link.fromId ||
+                        selectedNodeId == link.toId
+                    val color = if (isHighlighted) PEER_LINK_COLOR else PEER_LINK_COLOR.copy(alpha = DIMMED_LINE_ALPHA)
                     drawLine(
-                        color = PEER_LINK_COLOR,
+                        color = color,
                         start = Offset(a.x.dp.toPx(), a.y.dp.toPx()),
                         end = Offset(b.x.dp.toPx(), b.y.dp.toPx()),
-                        strokeWidth = edgeStroke,
+                        strokeWidth = if (isHighlighted && selectedNodeId != null) edgeStroke * 1.4f else edgeStroke,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
                     )
                 }
@@ -346,16 +404,28 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                 TreeNodeCard(
                     node = node,
                     scale = scale,
+                    isSelected = selectedNodeId == node.id,
                     modifier = Modifier.offset(x = topLeft.x.dp, y = topLeft.y.dp),
-                    onClick = { onNodeClick(node) }
+                    onClick = { onNodeClick(node) },
+                    onLongClick = {
+                        selectedNodeId = if (selectedNodeId == node.id) null else node.id
+                    }
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TreeNodeCard(node: TreeNode, scale: Float, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun TreeNodeCard(
+    node: TreeNode,
+    scale: Float,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
     // 無地ではなく階層色をうっすら混ぜた塗り(不透明)にして、ポップな印象にする。
     // 線を完全に隠すため透過なしで塗る点は変えない。
     val fillColor = lerp(MaterialTheme.colorScheme.surfaceVariant, node.tier.color(), CARD_TINT_RATIO)
@@ -368,8 +438,10 @@ private fun TreeNodeCard(node: TreeNode, scale: Float, modifier: Modifier = Modi
             .graphicsLayer(alpha = if (isDone) 0.55f else 1f)
             .clip(RoundedCornerShape(16.dp))
             .background(fillColor)
-            .border(2.dp, node.tier.color(), RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            // 長押しで選ぶと、そのノードに関わる線だけが強調されるので、
+            // 選択中であることが分かるよう枠を太くする。
+            .border(if (isSelected) 4.dp else 2.dp, node.tier.color(), RoundedCornerShape(16.dp))
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
