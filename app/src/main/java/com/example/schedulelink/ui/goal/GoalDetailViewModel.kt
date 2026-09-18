@@ -15,14 +15,15 @@ class GoalDetailViewModel(
     private val milestoneRepository: MilestoneRepository
 ) : ViewModel() {
 
-    fun goal(id: Long): Flow<GoalEntity?> = goalRepository.goalById(id)
+    fun goal(id: String): Flow<GoalEntity?> = goalRepository.goalById(id)
 
-    fun milestones(goalId: Long): Flow<List<MilestoneEntity>> = milestoneRepository.milestonesForGoal(goalId)
+    fun milestones(goalId: String): Flow<List<MilestoneEntity>> = milestoneRepository.milestonesForGoal(goalId)
 
-    fun progress(goalId: Long): Flow<GoalProgress> = milestoneRepository.progressForGoal(goalId)
+    fun progress(goalId: String): Flow<GoalProgress> = milestoneRepository.progressForGoal(goalId)
 
-    fun deleteGoal(id: Long, onDone: () -> Unit) {
+    fun deleteGoal(id: String, onDone: () -> Unit) {
         viewModelScope.launch {
+            milestoneRepository.deleteAllForGoal(id)
             goalRepository.deleteGoal(id)
             onDone()
         }

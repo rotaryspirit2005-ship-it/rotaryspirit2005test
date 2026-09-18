@@ -35,7 +35,10 @@ class GoalListViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun deleteGoal(id: Long) {
-        viewModelScope.launch { goalRepository.deleteGoal(id) }
+    fun deleteGoal(id: String) {
+        viewModelScope.launch {
+            milestoneRepository.deleteAllForGoal(id)
+            goalRepository.deleteGoal(id)
+        }
     }
 }

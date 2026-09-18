@@ -16,9 +16,12 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -49,13 +52,17 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Lo
 fun ScheduleListScreen(
     viewModel: ScheduleListViewModel,
     onAddClick: () -> Unit,
-    onItemClick: (Long) -> Unit,
-    onGoalMapClick: () -> Unit
+    onItemClick: (String) -> Unit,
+    onGoalMapClick: () -> Unit,
+    onFamilySettingsClick: () -> Unit,
+    onImportIcsClick: () -> Unit,
+    onImportCalendarClick: () -> Unit
 ) {
     val selectedDate by viewModel.selectedDate.collectAsState()
     val schedules by viewModel.schedules.collectAsState()
     val flowRows by viewModel.flowRows.collectAsState()
     var showFlow by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -75,6 +82,23 @@ fun ScheduleListScreen(
                     }
                     IconButton(onClick = { viewModel.goToNextDay() }) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "次の日")
+                    }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "その他")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("家族グループの設定") },
+                            onClick = { showMenu = false; onFamilySettingsClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(".icsファイルから読み込む") },
+                            onClick = { showMenu = false; onImportIcsClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("端末のカレンダーから読み込む") },
+                            onClick = { showMenu = false; onImportCalendarClick() }
+                        )
                     }
                 }
             )

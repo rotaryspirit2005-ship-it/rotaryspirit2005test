@@ -42,12 +42,12 @@ import com.example.schedulelink.ui.flow.FlowScreen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MilestoneDetailScreen(
-    milestoneId: Long,
+    milestoneId: String,
     viewModel: MilestoneDetailViewModel,
-    onEdit: (goalId: Long, milestoneId: Long) -> Unit,
+    onEdit: (goalId: String, milestoneId: String) -> Unit,
     onBack: () -> Unit,
-    onAddSchedule: (Long) -> Unit,
-    onScheduleClick: (Long) -> Unit
+    onAddSchedule: (String) -> Unit,
+    onScheduleClick: (String) -> Unit
 ) {
     val milestone by viewModel.milestone(milestoneId).collectAsState(initial = null)
     val schedules by viewModel.schedules(milestoneId).collectAsState(initial = emptyList())

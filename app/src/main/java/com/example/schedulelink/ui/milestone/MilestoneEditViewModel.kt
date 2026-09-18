@@ -9,13 +9,13 @@ import kotlinx.coroutines.launch
 
 class MilestoneEditViewModel(private val repository: MilestoneRepository) : ViewModel() {
 
-    fun loadForEdit(id: Long, onLoaded: (MilestoneEntity) -> Unit) {
+    fun loadForEdit(id: String, onLoaded: (MilestoneEntity) -> Unit) {
         viewModelScope.launch {
             repository.milestoneById(id).first()?.let(onLoaded)
         }
     }
 
-    fun save(milestone: MilestoneEntity, onSaved: (Long) -> Unit) {
+    fun save(milestone: MilestoneEntity, onSaved: (String) -> Unit) {
         viewModelScope.launch {
             val id = repository.saveMilestone(milestone)
             onSaved(id)

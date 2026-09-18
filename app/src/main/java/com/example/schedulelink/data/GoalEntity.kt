@@ -1,7 +1,5 @@
 package com.example.schedulelink.data
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import java.time.LocalDate
 
 enum class GoalType {
@@ -11,13 +9,11 @@ enum class GoalType {
     HABIT
 }
 
-@Entity(tableName = "goals")
 data class GoalEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0L,
-    val title: String,
+    val id: String = "",
+    val title: String = "",
     val memo: String = "",
-    val type: GoalType,
+    val type: GoalType = GoalType.PHASED,
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null
 )

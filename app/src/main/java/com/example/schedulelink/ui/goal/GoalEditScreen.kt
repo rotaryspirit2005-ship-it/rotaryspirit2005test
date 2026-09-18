@@ -46,7 +46,7 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日", Local
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GoalEditScreen(
-    goalId: Long?,
+    goalId: String?,
     viewModel: GoalEditViewModel,
     onSaved: () -> Unit,
     onBack: () -> Unit
@@ -154,7 +154,7 @@ fun GoalEditScreen(
                     } else {
                         errorMessage = null
                         val goal = GoalEntity(
-                            id = goalId ?: 0L,
+                            id = goalId ?: "",
                             title = title.trim(),
                             memo = memo.trim(),
                             type = type,

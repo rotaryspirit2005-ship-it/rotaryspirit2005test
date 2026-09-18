@@ -9,13 +9,13 @@ import kotlinx.coroutines.launch
 
 class GoalEditViewModel(private val repository: GoalRepository) : ViewModel() {
 
-    fun loadForEdit(id: Long, onLoaded: (GoalEntity) -> Unit) {
+    fun loadForEdit(id: String, onLoaded: (GoalEntity) -> Unit) {
         viewModelScope.launch {
             repository.goalById(id).first()?.let(onLoaded)
         }
     }
 
-    fun save(goal: GoalEntity, onSaved: (Long) -> Unit) {
+    fun save(goal: GoalEntity, onSaved: (String) -> Unit) {
         viewModelScope.launch {
             val id = repository.saveGoal(goal)
             onSaved(id)

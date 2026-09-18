@@ -46,8 +46,8 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日", Local
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MilestoneEditScreen(
-    goalId: Long,
-    milestoneId: Long?,
+    goalId: String,
+    milestoneId: String?,
     viewModel: MilestoneEditViewModel,
     onSaved: () -> Unit,
     onBack: () -> Unit
@@ -158,7 +158,7 @@ fun MilestoneEditScreen(
                     } else {
                         errorMessage = null
                         val milestone = MilestoneEntity(
-                            id = milestoneId ?: 0L,
+                            id = milestoneId ?: "",
                             goalId = goalId,
                             title = title.trim(),
                             memo = memo.trim(),

@@ -8,10 +8,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.schedulelink.data.FamilyRepository
 import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.ui.AppViewModelFactory
+import com.example.schedulelink.ui.auth.FamilySettingsScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailViewModel
 import com.example.schedulelink.ui.edit.ScheduleEditScreen
@@ -22,6 +24,8 @@ import com.example.schedulelink.ui.goal.GoalEditScreen
 import com.example.schedulelink.ui.goal.GoalEditViewModel
 import com.example.schedulelink.ui.goal.GoalListScreen
 import com.example.schedulelink.ui.goal.GoalListViewModel
+import com.example.schedulelink.ui.importing.ImportCalendarScreen
+import com.example.schedulelink.ui.importing.ImportIcsScreen
 import com.example.schedulelink.ui.list.ScheduleListScreen
 import com.example.schedulelink.ui.list.ScheduleListViewModel
 import com.example.schedulelink.ui.milestone.MilestoneDetailScreen
@@ -37,12 +41,19 @@ private const val ROUTE_GOAL_EDIT = "goalEdit?id={id}"
 private const val ROUTE_GOAL_DETAIL = "goalDetail/{id}"
 private const val ROUTE_MILESTONE_EDIT = "milestoneEdit/{goalId}?id={id}"
 private const val ROUTE_MILESTONE_DETAIL = "milestoneDetail/{id}"
+private const val ROUTE_FAMILY_SETTINGS = "familySettings"
+private const val ROUTE_IMPORT_ICS = "importIcs"
+private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
 
 @Composable
 fun ScheduleNavHost(
     repository: ScheduleRepository,
     goalRepository: GoalRepository,
-    milestoneRepository: MilestoneRepository
+    milestoneRepository: MilestoneRepository,
+    uid: String,
+    familyId: String,
+    familyRepository: FamilyRepository,
+    onSignOut: () -> Unit
 ) {
     val navController = rememberNavController()
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository) }
@@ -54,15 +65,18 @@ fun ScheduleNavHost(
                 viewModel = vm,
                 onAddClick = { navController.navigate("edit") },
                 onItemClick = { id -> navController.navigate("detail/$id") },
-                onGoalMapClick = { navController.navigate(ROUTE_GOALS) }
+                onGoalMapClick = { navController.navigate(ROUTE_GOALS) },
+                onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
+                onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
+                onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) }
             )
         }
 
         composable(
             ROUTE_DETAIL,
-            arguments = listOf(navArgument("id") { type = NavType.LongType })
+            arguments = listOf(navArgument("id") { type = NavType.StringType })
         ) { backStackEntry ->
-            val id = backStackEntry.arguments!!.getLong("id")
+            val id = backStackEntry.arguments!!.getString("id")!!
             val vm: ScheduleDetailViewModel = viewModel(factory = factory)
             ScheduleDetailScreen(
                 scheduleId = id,
@@ -76,14 +90,12 @@ fun ScheduleNavHost(
         composable(
             ROUTE_EDIT,
             arguments = listOf(
-                navArgument("id") { type = NavType.LongType; defaultValue = -1L },
-                navArgument("milestoneId") { type = NavType.LongType; defaultValue = -1L }
+                navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("milestoneId") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStackEntry ->
-            val idArg = backStackEntry.arguments!!.getLong("id")
-            val milestoneIdArg = backStackEntry.arguments!!.getLong("milestoneId")
-            val id = if (idArg == -1L) null else idArg
-            val milestoneId = if (milestoneIdArg == -1L) null else milestoneIdArg
+            val id = backStackEntry.arguments?.getString("id")
+            val milestoneId = backStackEntry.arguments?.getString("milestoneId")
             val vm: ScheduleEditViewModel = viewModel(factory = factory)
             ScheduleEditScreen(
                 scheduleId = id,
@@ -106,10 +118,9 @@ fun ScheduleNavHost(
 
         composable(
             ROUTE_GOAL_EDIT,
-            arguments = listOf(navArgument("id") { type = NavType.LongType; defaultValue = -1L })
+            arguments = listOf(navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null })
         ) { backStackEntry ->
-            val idArg = backStackEntry.arguments!!.getLong("id")
-            val id = if (idArg == -1L) null else idArg
+            val id = backStackEntry.arguments?.getString("id")
             val vm: GoalEditViewModel = viewModel(factory = factory)
             GoalEditScreen(
                 goalId = id,
@@ -121,9 +132,9 @@ fun ScheduleNavHost(
 
         composable(
             ROUTE_GOAL_DETAIL,
-            arguments = listOf(navArgument("id") { type = NavType.LongType })
+            arguments = listOf(navArgument("id") { type = NavType.StringType })
         ) { backStackEntry ->
-            val id = backStackEntry.arguments!!.getLong("id")
+            val id = backStackEntry.arguments!!.getString("id")!!
             val vm: GoalDetailViewModel = viewModel(factory = factory)
             GoalDetailScreen(
                 goalId = id,
@@ -138,13 +149,12 @@ fun ScheduleNavHost(
         composable(
             ROUTE_MILESTONE_EDIT,
             arguments = listOf(
-                navArgument("goalId") { type = NavType.LongType },
-                navArgument("id") { type = NavType.LongType; defaultValue = -1L }
+                navArgument("goalId") { type = NavType.StringType },
+                navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStackEntry ->
-            val goalId = backStackEntry.arguments!!.getLong("goalId")
-            val idArg = backStackEntry.arguments!!.getLong("id")
-            val id = if (idArg == -1L) null else idArg
+            val goalId = backStackEntry.arguments!!.getString("goalId")!!
+            val id = backStackEntry.arguments?.getString("id")
             val vm: MilestoneEditViewModel = viewModel(factory = factory)
             MilestoneEditScreen(
                 goalId = goalId,
@@ -157,9 +167,9 @@ fun ScheduleNavHost(
 
         composable(
             ROUTE_MILESTONE_DETAIL,
-            arguments = listOf(navArgument("id") { type = NavType.LongType })
+            arguments = listOf(navArgument("id") { type = NavType.StringType })
         ) { backStackEntry ->
-            val id = backStackEntry.arguments!!.getLong("id")
+            val id = backStackEntry.arguments!!.getString("id")!!
             val vm: MilestoneDetailViewModel = viewModel(factory = factory)
             MilestoneDetailScreen(
                 milestoneId = id,
@@ -168,6 +178,31 @@ fun ScheduleNavHost(
                 onBack = { navController.popBackStack() },
                 onAddSchedule = { milestoneId -> navController.navigate("edit?milestoneId=$milestoneId") },
                 onScheduleClick = { scheduleId -> navController.navigate("detail/$scheduleId") }
+            )
+        }
+
+        composable(ROUTE_FAMILY_SETTINGS) {
+            FamilySettingsScreen(
+                uid = uid,
+                familyId = familyId,
+                familyRepository = familyRepository,
+                onBack = { navController.popBackStack() },
+                onLeft = {},
+                onSignOut = onSignOut
+            )
+        }
+
+        composable(ROUTE_IMPORT_ICS) {
+            ImportIcsScreen(
+                repository = repository,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(ROUTE_IMPORT_CALENDAR) {
+            ImportCalendarScreen(
+                repository = repository,
+                onBack = { navController.popBackStack() }
             )
         }
     }

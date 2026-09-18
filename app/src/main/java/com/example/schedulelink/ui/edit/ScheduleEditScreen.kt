@@ -53,8 +53,8 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Lo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleEditScreen(
-    scheduleId: Long?,
-    initialMilestoneId: Long?,
+    scheduleId: String?,
+    initialMilestoneId: String?,
     viewModel: ScheduleEditViewModel,
     onSaved: () -> Unit,
     onBack: () -> Unit
@@ -64,7 +64,7 @@ fun ScheduleEditScreen(
     var date by remember { mutableStateOf(LocalDate.now()) }
     var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
-    var linkedIds by remember { mutableStateOf(setOf<Long>()) }
+    var linkedIds by remember { mutableStateOf(setOf<String>()) }
     var milestoneId by remember { mutableStateOf(initialMilestoneId) }
     var loaded by remember { mutableStateOf(scheduleId == null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -90,7 +90,7 @@ fun ScheduleEditScreen(
     }
 
     val allSchedules by viewModel.allSchedules.collectAsState()
-    val candidateLinks = allSchedules.filter { it.id != (scheduleId ?: -1L) }
+    val candidateLinks = allSchedules.filter { it.id != scheduleId }
     val allMilestones by viewModel.allMilestones.collectAsState()
     val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
@@ -213,7 +213,7 @@ fun ScheduleEditScreen(
                             else -> {
                                 errorMessage = null
                                 val schedule = ScheduleEntity(
-                                    id = scheduleId ?: 0L,
+                                    id = scheduleId ?: "",
                                     title = title.trim(),
                                     memo = memo.trim(),
                                     date = date,

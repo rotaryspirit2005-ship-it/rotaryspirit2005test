@@ -1,15 +1,16 @@
 package com.example.schedulelink
 
 import android.app.Application
-import com.example.schedulelink.data.AppDatabase
-import com.example.schedulelink.data.GoalRepository
-import com.example.schedulelink.data.MilestoneRepository
-import com.example.schedulelink.data.ScheduleRepository
+import com.example.schedulelink.data.AuthRepository
+import com.example.schedulelink.data.FamilyRepository
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class ScheduleLinkApplication : Application() {
 
-    private val database by lazy { AppDatabase.getInstance(this) }
-    val repository by lazy { ScheduleRepository(database.scheduleDao()) }
-    val goalRepository by lazy { GoalRepository(database.goalDao()) }
-    val milestoneRepository by lazy { MilestoneRepository(database.milestoneDao()) }
+    val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+    private val firebaseAuth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+
+    val authRepository by lazy { AuthRepository(firebaseAuth) }
+    val familyRepository by lazy { FamilyRepository(firestore) }
 }

@@ -29,7 +29,7 @@ private const val MAX_BRANCHES_PER_ROW = 1
  */
 fun buildFlowRows(
     schedules: List<ScheduleEntity>,
-    linkedIdsById: Map<Long, List<Long>>
+    linkedIdsById: Map<String, List<String>>
 ): List<FlowRow> {
     val indexById = schedules.withIndex().associate { (index, schedule) -> schedule.id to index }
     val byId = schedules.associateBy { it.id }

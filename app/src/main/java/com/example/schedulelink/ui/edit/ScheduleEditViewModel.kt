@@ -23,7 +23,7 @@ class ScheduleEditViewModel(
     val allMilestones: StateFlow<List<MilestoneEntity>> = milestoneRepository.allMilestones()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun loadForEdit(id: Long, onLoaded: (ScheduleEntity, Set<Long>) -> Unit) {
+    fun loadForEdit(id: String, onLoaded: (ScheduleEntity, Set<String>) -> Unit) {
         viewModelScope.launch {
             val schedule = repository.scheduleById(id).first()
             val links = repository.linkedIds(id).first().toSet()
@@ -33,7 +33,7 @@ class ScheduleEditViewModel(
         }
     }
 
-    fun save(schedule: ScheduleEntity, linkedIds: Set<Long>, onSaved: (Long) -> Unit) {
+    fun save(schedule: ScheduleEntity, linkedIds: Set<String>, onSaved: (String) -> Unit) {
         viewModelScope.launch {
             val id = repository.saveSchedule(schedule, linkedIds)
             onSaved(id)

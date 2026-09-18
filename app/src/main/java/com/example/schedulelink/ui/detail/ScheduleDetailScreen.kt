@@ -41,11 +41,11 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Lo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleDetailScreen(
-    scheduleId: Long,
+    scheduleId: String,
     viewModel: ScheduleDetailViewModel,
-    onEdit: (Long) -> Unit,
+    onEdit: (String) -> Unit,
     onBack: () -> Unit,
-    onLinkedClick: (Long) -> Unit
+    onLinkedClick: (String) -> Unit
 ) {
     val schedule by viewModel.schedule(scheduleId).collectAsState(initial = null)
     val linked by viewModel.linkedSchedules(scheduleId).collectAsState(initial = emptyList())

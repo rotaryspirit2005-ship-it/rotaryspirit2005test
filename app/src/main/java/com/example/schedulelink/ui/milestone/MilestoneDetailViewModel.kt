@@ -16,18 +16,18 @@ class MilestoneDetailViewModel(
     private val scheduleRepository: ScheduleRepository
 ) : ViewModel() {
 
-    fun milestone(id: Long): Flow<MilestoneEntity?> = milestoneRepository.milestoneById(id)
+    fun milestone(id: String): Flow<MilestoneEntity?> = milestoneRepository.milestoneById(id)
 
-    fun schedules(milestoneId: Long): Flow<List<ScheduleEntity>> =
+    fun schedules(milestoneId: String): Flow<List<ScheduleEntity>> =
         scheduleRepository.schedulesForMilestone(milestoneId)
 
-    fun flowRows(milestoneId: Long): Flow<List<FlowRow>> =
+    fun flowRows(milestoneId: String): Flow<List<FlowRow>> =
         observeFlowRows(
             schedulesFlow = scheduleRepository.schedulesForMilestone(milestoneId),
             repository = scheduleRepository
         )
 
-    fun deleteMilestone(id: Long, onDone: () -> Unit) {
+    fun deleteMilestone(id: String, onDone: () -> Unit) {
         viewModelScope.launch {
             milestoneRepository.deleteMilestone(id)
             onDone()

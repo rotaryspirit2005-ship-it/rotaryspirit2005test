@@ -43,7 +43,7 @@ private val TRUNK_CONNECTOR_COLOR = Color(0xFFC9C4B6)
 @Composable
 fun FlowScreen(
     rows: List<FlowRow>,
-    onItemClick: (Long) -> Unit,
+    onItemClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val trunkX = MARGIN + CHIP_WIDTH + GAP

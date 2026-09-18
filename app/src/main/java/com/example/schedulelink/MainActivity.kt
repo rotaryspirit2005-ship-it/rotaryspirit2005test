@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.example.schedulelink.ui.navigation.ScheduleNavHost
+import com.example.schedulelink.ui.AppRoot
 import com.example.schedulelink.ui.theme.ScheduleLinkTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,11 +22,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ScheduleNavHost(
-                        repository = app.repository,
-                        goalRepository = app.goalRepository,
-                        milestoneRepository = app.milestoneRepository
-                    )
+                    AppRoot(app)
                 }
             }
         }

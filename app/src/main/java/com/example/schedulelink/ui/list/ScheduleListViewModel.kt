@@ -48,7 +48,7 @@ class ScheduleListViewModel(private val repository: ScheduleRepository) : ViewMo
         _selectedDate.value = LocalDate.now()
     }
 
-    fun deleteSchedule(id: Long) {
+    fun deleteSchedule(id: String) {
         viewModelScope.launch { repository.deleteSchedule(id) }
     }
 }

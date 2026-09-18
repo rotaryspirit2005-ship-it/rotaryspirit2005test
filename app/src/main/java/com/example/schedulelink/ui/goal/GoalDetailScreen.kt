@@ -45,12 +45,12 @@ import com.example.schedulelink.data.MilestoneStatus
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GoalDetailScreen(
-    goalId: Long,
+    goalId: String,
     viewModel: GoalDetailViewModel,
-    onEdit: (Long) -> Unit,
+    onEdit: (String) -> Unit,
     onBack: () -> Unit,
-    onAddMilestone: (Long) -> Unit,
-    onMilestoneClick: (Long) -> Unit
+    onAddMilestone: (String) -> Unit,
+    onMilestoneClick: (String) -> Unit
 ) {
     val goal by viewModel.goal(goalId).collectAsState(initial = null)
     val milestones by viewModel.milestones(goalId).collectAsState(initial = emptyList())

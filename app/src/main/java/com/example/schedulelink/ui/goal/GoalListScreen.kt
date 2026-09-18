@@ -34,7 +34,7 @@ import com.example.schedulelink.data.GoalType
 fun GoalListScreen(
     viewModel: GoalListViewModel,
     onAddClick: () -> Unit,
-    onItemClick: (Long) -> Unit,
+    onItemClick: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val goals by viewModel.goals.collectAsState()
