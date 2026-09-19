@@ -3,7 +3,7 @@ package com.example.schedulelink.ui.list
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.schedulelink.data.ScheduleRepository
-import com.example.schedulelink.data.ScheduleWithLinkCount
+import com.example.schedulelink.data.ScheduleWithLinks
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,8 +20,8 @@ class ScheduleListViewModel(private val repository: ScheduleRepository) : ViewMo
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val schedules: StateFlow<List<ScheduleWithLinkCount>> = _selectedDate
-        .flatMapLatest { date -> repository.schedulesForDate(date) }
+    val schedules: StateFlow<List<ScheduleWithLinks>> = _selectedDate
+        .flatMapLatest { date -> repository.schedulesForDateWithLinks(date) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun selectDate(date: LocalDate) {

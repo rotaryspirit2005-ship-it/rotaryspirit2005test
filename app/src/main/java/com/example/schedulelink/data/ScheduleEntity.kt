@@ -18,3 +18,6 @@ data class ScheduleEntity(
 
 /** 一覧画面での表示用。リンク数はlinkedIdsの件数からその場で求められる。 */
 data class ScheduleWithLinkCount(val schedule: ScheduleEntity, val linkedCount: Int)
+
+/** 日表示のフロー風レイアウトで使う、リンク先の詳細(時刻・タイトル)まで含めた表示用データ。 */
+data class ScheduleWithLinks(val schedule: ScheduleEntity, val linkedSchedules: List<ScheduleEntity>)

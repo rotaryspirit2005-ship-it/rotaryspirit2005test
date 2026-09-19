@@ -63,6 +63,19 @@ class ScheduleRepository(
                     .map { ScheduleWithLinkCount(it, it.linkedIds.size) }
             }
 
+    /**
+     * 日表示のフロー風レイアウト用に、その日の予定それぞれについて
+     * リンク先の詳細(日付をまたぐこともある)まで解決したもの。
+     */
+    fun schedulesForDateWithLinks(date: LocalDate): Flow<List<ScheduleWithLinks>> =
+        combine(schedulesForDate(date), allSchedules()) { dayList, all ->
+            val byId = all.associateBy { it.id }
+            dayList.map { item ->
+                val linked = item.schedule.linkedIds.mapNotNull { byId[it] }.sortedWith(byDateTime)
+                ScheduleWithLinks(item.schedule, linked)
+            }
+        }
+
     fun scheduleById(id: String): Flow<ScheduleEntity?> =
         collection.document(id).observeAsFlow().map { snap -> if (snap.exists()) snap.toSchedule() else null }
 
