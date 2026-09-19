@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.milestone
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -60,6 +62,9 @@ fun MilestoneEditScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
+    var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     LaunchedEffect(milestoneId) {
         if (milestoneId != null) {
@@ -69,6 +74,7 @@ fun MilestoneEditScreen(
                 status = milestone.status
                 milestone.startDate?.let { startDate = it }
                 milestone.endDate?.let { endDate = it }
+                existingPhotoUrls = milestone.photoUrls
             }
         }
     }
@@ -145,6 +151,17 @@ fun MilestoneEditScreen(
                 }
             }
 
+            PhotoAttachmentSection(
+                existingUrls = existingPhotoUrls,
+                pendingUris = pendingPhotoUris,
+                onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
+                onRemoveExisting = { url ->
+                    existingPhotoUrls = existingPhotoUrls - url
+                    removedPhotoUrls = removedPhotoUrls + url
+                },
+                onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
+            )
+
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
@@ -164,9 +181,10 @@ fun MilestoneEditScreen(
                             memo = memo.trim(),
                             startDate = startDate,
                             endDate = endDate,
-                            status = status
+                            status = status,
+                            photoUrls = existingPhotoUrls
                         )
-                        viewModel.save(milestone) { onSaved() }
+                        viewModel.save(milestone, pendingPhotoUris, removedPhotoUrls) { onSaved() }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

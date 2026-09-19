@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.goal
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalType
+import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -59,6 +61,9 @@ fun GoalEditScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
+    var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     LaunchedEffect(goalId) {
         if (goalId != null) {
@@ -68,6 +73,7 @@ fun GoalEditScreen(
                 type = goal.type
                 goal.startDate?.let { startDate = it }
                 goal.endDate?.let { endDate = it }
+                existingPhotoUrls = goal.photoUrls
             }
         }
     }
@@ -141,6 +147,17 @@ fun GoalEditScreen(
                 }
             }
 
+            PhotoAttachmentSection(
+                existingUrls = existingPhotoUrls,
+                pendingUris = pendingPhotoUris,
+                onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
+                onRemoveExisting = { url ->
+                    existingPhotoUrls = existingPhotoUrls - url
+                    removedPhotoUrls = removedPhotoUrls + url
+                },
+                onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
+            )
+
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
@@ -159,9 +176,10 @@ fun GoalEditScreen(
                             memo = memo.trim(),
                             type = type,
                             startDate = if (type == GoalType.PHASED) startDate else null,
-                            endDate = if (type == GoalType.PHASED) endDate else null
+                            endDate = if (type == GoalType.PHASED) endDate else null,
+                            photoUrls = existingPhotoUrls
                         )
-                        viewModel.save(goal) { onSaved() }
+                        viewModel.save(goal, pendingPhotoUris, removedPhotoUrls) { onSaved() }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

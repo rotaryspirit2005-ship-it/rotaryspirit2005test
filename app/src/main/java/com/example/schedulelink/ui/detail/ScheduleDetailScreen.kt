@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.PhotoGallery
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -97,6 +98,7 @@ fun ScheduleDetailScreen(
                 if (current.memo.isNotBlank()) {
                     Text(current.memo, style = MaterialTheme.typography.bodyMedium)
                 }
+                PhotoGallery(urls = current.photoUrls)
 
                 Text(
                     text = "関連する行動予定 (${linked.size})",

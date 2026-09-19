@@ -16,5 +16,6 @@ data class MilestoneEntity(
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
     val status: MilestoneStatus = MilestoneStatus.UPCOMING,
-    val orderIndex: Int = 0
+    val orderIndex: Int = 0,
+    val photoUrls: List<String> = emptyList()
 )

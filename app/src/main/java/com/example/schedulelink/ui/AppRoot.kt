@@ -21,11 +21,13 @@ import androidx.compose.ui.unit.dp
 import com.example.schedulelink.ScheduleLinkApplication
 import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
+import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.ui.auth.FamilyGroupScreen
 import com.example.schedulelink.ui.auth.SignInScreen
 import com.example.schedulelink.ui.navigation.ScheduleNavHost
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
@@ -113,11 +115,13 @@ private fun MainApp(
     val scheduleRepository = remember(familyId) { ScheduleRepository(app.firestore, familyId) }
     val goalRepository = remember(familyId) { GoalRepository(app.firestore, familyId) }
     val milestoneRepository = remember(familyId) { MilestoneRepository(app.firestore, familyId) }
+    val photoStorageRepository = remember(familyId) { PhotoStorageRepository(FirebaseStorage.getInstance(), familyId) }
 
     ScheduleNavHost(
         repository = scheduleRepository,
         goalRepository = goalRepository,
         milestoneRepository = milestoneRepository,
+        photoStorageRepository = photoStorageRepository,
         uid = uid,
         familyId = familyId,
         familyRepository = app.familyRepository,

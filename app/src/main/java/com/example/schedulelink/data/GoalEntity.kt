@@ -15,5 +15,6 @@ data class GoalEntity(
     val memo: String = "",
     val type: GoalType = GoalType.PHASED,
     val startDate: LocalDate? = null,
-    val endDate: LocalDate? = null
+    val endDate: LocalDate? = null,
+    val photoUrls: List<String> = emptyList()
 )

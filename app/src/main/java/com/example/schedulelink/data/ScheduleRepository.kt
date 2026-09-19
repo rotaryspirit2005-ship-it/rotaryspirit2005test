@@ -21,7 +21,8 @@ private fun DocumentSnapshot.toSchedule(): ScheduleEntity = ScheduleEntity(
     startTime = getString("startTime")?.let { LocalTime.parse(it) } ?: LocalTime.MIDNIGHT,
     endTime = getString("endTime")?.let { LocalTime.parse(it) } ?: LocalTime.MIDNIGHT,
     milestoneId = getString("milestoneId"),
-    linkedIds = (get("linkedIds") as? List<*>)?.filterIsInstance<String>().orEmpty()
+    linkedIds = (get("linkedIds") as? List<*>)?.filterIsInstance<String>().orEmpty(),
+    photoUrls = (get("photoUrls") as? List<*>)?.filterIsInstance<String>().orEmpty()
 )
 
 private fun ScheduleEntity.toMap(): Map<String, Any?> = mapOf(
@@ -30,7 +31,8 @@ private fun ScheduleEntity.toMap(): Map<String, Any?> = mapOf(
     "date" to date.toString(),
     "startTime" to startTime.toString(),
     "endTime" to endTime.toString(),
-    "milestoneId" to milestoneId
+    "milestoneId" to milestoneId,
+    "photoUrls" to photoUrls
 )
 
 class ScheduleRepository(

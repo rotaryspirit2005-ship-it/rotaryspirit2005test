@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.PhotoGallery
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +79,12 @@ fun MilestoneDetailScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             milestone?.memo?.takeIf { it.isNotBlank() }?.let {
                 Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
+            milestone?.photoUrls?.takeIf { it.isNotEmpty() }?.let { urls ->
+                PhotoGallery(
+                    urls = urls,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
             }
 
             if (schedules.isEmpty()) {

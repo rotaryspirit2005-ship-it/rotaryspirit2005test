@@ -20,7 +20,8 @@ private fun DocumentSnapshot.toMilestone(): MilestoneEntity = MilestoneEntity(
     startDate = getString("startDate")?.let { LocalDate.parse(it) },
     endDate = getString("endDate")?.let { LocalDate.parse(it) },
     status = getString("status")?.let { runCatching { MilestoneStatus.valueOf(it) }.getOrNull() } ?: MilestoneStatus.UPCOMING,
-    orderIndex = (getLong("orderIndex") ?: 0L).toInt()
+    orderIndex = (getLong("orderIndex") ?: 0L).toInt(),
+    photoUrls = (get("photoUrls") as? List<*>)?.filterIsInstance<String>().orEmpty()
 )
 
 private fun MilestoneEntity.toMap(): Map<String, Any?> = mapOf(
@@ -30,7 +31,8 @@ private fun MilestoneEntity.toMap(): Map<String, Any?> = mapOf(
     "startDate" to startDate?.toString(),
     "endDate" to endDate?.toString(),
     "status" to status.name,
-    "orderIndex" to orderIndex
+    "orderIndex" to orderIndex,
+    "photoUrls" to photoUrls
 )
 
 class MilestoneRepository(

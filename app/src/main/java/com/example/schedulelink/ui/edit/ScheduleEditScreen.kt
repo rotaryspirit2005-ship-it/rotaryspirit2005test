@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.edit
 
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -73,6 +75,9 @@ fun ScheduleEditScreen(
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
     var showMilestonePicker by remember { mutableStateOf(false) }
+    var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     LaunchedEffect(scheduleId) {
         if (scheduleId != null) {
@@ -84,6 +89,7 @@ fun ScheduleEditScreen(
                 endTime = schedule.endTime
                 linkedIds = links
                 milestoneId = schedule.milestoneId
+                existingPhotoUrls = schedule.photoUrls
                 loaded = true
             }
         }
@@ -158,6 +164,17 @@ fun ScheduleEditScreen(
                     Text("所属する中日程: $selectedMilestoneTitle")
                 }
 
+                PhotoAttachmentSection(
+                    existingUrls = existingPhotoUrls,
+                    pendingUris = pendingPhotoUris,
+                    onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
+                    onRemoveExisting = { url ->
+                        existingPhotoUrls = existingPhotoUrls - url
+                        removedPhotoUrls = removedPhotoUrls + url
+                    },
+                    onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
+                )
+
                 Text(
                     text = "関連する行動予定",
                     style = MaterialTheme.typography.titleMedium,
@@ -219,9 +236,10 @@ fun ScheduleEditScreen(
                                     date = date,
                                     startTime = startTime,
                                     endTime = endTime,
-                                    milestoneId = milestoneId
+                                    milestoneId = milestoneId,
+                                    photoUrls = existingPhotoUrls
                                 )
-                                viewModel.save(schedule, linkedIds) { onSaved() }
+                                viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls) { onSaved() }
                             }
                         }
                     },

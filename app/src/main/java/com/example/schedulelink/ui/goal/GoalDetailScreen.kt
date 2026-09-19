@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalType
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.common.PhotoGallery
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +101,7 @@ fun GoalDetailScreen(
                 if (current.memo.isNotBlank()) {
                     Text(current.memo, style = MaterialTheme.typography.bodyMedium)
                 }
+                PhotoGallery(urls = current.photoUrls)
                 if (current.type == GoalType.PHASED) {
                     Text(
                         "中日程 ${progress.doneCount}/${progress.totalCount} 完了",

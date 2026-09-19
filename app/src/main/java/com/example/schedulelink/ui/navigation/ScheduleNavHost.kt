@@ -19,6 +19,7 @@ import androidx.navigation.navArgument
 import com.example.schedulelink.data.FamilyRepository
 import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
+import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.ui.AppViewModelFactory
 import com.example.schedulelink.ui.auth.FamilySettingsScreen
@@ -74,6 +75,7 @@ fun ScheduleNavHost(
     repository: ScheduleRepository,
     goalRepository: GoalRepository,
     milestoneRepository: MilestoneRepository,
+    photoStorageRepository: PhotoStorageRepository,
     uid: String,
     familyId: String,
     familyRepository: FamilyRepository,
@@ -82,7 +84,7 @@ fun ScheduleNavHost(
     onSignOut: () -> Unit
 ) {
     val navController = rememberNavController()
-    val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository) }
+    val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository) }
 
     SharedTransitionLayout {
         NavHost(
