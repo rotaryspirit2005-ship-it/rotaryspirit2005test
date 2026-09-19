@@ -98,6 +98,7 @@ fun ScheduleNavHost(
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@composable,
                     onDayClick = { date -> navController.navigate("week/$date") },
+                    onScheduleClick = { id -> navController.navigate("detail/$id") },
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },

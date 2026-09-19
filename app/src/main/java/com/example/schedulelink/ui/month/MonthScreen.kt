@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,13 +48,18 @@ import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.list.FlowLegend
+import com.example.schedulelink.ui.list.ScheduleEmptyState
+import com.example.schedulelink.ui.list.ScheduleFlowList
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
+import androidx.compose.material3.Divider
 
 private val monthFormatter = DateTimeFormatter.ofPattern("yyyy年M月", Locale.JAPAN)
+private val selectedDateFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
 private val weekdayLabels = listOf("日", "月", "火", "水", "木", "金", "土")
 
 /** 2本指のつまみ拡大でこの値を超えたら「その日を含む週」へドリルダウンする。 */
@@ -69,6 +76,7 @@ fun MonthScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
+    onScheduleClick: (String) -> Unit,
     onGoalMapClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
     onImportIcsClick: () -> Unit,
@@ -76,6 +84,8 @@ fun MonthScreen(
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
+    val selectedDate by viewModel.selectedDate.collectAsState()
+    val selectedDateSchedules by viewModel.selectedDateSchedules.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -123,11 +133,29 @@ fun MonthScreen(
             MonthGrid(
                 month = currentMonth,
                 schedulesByDate = schedulesByDate,
+                selectedDate = selectedDate,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope,
-                onDayClick = onDayClick,
+                // タップ = その場でカレンダーの下に予定を表示、ピンチズーム = 週表示へドリルダウン。
+                onDayClick = { date -> viewModel.selectDate(date) },
                 onPinchZoomDate = onDayClick
             )
+            Divider()
+            Text(
+                text = "${selectedDate.format(selectedDateFormatter)}の予定",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            FlowLegend()
+            if (selectedDateSchedules.isEmpty()) {
+                ScheduleEmptyState(modifier = Modifier.weight(1f))
+            } else {
+                ScheduleFlowList(
+                    items = selectedDateSchedules,
+                    onItemClick = onScheduleClick,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -172,6 +200,7 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
 private fun MonthGrid(
     month: YearMonth,
     schedulesByDate: Map<LocalDate, List<ScheduleEntity>>,
+    selectedDate: LocalDate,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
@@ -213,6 +242,7 @@ private fun MonthGrid(
                                 date = date,
                                 columnIndex = columnIndex,
                                 isToday = date == today,
+                                isSelected = date == selectedDate,
                                 scheduleCount = schedulesByDate[date]?.size ?: 0,
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedVisibilityScope = animatedVisibilityScope,
@@ -232,6 +262,7 @@ private fun DayCell(
     date: LocalDate,
     columnIndex: Int,
     isToday: Boolean,
+    isSelected: Boolean,
     scheduleCount: Int,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -257,10 +288,11 @@ private fun DayCell(
                 modifier = Modifier
                     .size(28.dp)
                     .then(
-                        if (isToday) {
-                            Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
-                        } else {
-                            Modifier
+                        when {
+                            // 今日は塗りつぶし、選択中(今日以外)は枠線で区別する。
+                            isToday -> Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
+                            isSelected -> Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                            else -> Modifier
                         }
                     ),
                 contentAlignment = Alignment.Center
