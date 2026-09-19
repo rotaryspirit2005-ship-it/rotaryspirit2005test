@@ -82,7 +82,49 @@ service cloud.firestore {
 > 上記の内容で上書きして再度「公開」してください。(`users` コレクションのルールが
 > 抜けていたため、サインイン直後にアプリが落ちる不具合がありました。)
 
-## 5. 差し替えたら
+## 5. Cloud Storage を有効にする(写真添付機能に必要)
+
+大目的・中日程・小日程に添付する写真は Firebase Storage に保存されます(家族のメンバー
+間で共有されます)。
+
+1. 左メニュー「Storage」→「始める」
+2. 本番環境モードでよい(後述のセキュリティルールを設定するため)→ ロケーションは
+   Firestore と同じ `asia-northeast1`(東京)がおすすめ
+3. 作成後、「Rules」タブで以下のように設定して公開(Firestore の family ルールと同じ考え方で、
+   自分が所属する family のメンバーだけが、その family の写真を読み書きできるようにする
+   最低限のルール):
+
+```
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /families/{familyId}/{allPaths=**} {
+      allow read: if request.auth != null &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/families/$(familyId)).data.members;
+
+      allow create, update: if request.auth != null &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/families/$(familyId)).data.members &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/families/$(familyId)).data.members;
+    }
+  }
+}
+```
+
+補足:
+- `firestore.get(...)` で Storage のルールから Firestore の `families/{familyId}` ドキュメントを
+  参照し、その `members` 配列に自分の uid が含まれているかを確認しています(Firestore側の
+  ルールと同じ仕組みなので、招待コードで参加した家族メンバーだけがアクセスできます)。
+- アップロード(`create`/`update`)には、誤って大きすぎるファイルや画像以外のファイルが
+  上がらないよう、10MB以下・`image/*` のみという制限を付けています。
+- `delete`(写真の削除)だけは制限を分けています。Storageのルールでは削除時に
+  `request.resource` が存在しない(nullになる)ため、サイズや形式のチェックを
+  `delete`と同じ条件に入れてしまうと、削除そのものが常に拒否されてしまいます。
+
+## 6. 差し替えたら
 
 `app/google-services.json` を本物に差し替えてコミット・プッシュすれば、GitHub Actions が
 自動でビルドし、いつものダウンロードリンクから最新の APK が取得できます。
