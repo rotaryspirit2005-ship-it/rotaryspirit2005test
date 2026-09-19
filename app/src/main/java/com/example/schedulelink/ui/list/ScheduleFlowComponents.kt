@@ -42,6 +42,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleWithLinks
+import com.example.schedulelink.ui.theme.ArrowColorDark
+import com.example.schedulelink.ui.theme.ArrowColorLight
+import com.example.schedulelink.ui.theme.BranchColorDark
+import com.example.schedulelink.ui.theme.BranchColorLight
+import com.example.schedulelink.ui.theme.LocalIsDarkTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -50,9 +55,22 @@ import java.time.format.DateTimeFormatter
 
 private val timeFormatter = DateTimeFormatter.ofPattern("H:mm")
 
-/** つながる予定の枝(ブランチ)チップの色。時刻の流れと見分けられるよう緑系にする。 */
-private val BRANCH_COLOR = Color(0xFF2E7D32)
-private val ARROW_COLOR = Color(0xFFB0B0B0)
+/**
+ * つながる予定の枝(ブランチ)チップの色。時刻の流れと見分けられるよう緑系にする。
+ * 白背景で明るい緑は読みにくくなるため、ライト/ダークで濃さを変える。
+ */
+@Composable
+private fun branchColor(): Color = if (LocalIsDarkTheme.current) BranchColorDark else BranchColorLight
+
+/** 「時刻の流れ」の矢印色。薄いグレーは白背景では見えにくくなるため、ライト/ダークで濃さを変える。 */
+@Composable
+private fun arrowColor(): Color = if (LocalIsDarkTheme.current) ArrowColorDark else ArrowColorLight
+
+/**
+ * リンク件数バッジの背景は常にこの濃い緑で固定する(白い文字・アイコンを乗せるため、
+ * テーマによらず十分な濃さを保つ必要がある)。
+ */
+private val PILL_BACKGROUND_COLOR = BranchColorLight
 
 /** 「時刻の流れ」と「つながる予定(分岐)」の意味を示す、控えめな凡例。 */
 @Composable
@@ -69,19 +87,20 @@ fun FlowLegend() {
             Icon(
                 Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
-                tint = ARROW_COLOR,
+                tint = arrowColor(),
                 modifier = Modifier.size(16.dp)
             )
             Text("時刻の流れ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            val branch = branchColor()
             Box(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(BRANCH_COLOR)
+                    .background(branch)
             )
-            Text("つながる予定(分岐)", style = MaterialTheme.typography.labelSmall, color = BRANCH_COLOR)
+            Text("つながる予定(分岐)", style = MaterialTheme.typography.labelSmall, color = branch)
         }
     }
 }
@@ -163,7 +182,7 @@ private fun FlowArrowDown() {
         Icon(
             Icons.Default.KeyboardArrowDown,
             contentDescription = null,
-            tint = ARROW_COLOR,
+            tint = arrowColor(),
             modifier = Modifier.size(20.dp)
         )
     }
@@ -218,18 +237,19 @@ private fun ScheduleFlowRow(
 
 @Composable
 private fun BranchConnector(pointsRight: Boolean) {
+    val branch = branchColor()
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (!pointsRight) {
-            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = BRANCH_COLOR, modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = branch, modifier = Modifier.size(14.dp))
         }
         Box(
             modifier = Modifier
                 .width(12.dp)
                 .height(2.dp)
-                .background(BRANCH_COLOR)
+                .background(branch)
         )
         if (pointsRight) {
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = BRANCH_COLOR, modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = branch, modifier = Modifier.size(14.dp))
         }
     }
 }
@@ -271,7 +291,7 @@ private fun MainScheduleCard(
                     .align(Alignment.TopEnd)
                     .offset(x = 6.dp, y = (-6).dp)
                     .clip(RoundedCornerShape(50))
-                    .background(BRANCH_COLOR)
+                    .background(PILL_BACKGROUND_COLOR)
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -289,12 +309,13 @@ private fun MainScheduleCard(
 
 @Composable
 private fun ScheduleBranchChip(target: ScheduleEntity, onClick: () -> Unit) {
+    val branch = branchColor()
     Column(
         modifier = Modifier
             .width(96.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(BRANCH_COLOR.copy(alpha = 0.08f))
-            .dashedBorder(BRANCH_COLOR, cornerRadius = 12.dp)
+            .background(branch.copy(alpha = 0.08f))
+            .dashedBorder(branch, cornerRadius = 12.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
@@ -306,7 +327,7 @@ private fun ScheduleBranchChip(target: ScheduleEntity, onClick: () -> Unit) {
             },
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = BRANCH_COLOR
+            color = branch
         )
         Text(
             text = target.title,

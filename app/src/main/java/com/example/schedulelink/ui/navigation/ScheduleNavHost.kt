@@ -77,6 +77,8 @@ fun ScheduleNavHost(
     uid: String,
     familyId: String,
     familyRepository: FamilyRepository,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -102,7 +104,9 @@ fun ScheduleNavHost(
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
-                    onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) }
+                    onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = onToggleTheme
                 )
             }
 

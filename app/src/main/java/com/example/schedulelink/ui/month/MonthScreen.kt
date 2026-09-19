@@ -50,6 +50,7 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.list.FlowLegend
 import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
+import com.example.schedulelink.ui.theme.LocalIsDarkTheme
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -79,7 +80,9 @@ fun MonthScreen(
     onGoalMapClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
     onImportIcsClick: () -> Unit,
-    onImportCalendarClick: () -> Unit
+    onImportCalendarClick: () -> Unit,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
@@ -121,6 +124,10 @@ fun MonthScreen(
                         DropdownMenuItem(
                             text = { Text("端末のカレンダーから読み込む") },
                             onClick = { showMenu = false; onImportCalendarClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (isDarkTheme) "ホワイトモードにする" else "ブラックモードにする") },
+                            onClick = { showMenu = false; onToggleTheme() }
                         )
                     }
                 }
@@ -174,10 +181,15 @@ private fun WeekdayHeaderRow() {
     }
 }
 
-private fun weekdayColor(columnIndex: Int): Color = when (columnIndex) {
-    0 -> Color(0xFFE5484D) // 日曜
-    6 -> Color(0xFF3B82F6) // 土曜
-    else -> Color.Unspecified
+/** 日曜・土曜の色。白背景では明るい色が読みにくくなるため、ライト/ダークで濃さを変える。 */
+@Composable
+private fun weekdayColor(columnIndex: Int): Color {
+    val isDark = LocalIsDarkTheme.current
+    return when (columnIndex) {
+        0 -> if (isDark) Color(0xFFE5484D) else Color(0xFFC62828) // 日曜
+        6 -> if (isDark) Color(0xFF3B82F6) else Color(0xFF1565C0) // 土曜
+        else -> Color.Unspecified
+    }
 }
 
 /** 前後月の空マスも含めた、7列×n行のカレンダーマス目を組み立てる。 */

@@ -24,7 +24,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -63,25 +62,27 @@ fun ScheduleListScreen(
                 title = { Text(selectedDate.format(dateFormatter)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "週表示に戻る", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "週表示に戻る", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.goToPreviousDay() }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の日", tint = Color.White)
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の日", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     IconButton(onClick = { viewModel.goToToday() }) {
-                        Icon(Icons.Default.Today, contentDescription = "今日", tint = Color.White)
+                        Icon(Icons.Default.Today, contentDescription = "今日", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     IconButton(onClick = { viewModel.goToNextDay() }) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "次の日", tint = Color.White)
+                        Icon(Icons.Default.ChevronRight, contentDescription = "次の日", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
+                // 白決め打ちだと、ダークモードのprimary(明るい緑)の上では
+                // 文字・アイコンが読みにくくなるため、テーマが計算するonPrimaryを使う。
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },

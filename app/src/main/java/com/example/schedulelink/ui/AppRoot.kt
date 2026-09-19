@@ -41,19 +41,19 @@ private sealed interface FamilyGateState {
  * サインイン画面 → 家族グループ作成/参加画面 → 本編 の順に切り替える。
  */
 @Composable
-fun AppRoot(app: ScheduleLinkApplication) {
+fun AppRoot(app: ScheduleLinkApplication, isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
     val user by app.authRepository.currentUser.collectAsState(initial = null)
     val firebaseUser = user
 
     if (firebaseUser == null) {
         SignInScreen(authRepository = app.authRepository)
     } else {
-        FamilyGate(app, firebaseUser)
+        FamilyGate(app, firebaseUser, isDarkTheme, onToggleTheme)
     }
 }
 
 @Composable
-private fun FamilyGate(app: ScheduleLinkApplication, user: FirebaseUser) {
+private fun FamilyGate(app: ScheduleLinkApplication, user: FirebaseUser, isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
     // Firestoreのセキュリティルール未整備・権限エラーなどでFlowが例外終了しても
     // アプリ全体がクラッシュしないよう、ここで必ず捕まえてエラー画面に変換する。
     val state by remember(user.uid) {
@@ -72,7 +72,13 @@ private fun FamilyGate(app: ScheduleLinkApplication, user: FirebaseUser) {
             familyRepository = app.familyRepository,
             onSignOut = { app.authRepository.signOut() }
         )
-        is FamilyGateState.Joined -> MainApp(app, uid = user.uid, familyId = current.familyId)
+        is FamilyGateState.Joined -> MainApp(
+            app,
+            uid = user.uid,
+            familyId = current.familyId,
+            isDarkTheme = isDarkTheme,
+            onToggleTheme = onToggleTheme
+        )
         is FamilyGateState.Error -> FamilyGateErrorScreen(
             message = current.message,
             onSignOut = { app.authRepository.signOut() }
@@ -97,7 +103,13 @@ private fun FamilyGateErrorScreen(message: String, onSignOut: () -> Unit) {
 }
 
 @Composable
-private fun MainApp(app: ScheduleLinkApplication, uid: String, familyId: String) {
+private fun MainApp(
+    app: ScheduleLinkApplication,
+    uid: String,
+    familyId: String,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
+) {
     val scheduleRepository = remember(familyId) { ScheduleRepository(app.firestore, familyId) }
     val goalRepository = remember(familyId) { GoalRepository(app.firestore, familyId) }
     val milestoneRepository = remember(familyId) { MilestoneRepository(app.firestore, familyId) }
@@ -109,6 +121,8 @@ private fun MainApp(app: ScheduleLinkApplication, uid: String, familyId: String)
         uid = uid,
         familyId = familyId,
         familyRepository = app.familyRepository,
+        isDarkTheme = isDarkTheme,
+        onToggleTheme = onToggleTheme,
         onSignOut = { app.authRepository.signOut() }
     )
 }

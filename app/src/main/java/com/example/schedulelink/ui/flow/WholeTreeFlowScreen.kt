@@ -48,6 +48,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.schedulelink.ui.theme.GoalColorDark
+import com.example.schedulelink.ui.theme.GoalColorLight
+import com.example.schedulelink.ui.theme.LocalIsDarkTheme
+import com.example.schedulelink.ui.theme.MilestoneColorDark
+import com.example.schedulelink.ui.theme.MilestoneColorLight
+import com.example.schedulelink.ui.theme.PeerLinkColorDark
+import com.example.schedulelink.ui.theme.PeerLinkColorLight
+import com.example.schedulelink.ui.theme.ScheduleColorDark
+import com.example.schedulelink.ui.theme.ScheduleColorLight
+import com.example.schedulelink.ui.theme.TodayLineColorDark
+import com.example.schedulelink.ui.theme.TodayLineColorLight
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -63,23 +74,19 @@ private val MARGIN = 24.dp
 private const val DAY_TICK_FADE_START = 0.4f
 /** 日の数字は線より少し遅れて、この拡大率あたりから見え始める。 */
 private const val DAY_LABEL_FADE_START = 1.5f
-/** ここまで拡大すると、線・数字とも真っ白(完全に見える状態)になる。 */
+/** ここまで拡大すると、線・数字とも前景色(完全に見える状態)になる。 */
 private const val DAY_DETAIL_FADE_END = 4f
 /** 期間が長すぎる場合、日の目盛りは大量になりすぎるので出さない。 */
 private const val MAX_DAY_MARKS = 1000
 
-// 月の目盛り(背景)とツリーの接続線(前景)がほぼ同じ明るさのベージュで見分けにくかったため、
-// 目盛りは背景に馴染む暗さに、接続線ははっきり浮き上がる明るさにして、はっきり区別する。
-private val TREE_LINE_COLOR = Color(0xFFF2F2ED)
-private val PEER_LINK_COLOR = Color(0xFFD946EF)
-private val RULER_LINE_COLOR = Color(0xFF433F37)
-private val DAY_DETAIL_GRAY = Color(0xFF6B6B6B)
-/** 「警告」っぽく見える赤系ではなく、大きな目標らしい高揚感のある金色にする。 */
-private val GOAL_COLOR = Color(0xFFFFB300)
-private val MILESTONE_COLOR = Color(0xFF2EC4B6)
-private val SCHEDULE_COLOR = Color(0xFF4D96FF)
-/** 「今日」を示す縦線。他のどの階層色とも被らない赤にして、カレンダーの定番配色に合わせる。 */
-private val TODAY_LINE_COLOR = Color(0xFFFF3B30)
+// ツリーの接続線・月の目盛りは、MaterialThemeのonSurfaceを基準に組み立てる。
+// 固定の色にすると片方のモードで背景に埋もれたり逆に浮きすぎたりするが、
+// onSurfaceは「今の背景に対してよく見える色」を常に指すため、ライト/ダーク
+// どちらに切り替えても同じ見え方(接続線ははっきり、目盛りはうっすら)を保てる。
+private const val RULER_LINE_ALPHA = 0.12f
+
+/** 日の目盛りのフェード開始色(薄い状態)。中間的な明るさなので、どちらの背景でも視認できる。 */
+private val DAY_DETAIL_GRAY = Color(0xFF808080)
 /** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
 private const val CARD_TINT_RATIO = 0.30f
 
@@ -95,10 +102,14 @@ private const val BUS_SLOT_COUNT = 3
 /** 選択中のノードと無関係な線を薄くする際の透明度。 */
 private const val DIMMED_LINE_ALPHA = 0.15f
 
-private fun TreeTier.color(): Color = when (this) {
-    TreeTier.GOAL -> GOAL_COLOR
-    TreeTier.MILESTONE -> MILESTONE_COLOR
-    TreeTier.SCHEDULE -> SCHEDULE_COLOR
+/**
+ * 階層ごとのアクセント色。白背景では明るい色は文字として読みにくくなるため、
+ * ライト/ダークで別の濃さを使う([isDark]は[LocalIsDarkTheme]から取得する)。
+ */
+private fun TreeTier.color(isDark: Boolean): Color = when (this) {
+    TreeTier.GOAL -> if (isDark) GoalColorDark else GoalColorLight
+    TreeTier.MILESTONE -> if (isDark) MilestoneColorDark else MilestoneColorLight
+    TreeTier.SCHEDULE -> if (isDark) ScheduleColorDark else ScheduleColorLight
 }
 
 /**
@@ -229,6 +240,16 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
     // 長押しで選んだノードに関わる線だけをくっきり見せ、他は薄くして見やすくする。
     var selectedNodeId by remember(tree) { mutableStateOf<String?>(null) }
 
+    val isDark = LocalIsDarkTheme.current
+    // 接続線は「今の背景に対してよく見える色」であるonSurfaceをそのまま使うので、
+    // ライト/ダークどちらでもはっきり読める。目盛りは同じ色をうっすら(低いalpha)使うことで
+    // 「背景に馴染む」効果を保ったまま、ライト/ダーク双方で自動的に成立させる。
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val treeLineColor = onSurfaceColor
+    val rulerLineColor = onSurfaceColor.copy(alpha = RULER_LINE_ALPHA)
+    val peerLinkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight
+    val todayLineColor = if (isDark) TodayLineColorDark else TodayLineColorLight
+
     fun dateToX(date: LocalDate): Dp =
         MARGIN + (ChronoUnit.DAYS.between(tree.minDate, date) * PX_PER_DAY).dp
 
@@ -280,12 +301,13 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
         initialFocusX = if (todayInRange) dateToX(today) else null
     ) { scale ->
         // 拡大率に応じて0〜1で滑らかに変化する進捗値。日の目盛りは常に薄く見えており、
-        // 拡大するほどグレーから白へ、じわじわ濃く・明るくなっていく(数字は線より少し遅れて追いつく)。
+        // 拡大するほどグレーから前景色(onSurface)へ、じわじわ濃くなっていく
+        // (数字は線より少し遅れて追いつく。onSurfaceを使うためライト/ダーク両方で成立する)。
         val tickProgress = ((scale - DAY_TICK_FADE_START) / (DAY_DETAIL_FADE_END - DAY_TICK_FADE_START)).coerceIn(0f, 1f)
         val labelProgress = ((scale - DAY_LABEL_FADE_START) / (DAY_DETAIL_FADE_END - DAY_LABEL_FADE_START)).coerceIn(0f, 1f)
-        val dayTickColor = lerp(DAY_DETAIL_GRAY, Color.White, tickProgress)
+        val dayTickColor = lerp(DAY_DETAIL_GRAY, onSurfaceColor, tickProgress)
             .copy(alpha = DAY_TICK_MIN_ALPHA + (1f - DAY_TICK_MIN_ALPHA) * tickProgress)
-        val dayLabelColor = lerp(DAY_DETAIL_GRAY, Color.White, labelProgress).copy(alpha = labelProgress)
+        val dayLabelColor = lerp(DAY_DETAIL_GRAY, onSurfaceColor, labelProgress).copy(alpha = labelProgress)
 
         Box(modifier = Modifier.width(contentWidth).height(contentHeight)) {
             Canvas(modifier = Modifier.width(contentWidth).height(contentHeight)) {
@@ -297,7 +319,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                 marks.forEach { (date, _) ->
                     val x = dateToX(date).toPx()
                     drawLine(
-                        color = RULER_LINE_COLOR,
+                        color = rulerLineColor,
                         start = Offset(x, RULER_HEIGHT.toPx()),
                         end = Offset(x, contentHeight.toPx()),
                         strokeWidth = hairline
@@ -334,7 +356,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     val groupHighlighted = selectedNodeId == null ||
                         isParentSelected ||
                         childPxList.any { it.first == selectedNodeId }
-                    val trunkColor = if (groupHighlighted) TREE_LINE_COLOR else TREE_LINE_COLOR.copy(alpha = DIMMED_LINE_ALPHA)
+                    val trunkColor = if (groupHighlighted) treeLineColor else treeLineColor.copy(alpha = DIMMED_LINE_ALPHA)
                     val trunkStroke = if (selectedNodeId != null && groupHighlighted) edgeStroke * 1.4f else edgeStroke
 
                     // 幹: 親から、複数の子をまとめる共通のバス(横線)まで一本で下ろす。
@@ -344,7 +366,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     // 枝: バスから各子へ下ろす。
                     childPxList.forEach { (childId, childPx, _) ->
                         val isChildHighlighted = selectedNodeId == null || isParentSelected || selectedNodeId == childId
-                        val branchColor = if (isChildHighlighted) TREE_LINE_COLOR else TREE_LINE_COLOR.copy(alpha = DIMMED_LINE_ALPHA)
+                        val branchColor = if (isChildHighlighted) treeLineColor else treeLineColor.copy(alpha = DIMMED_LINE_ALPHA)
                         val branchStroke = if (selectedNodeId != null && isChildHighlighted) edgeStroke * 1.4f else edgeStroke
                         drawLine(color = branchColor, start = Offset(childPx.x, bus), end = childPx, strokeWidth = branchStroke)
                     }
@@ -352,7 +374,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                 if (todayInRange) {
                     val todayX = dateToX(today).toPx()
                     drawLine(
-                        color = TODAY_LINE_COLOR,
+                        color = todayLineColor,
                         start = Offset(todayX, 0f),
                         end = Offset(todayX, contentHeight.toPx()),
                         strokeWidth = edgeStroke * 1.6f
@@ -366,7 +388,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     val isHighlighted = selectedNodeId == null ||
                         selectedNodeId == link.fromId ||
                         selectedNodeId == link.toId
-                    val color = if (isHighlighted) PEER_LINK_COLOR else PEER_LINK_COLOR.copy(alpha = DIMMED_LINE_ALPHA)
+                    val color = if (isHighlighted) peerLinkColor else peerLinkColor.copy(alpha = DIMMED_LINE_ALPHA)
                     drawLine(
                         color = color,
                         start = Offset(a.x.dp.toPx(), a.y.dp.toPx()),
@@ -428,9 +450,11 @@ private fun TreeNodeCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val isDark = LocalIsDarkTheme.current
+    val tierColor = node.tier.color(isDark)
     // 無地ではなく階層色をうっすら混ぜた塗り(不透明)にして、ポップな印象にする。
     // 線を完全に隠すため透過なしで塗る点は変えない。
-    val fillColor = lerp(MaterialTheme.colorScheme.surfaceVariant, node.tier.color(), CARD_TINT_RATIO)
+    val fillColor = lerp(MaterialTheme.colorScheme.surfaceVariant, tierColor, CARD_TINT_RATIO)
     val isDone = node.status == NodeStatus.DONE
     Column(
         modifier = modifier
@@ -442,7 +466,7 @@ private fun TreeNodeCard(
             .background(fillColor)
             // 長押しで選ぶと、そのノードに関わる線だけが強調されるので、
             // 選択中であることが分かるよう枠を太くする。
-            .border(if (isSelected) 4.dp else 2.dp, node.tier.color(), RoundedCornerShape(16.dp))
+            .border(if (isSelected) 4.dp else 2.dp, tierColor, RoundedCornerShape(16.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
@@ -451,7 +475,7 @@ private fun TreeNodeCard(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "完了",
-                    tint = node.tier.color(),
+                    tint = tierColor,
                     modifier = Modifier.size(10.dp)
                 )
             } else {
@@ -459,7 +483,7 @@ private fun TreeNodeCard(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(node.tier.color())
+                        .background(tierColor)
                 )
             }
             Text(
@@ -478,7 +502,7 @@ private fun TreeNodeCard(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = node.tier.color(),
+                color = tierColor,
                 modifier = Modifier.padding(start = 14.dp)
             )
         }

@@ -8,7 +8,17 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * 全体マップなどで使う、Material3のColorSchemeに乗らない独自アクセント色を
+ * ライト/ダークどちらで出し分けるかの判定に使う。ユーザーが手動で
+ * ライト/ダークを切り替えた場合はその選択(=[ScheduleLinkTheme]のdarkTheme引数)を、
+ * 端末のシステム設定ではなくこちらが正としてツリー全体に伝える。
+ */
+val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 private val LightColors = lightColorScheme(
     primary = GreenPrimary,
@@ -41,9 +51,11 @@ fun ScheduleLinkTheme(
         else -> LightColors
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalIsDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
