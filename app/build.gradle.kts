@@ -113,6 +113,9 @@ dependencies {
     // ホーム画面ウィジェット(Jetpack Glance)と、その定期更新用
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    // Glanceのウィジェットごとの状態保存(PreferencesGlanceStateDefinition)で使う型を
+    // 確実にコンパイル時に解決できるよう、推移的依存に頼らず明示的に追加する。
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

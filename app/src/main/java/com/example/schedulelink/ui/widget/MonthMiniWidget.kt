@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
@@ -11,14 +13,16 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -51,37 +55,8 @@ private val selectedDateWidgetFormatter = DateTimeFormatter.ofPattern("M月d日(
 private val timeWidgetFormatter = DateTimeFormatter.ofPattern("H:mm")
 private val weekdayLabels = listOf("日", "月", "火", "水", "木", "金", "土")
 
-private const val STATE_PREFS_NAME = "month_mini_widget_state"
-private const val KEY_SELECTED_DATE_PREFIX = "selected_date_"
+private val SELECTED_DATE_KEY = stringPreferencesKey("selected_date")
 private val DATE_PARAM = ActionParameters.Key<String>("date")
-
-/**
- * どの日をタップして選んだかは、ウィジェットのComposeツリーとは別に
- * 生き続ける必要があるため、AppWidget自体の数値ID(appWidgetId)をキーにして
- * SharedPreferencesへ保存する(ThemePreferences等と同じ、このプロジェクトで
- * 一貫して使っているパターン)。
- *
- * GlanceIdをそのままキー(toString())にすると、provideGlance側とActionCallback側で
- * 同じウィジェットでも文字列表現が一致しない場合があり、書き込んだ選択日が
- * 読み出せなくなる(常に今日のまま変わらない)不具合の原因になるため、
- * GlanceAppWidgetManagerで安定した整数IDに変換してから使う。
- */
-private fun selectedDatePrefs(context: Context) =
-    context.getSharedPreferences(STATE_PREFS_NAME, Context.MODE_PRIVATE)
-
-private fun readSelectedDate(context: Context, glanceId: GlanceId): LocalDate {
-    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
-    return selectedDatePrefs(context).getString("$KEY_SELECTED_DATE_PREFIX$appWidgetId", null)
-        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        ?: LocalDate.now()
-}
-
-private fun writeSelectedDate(context: Context, glanceId: GlanceId, date: LocalDate) {
-    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
-    selectedDatePrefs(context).edit()
-        .putString("$KEY_SELECTED_DATE_PREFIX$appWidgetId", date.toString())
-        .apply()
-}
 
 /** ホーム画面ウィジェット: 上半分に今月のミニカレンダー、下半分にタップした日の予定(簡易フロー風)。 */
 class MonthMiniWidget : GlanceAppWidget() {
@@ -89,7 +64,14 @@ class MonthMiniWidget : GlanceAppWidget() {
         val app = context.applicationContext as ScheduleLinkApplication
         val familyId = WidgetPreferences(context).familyId
         val month = YearMonth.now()
-        val selectedDate = readSelectedDate(context, id)
+
+        // どの日を選んでいるかは、SharedPreferencesを自前でキー管理するのではなく、
+        // Glance自身がウィジェットインスタンスごとに正しく紐付けてくれる
+        // 標準の状態保存機構(PreferencesGlanceStateDefinition)を使う。
+        val prefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+        val selectedDate = prefs[SELECTED_DATE_KEY]
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: LocalDate.now()
 
         var scheduleDates: Set<LocalDate> = emptySet()
         var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
@@ -128,7 +110,9 @@ class MonthMiniRefreshAction : ActionCallback {
 class SelectDateAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val date = parameters[DATE_PARAM]?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return
-        writeSelectedDate(context, glanceId, date)
+        updateAppWidgetState(context, glanceId) { prefs ->
+            prefs[SELECTED_DATE_KEY] = date.toString()
+        }
         MonthMiniWidget().update(context, glanceId)
     }
 }
