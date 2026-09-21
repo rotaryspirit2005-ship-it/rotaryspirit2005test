@@ -11,6 +11,7 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
@@ -56,20 +57,29 @@ private val DATE_PARAM = ActionParameters.Key<String>("date")
 
 /**
  * どの日をタップして選んだかは、ウィジェットのComposeツリーとは別に
- * 生き続ける必要があるため、GlanceIdの文字列表現をキーにしてSharedPreferencesへ
- * 保存する(ThemePreferences等と同じ、このプロジェクトで一貫して使っているパターン)。
+ * 生き続ける必要があるため、AppWidget自体の数値ID(appWidgetId)をキーにして
+ * SharedPreferencesへ保存する(ThemePreferences等と同じ、このプロジェクトで
+ * 一貫して使っているパターン)。
+ *
+ * GlanceIdをそのままキー(toString())にすると、provideGlance側とActionCallback側で
+ * 同じウィジェットでも文字列表現が一致しない場合があり、書き込んだ選択日が
+ * 読み出せなくなる(常に今日のまま変わらない)不具合の原因になるため、
+ * GlanceAppWidgetManagerで安定した整数IDに変換してから使う。
  */
 private fun selectedDatePrefs(context: Context) =
     context.getSharedPreferences(STATE_PREFS_NAME, Context.MODE_PRIVATE)
 
-private fun readSelectedDate(context: Context, glanceId: GlanceId): LocalDate =
-    selectedDatePrefs(context).getString("$KEY_SELECTED_DATE_PREFIX$glanceId", null)
+private fun readSelectedDate(context: Context, glanceId: GlanceId): LocalDate {
+    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
+    return selectedDatePrefs(context).getString("$KEY_SELECTED_DATE_PREFIX$appWidgetId", null)
         ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         ?: LocalDate.now()
+}
 
 private fun writeSelectedDate(context: Context, glanceId: GlanceId, date: LocalDate) {
+    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
     selectedDatePrefs(context).edit()
-        .putString("$KEY_SELECTED_DATE_PREFIX$glanceId", date.toString())
+        .putString("$KEY_SELECTED_DATE_PREFIX$appWidgetId", date.toString())
         .apply()
 }
 
