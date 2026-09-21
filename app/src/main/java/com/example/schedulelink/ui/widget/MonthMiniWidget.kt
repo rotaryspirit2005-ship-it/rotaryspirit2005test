@@ -188,12 +188,46 @@ private fun MonthMiniWidgetContent(
             weeks.forEach { week ->
                 Row(modifier = GlanceModifier.fillMaxWidth()) {
                     week.forEach { date ->
-                        DayCell(
-                            date = date,
-                            isToday = date == today,
-                            isSelected = date != null && date == selectedDate,
-                            hasSchedule = date != null && date in scheduleDates
-                        )
+                        val isSelected = date != null && date == selectedDate
+                        val isToday = date == today
+                        val cellModifier = if (date != null) {
+                            GlanceModifier
+                                .defaultWeight()
+                                .padding(2.dp)
+                                .cornerRadius(8.dp)
+                                .background(if (isSelected) WidgetAccent else WidgetBackground)
+                                .clickable(
+                                    actionRunCallback<SelectDateAction>(actionParametersOf(DATE_PARAM to date.toString()))
+                                )
+                        } else {
+                            GlanceModifier.defaultWeight().padding(2.dp)
+                        }
+
+                        Box(modifier = cellModifier, contentAlignment = Alignment.Center) {
+                            if (date != null) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = date.dayOfMonth.toString(),
+                                        style = TextStyle(
+                                            color = when {
+                                                isSelected -> WidgetSelectedText
+                                                isToday -> WidgetAccent
+                                                else -> WidgetOnBackground
+                                            },
+                                            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    )
+                                    if (date in scheduleDates) {
+                                        Box(
+                                            modifier = GlanceModifier
+                                                .size(4.dp)
+                                                .background(if (isSelected) WidgetSelectedText else WidgetAccent)
+                                                .cornerRadius(2.dp)
+                                        ) {}
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -222,46 +256,6 @@ private fun MonthMiniWidgetContent(
                             style = TextStyle(color = WidgetSubText)
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DayCell(date: LocalDate?, isToday: Boolean, isSelected: Boolean, hasSchedule: Boolean) {
-    val cellModifier = if (date != null) {
-        GlanceModifier
-            .defaultWeight()
-            .padding(2.dp)
-            .cornerRadius(8.dp)
-            .background(if (isSelected) WidgetAccent else WidgetBackground)
-            .clickable(actionRunCallback<SelectDateAction>(actionParametersOf(DATE_PARAM to date.toString())))
-    } else {
-        GlanceModifier.defaultWeight().padding(2.dp)
-    }
-
-    Box(modifier = cellModifier, contentAlignment = Alignment.Center) {
-        if (date != null) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = date.dayOfMonth.toString(),
-                    style = TextStyle(
-                        color = when {
-                            isSelected -> WidgetSelectedText
-                            isToday -> WidgetAccent
-                            else -> WidgetOnBackground
-                        },
-                        fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
-                    )
-                )
-                if (hasSchedule) {
-                    Box(
-                        modifier = GlanceModifier
-                            .size(4.dp)
-                            .background(if (isSelected) WidgetSelectedText else WidgetAccent)
-                            .cornerRadius(2.dp)
-                    ) {}
                 }
             }
         }
