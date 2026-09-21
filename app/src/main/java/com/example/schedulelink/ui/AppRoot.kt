@@ -27,9 +27,8 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.ui.auth.FamilyGroupScreen
 import com.example.schedulelink.ui.auth.SignInScreen
 import com.example.schedulelink.ui.navigation.ScheduleNavHost
-import androidx.glance.appwidget.updateAll
-import com.example.schedulelink.ui.widget.AgendaWidget
-import com.example.schedulelink.ui.widget.MonthMiniWidget
+import com.example.schedulelink.ui.widget.refreshAgendaWidgets
+import com.example.schedulelink.ui.widget.refreshMonthMiniWidgets
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.catch
@@ -150,8 +149,8 @@ private fun MainApp(
         // サインイン済みの家族IDだけ端末に保存しておき、判明したタイミングで
         // 30分の定期更新を待たずに一度だけ内容を最新化する。
         app.widgetPreferences.familyId = familyId
-        updateAll<AgendaWidget>(app)
-        updateAll<MonthMiniWidget>(app)
+        refreshAgendaWidgets(app)
+        refreshMonthMiniWidgets(app)
     }
 
     ScheduleNavHost(
