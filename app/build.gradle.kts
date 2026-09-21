@@ -92,6 +92,10 @@ dependencies {
     // 目的/中日程/小日程に添付する写真の非同期読み込み用
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // ホーム画面ウィジェット(Jetpack Glance)と、その定期更新用
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 

@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -26,6 +27,8 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.ui.auth.FamilyGroupScreen
 import com.example.schedulelink.ui.auth.SignInScreen
 import com.example.schedulelink.ui.navigation.ScheduleNavHost
+import com.example.schedulelink.ui.widget.AgendaWidget
+import com.example.schedulelink.ui.widget.MonthMiniWidget
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.catch
@@ -77,6 +80,11 @@ private fun FamilyGate(
             .catch { e -> emit(FamilyGateState.Error(e.message ?: "不明なエラーが発生しました")) }
     }.collectAsState(initial = FamilyGateState.Loading)
 
+    val signOut: () -> Unit = {
+        app.widgetPreferences.familyId = null
+        app.authRepository.signOut()
+    }
+
     when (val current = state) {
         is FamilyGateState.Loading -> Box(modifier = Modifier.fillMaxSize()) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -85,7 +93,7 @@ private fun FamilyGate(
             uid = user.uid,
             displayName = user.displayName ?: user.email ?: "家族メンバー",
             familyRepository = app.familyRepository,
-            onSignOut = { app.authRepository.signOut() }
+            onSignOut = signOut
         )
         is FamilyGateState.Joined -> MainApp(
             app,
@@ -94,11 +102,12 @@ private fun FamilyGate(
             isDarkTheme = isDarkTheme,
             onToggleTheme = onToggleTheme,
             isPhotoFeatureEnabled = isPhotoFeatureEnabled,
-            onTogglePhotoFeature = onTogglePhotoFeature
+            onTogglePhotoFeature = onTogglePhotoFeature,
+            onSignOut = signOut
         )
         is FamilyGateState.Error -> FamilyGateErrorScreen(
             message = current.message,
-            onSignOut = { app.authRepository.signOut() }
+            onSignOut = signOut
         )
     }
 }
@@ -127,12 +136,22 @@ private fun MainApp(
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
     isPhotoFeatureEnabled: Boolean,
-    onTogglePhotoFeature: (Boolean) -> Unit
+    onTogglePhotoFeature: (Boolean) -> Unit,
+    onSignOut: () -> Unit
 ) {
     val scheduleRepository = remember(familyId) { ScheduleRepository(app.firestore, familyId) }
     val goalRepository = remember(familyId) { GoalRepository(app.firestore, familyId) }
     val milestoneRepository = remember(familyId) { MilestoneRepository(app.firestore, familyId) }
     val photoStorageRepository = remember(familyId) { PhotoStorageRepository(FirebaseStorage.getInstance(), familyId) }
+
+    LaunchedEffect(familyId) {
+        // ウィジェットはCompose外(バックグラウンド)から動くため、
+        // サインイン済みの家族IDだけ端末に保存しておき、判明したタイミングで
+        // 30分の定期更新を待たずに一度だけ内容を最新化する。
+        app.widgetPreferences.familyId = familyId
+        AgendaWidget().updateAll(app)
+        MonthMiniWidget().updateAll(app)
+    }
 
     ScheduleNavHost(
         repository = scheduleRepository,
@@ -146,6 +165,6 @@ private fun MainApp(
         onToggleTheme = onToggleTheme,
         isPhotoFeatureEnabled = isPhotoFeatureEnabled,
         onTogglePhotoFeature = onTogglePhotoFeature,
-        onSignOut = { app.authRepository.signOut() }
+        onSignOut = onSignOut
     )
 }
