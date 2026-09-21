@@ -27,6 +27,7 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.ui.auth.FamilyGroupScreen
 import com.example.schedulelink.ui.auth.SignInScreen
 import com.example.schedulelink.ui.navigation.ScheduleNavHost
+import androidx.glance.appwidget.updateAll
 import com.example.schedulelink.ui.widget.AgendaWidget
 import com.example.schedulelink.ui.widget.MonthMiniWidget
 import com.google.firebase.auth.FirebaseUser
@@ -149,8 +150,8 @@ private fun MainApp(
         // サインイン済みの家族IDだけ端末に保存しておき、判明したタイミングで
         // 30分の定期更新を待たずに一度だけ内容を最新化する。
         app.widgetPreferences.familyId = familyId
-        AgendaWidget().updateAll(app)
-        MonthMiniWidget().updateAll(app)
+        updateAll<AgendaWidget>(app)
+        updateAll<MonthMiniWidget>(app)
     }
 
     ScheduleNavHost(

@@ -1,10 +1,12 @@
 package com.example.schedulelink.ui.widget
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalContext
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -20,7 +22,6 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.defaultWeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -95,6 +96,7 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
 private fun MonthMiniWidgetContent(month: YearMonth, scheduleDates: Set<LocalDate>, isSignedIn: Boolean) {
     val weeks = buildMonthGrid(month)
     val today = LocalDate.now()
+    val context = LocalContext.current
 
     Column(
         modifier = GlanceModifier
@@ -102,7 +104,7 @@ private fun MonthMiniWidgetContent(month: YearMonth, scheduleDates: Set<LocalDat
             .background(WidgetBackground)
             .cornerRadius(16.dp)
             .padding(12.dp)
-            .clickable(actionStartActivity<MainActivity>())
+            .clickable(actionStartActivity(Intent(context, MainActivity::class.java)))
     ) {
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
