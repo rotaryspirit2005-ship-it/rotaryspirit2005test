@@ -3,6 +3,7 @@ package com.example.schedulelink.ui.month
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,13 +49,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.list.FlowLegend
 import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
 import com.example.schedulelink.ui.theme.LocalIsDarkTheme
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
@@ -94,6 +98,7 @@ fun MonthScreen(
     val selectedDateSchedules by viewModel.selectedDateSchedules.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var showPhotoFeatureWarning by remember { mutableStateOf(false) }
+    var showVersionInfo by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -144,6 +149,10 @@ fun MonthScreen(
                                     showPhotoFeatureWarning = true
                                 }
                             }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("バージョン情報") },
+                            onClick = { showMenu = false; showVersionInfo = true }
                         )
                     }
                 }
@@ -199,6 +208,27 @@ fun MonthScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showPhotoFeatureWarning = false }) { Text("キャンセル") }
+            }
+        )
+    }
+
+    if (showVersionInfo) {
+        val buildTimeText = remember {
+            DateTimeFormatter.ofPattern("yyyy年M月d日 H:mm", Locale.JAPAN)
+                .withZone(ZoneId.systemDefault())
+                .format(Instant.ofEpochMilli(BuildConfig.BUILD_TIME))
+        }
+        AlertDialog(
+            onDismissRequest = { showVersionInfo = false },
+            title = { Text("バージョン情報") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("コミット: ${BuildConfig.GIT_SHA}")
+                    Text("ビルド日時: $buildTimeText")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showVersionInfo = false }) { Text("閉じる") }
             }
         )
     }

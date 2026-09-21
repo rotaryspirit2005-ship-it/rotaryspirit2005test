@@ -17,6 +17,16 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 「今インストールされているのはどのコミットのビルドか」をアプリ内で
+        // 確認できるようにする(GitHub Actionsが自動で設定するGITHUB_SHAを使う。
+        // ローカルビルドなど未設定の場合は"local"にする)。
+        buildConfigField(
+            "String",
+            "GIT_SHA",
+            "\"${(System.getenv("GITHUB_SHA") ?: "local").take(7)}\""
+        )
+        buildConfigField("long", "BUILD_TIME", "${System.currentTimeMillis()}L")
     }
 
     signingConfigs {
@@ -54,6 +64,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
