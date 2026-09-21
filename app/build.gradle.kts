@@ -9,12 +9,19 @@ android {
     namespace = "com.example.schedulelink"
     compileSdk = 35
 
+    // GitHub Actionsが自動で連番を振ってくれるGITHUB_RUN_NUMBERをversionCodeに使う。
+    // ローカルビルドなど未設定の場合は1のまま。
+    // versionCodeが毎回変わらないと、一部のランチャー(ホーム画面アプリ)が
+    // 「同じバージョンへの更新」とみなしてウィジェット一覧の再スキャンを省略し、
+    // ウィジェット選択画面から自作ウィジェットが消えてしまうことがあったための対応。
+    val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+
     defaultConfig {
         applicationId = "com.example.schedulelink"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
