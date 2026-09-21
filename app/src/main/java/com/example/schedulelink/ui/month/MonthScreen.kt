@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -82,13 +84,16 @@ fun MonthScreen(
     onImportIcsClick: () -> Unit,
     onImportCalendarClick: () -> Unit,
     isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    isPhotoFeatureEnabled: Boolean,
+    onTogglePhotoFeature: (Boolean) -> Unit
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDateSchedules by viewModel.selectedDateSchedules.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
+    var showPhotoFeatureWarning by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -129,6 +134,17 @@ fun MonthScreen(
                             text = { Text(if (isDarkTheme) "ホワイトモードにする" else "ブラックモードにする") },
                             onClick = { showMenu = false; onToggleTheme() }
                         )
+                        DropdownMenuItem(
+                            text = { Text(if (isPhotoFeatureEnabled) "写真添付機能をオフにする" else "写真添付機能をオンにする") },
+                            onClick = {
+                                showMenu = false
+                                if (isPhotoFeatureEnabled) {
+                                    onTogglePhotoFeature(false)
+                                } else {
+                                    showPhotoFeatureWarning = true
+                                }
+                            }
+                        )
                     }
                 }
             )
@@ -163,6 +179,28 @@ fun MonthScreen(
                 )
             }
         }
+    }
+
+    if (showPhotoFeatureWarning) {
+        AlertDialog(
+            onDismissRequest = { showPhotoFeatureWarning = false },
+            title = { Text("写真添付機能を有効にしますか?") },
+            text = {
+                Text(
+                    "写真の保存にはFirebase Storageを使用します。無料枠を超えて利用した場合、" +
+                        "料金が発生する可能性があります。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPhotoFeatureWarning = false
+                    onTogglePhotoFeature(true)
+                }) { Text("有効にする") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPhotoFeatureWarning = false }) { Text("キャンセル") }
+            }
+        )
     }
 }
 

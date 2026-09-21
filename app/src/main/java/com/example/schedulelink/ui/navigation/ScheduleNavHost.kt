@@ -81,6 +81,8 @@ fun ScheduleNavHost(
     familyRepository: FamilyRepository,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    isPhotoFeatureEnabled: Boolean,
+    onTogglePhotoFeature: (Boolean) -> Unit,
     onSignOut: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -108,7 +110,9 @@ fun ScheduleNavHost(
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
                     onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
                     isDarkTheme = isDarkTheme,
-                    onToggleTheme = onToggleTheme
+                    onToggleTheme = onToggleTheme,
+                    isPhotoFeatureEnabled = isPhotoFeatureEnabled,
+                    onTogglePhotoFeature = onTogglePhotoFeature
                 )
             }
 
@@ -159,7 +163,8 @@ fun ScheduleNavHost(
                 viewModel = vm,
                 onEdit = { editId -> navController.navigate("edit?id=$editId") },
                 onBack = { navController.popBackStack() },
-                onLinkedClick = { linkedId -> navController.navigate("detail/$linkedId") }
+                onLinkedClick = { linkedId -> navController.navigate("detail/$linkedId") },
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
 
@@ -178,7 +183,8 @@ fun ScheduleNavHost(
                 initialMilestoneId = milestoneId,
                 viewModel = vm,
                 onSaved = { navController.popBackStack() },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
 
@@ -215,7 +221,8 @@ fun ScheduleNavHost(
                 goalId = id,
                 viewModel = vm,
                 onSaved = { navController.popBackStack() },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
 
@@ -231,7 +238,8 @@ fun ScheduleNavHost(
                 onEdit = { editId -> navController.navigate("goalEdit?id=$editId") },
                 onBack = { navController.popBackStack() },
                 onAddMilestone = { goalId -> navController.navigate("milestoneEdit/$goalId") },
-                onMilestoneClick = { milestoneId -> navController.navigate("milestoneDetail/$milestoneId") }
+                onMilestoneClick = { milestoneId -> navController.navigate("milestoneDetail/$milestoneId") },
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
 
@@ -250,7 +258,8 @@ fun ScheduleNavHost(
                 milestoneId = id,
                 viewModel = vm,
                 onSaved = { navController.popBackStack() },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
 
@@ -266,7 +275,8 @@ fun ScheduleNavHost(
                 onEdit = { goalId, editId -> navController.navigate("milestoneEdit/$goalId?id=$editId") },
                 onBack = { navController.popBackStack() },
                 onAddSchedule = { milestoneId -> navController.navigate("edit?milestoneId=$milestoneId") },
-                onScheduleClick = { scheduleId -> navController.navigate("detail/$scheduleId") }
+                onScheduleClick = { scheduleId -> navController.navigate("detail/$scheduleId") },
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
 

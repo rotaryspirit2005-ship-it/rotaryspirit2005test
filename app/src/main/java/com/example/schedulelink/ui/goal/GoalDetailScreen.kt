@@ -51,7 +51,8 @@ fun GoalDetailScreen(
     onEdit: (String) -> Unit,
     onBack: () -> Unit,
     onAddMilestone: (String) -> Unit,
-    onMilestoneClick: (String) -> Unit
+    onMilestoneClick: (String) -> Unit,
+    isPhotoFeatureEnabled: Boolean
 ) {
     val goal by viewModel.goal(goalId).collectAsState(initial = null)
     val milestones by viewModel.milestones(goalId).collectAsState(initial = emptyList())
@@ -101,7 +102,9 @@ fun GoalDetailScreen(
                 if (current.memo.isNotBlank()) {
                     Text(current.memo, style = MaterialTheme.typography.bodyMedium)
                 }
-                PhotoGallery(urls = current.photoUrls)
+                if (isPhotoFeatureEnabled) {
+                    PhotoGallery(urls = current.photoUrls)
+                }
                 if (current.type == GoalType.PHASED) {
                     Text(
                         "中日程 ${progress.doneCount}/${progress.totalCount} 完了",

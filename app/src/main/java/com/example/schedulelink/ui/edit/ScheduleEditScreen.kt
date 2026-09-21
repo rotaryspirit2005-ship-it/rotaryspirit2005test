@@ -59,7 +59,8 @@ fun ScheduleEditScreen(
     initialMilestoneId: String?,
     viewModel: ScheduleEditViewModel,
     onSaved: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isPhotoFeatureEnabled: Boolean
 ) {
     var title by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
@@ -164,16 +165,18 @@ fun ScheduleEditScreen(
                     Text("所属する中日程: $selectedMilestoneTitle")
                 }
 
-                PhotoAttachmentSection(
-                    existingUrls = existingPhotoUrls,
-                    pendingUris = pendingPhotoUris,
-                    onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
-                    onRemoveExisting = { url ->
-                        existingPhotoUrls = existingPhotoUrls - url
-                        removedPhotoUrls = removedPhotoUrls + url
-                    },
-                    onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
-                )
+                if (isPhotoFeatureEnabled) {
+                    PhotoAttachmentSection(
+                        existingUrls = existingPhotoUrls,
+                        pendingUris = pendingPhotoUris,
+                        onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
+                        onRemoveExisting = { url ->
+                            existingPhotoUrls = existingPhotoUrls - url
+                            removedPhotoUrls = removedPhotoUrls + url
+                        },
+                        onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
+                    )
+                }
 
                 Text(
                     text = "関連する行動予定",

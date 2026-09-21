@@ -46,7 +46,8 @@ fun ScheduleDetailScreen(
     viewModel: ScheduleDetailViewModel,
     onEdit: (String) -> Unit,
     onBack: () -> Unit,
-    onLinkedClick: (String) -> Unit
+    onLinkedClick: (String) -> Unit,
+    isPhotoFeatureEnabled: Boolean
 ) {
     val schedule by viewModel.schedule(scheduleId).collectAsState(initial = null)
     val linked by viewModel.linkedSchedules(scheduleId).collectAsState(initial = emptyList())
@@ -98,7 +99,9 @@ fun ScheduleDetailScreen(
                 if (current.memo.isNotBlank()) {
                     Text(current.memo, style = MaterialTheme.typography.bodyMedium)
                 }
-                PhotoGallery(urls = current.photoUrls)
+                if (isPhotoFeatureEnabled) {
+                    PhotoGallery(urls = current.photoUrls)
+                }
 
                 Text(
                     text = "関連する行動予定 (${linked.size})",

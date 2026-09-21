@@ -51,7 +51,8 @@ fun GoalEditScreen(
     goalId: String?,
     viewModel: GoalEditViewModel,
     onSaved: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isPhotoFeatureEnabled: Boolean
 ) {
     var title by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
@@ -147,16 +148,18 @@ fun GoalEditScreen(
                 }
             }
 
-            PhotoAttachmentSection(
-                existingUrls = existingPhotoUrls,
-                pendingUris = pendingPhotoUris,
-                onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
-                onRemoveExisting = { url ->
-                    existingPhotoUrls = existingPhotoUrls - url
-                    removedPhotoUrls = removedPhotoUrls + url
-                },
-                onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
-            )
+            if (isPhotoFeatureEnabled) {
+                PhotoAttachmentSection(
+                    existingUrls = existingPhotoUrls,
+                    pendingUris = pendingPhotoUris,
+                    onAdd = { uris -> pendingPhotoUris = pendingPhotoUris + uris },
+                    onRemoveExisting = { url ->
+                        existingPhotoUrls = existingPhotoUrls - url
+                        removedPhotoUrls = removedPhotoUrls + url
+                    },
+                    onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
+                )
+            }
 
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)

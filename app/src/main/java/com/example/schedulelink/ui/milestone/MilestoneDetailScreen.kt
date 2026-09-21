@@ -45,7 +45,8 @@ fun MilestoneDetailScreen(
     onEdit: (goalId: String, milestoneId: String) -> Unit,
     onBack: () -> Unit,
     onAddSchedule: (String) -> Unit,
-    onScheduleClick: (String) -> Unit
+    onScheduleClick: (String) -> Unit,
+    isPhotoFeatureEnabled: Boolean
 ) {
     val milestone by viewModel.milestone(milestoneId).collectAsState(initial = null)
     val schedules by viewModel.schedules(milestoneId).collectAsState(initial = emptyList())
@@ -80,11 +81,13 @@ fun MilestoneDetailScreen(
             milestone?.memo?.takeIf { it.isNotBlank() }?.let {
                 Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
-            milestone?.photoUrls?.takeIf { it.isNotEmpty() }?.let { urls ->
-                PhotoGallery(
-                    urls = urls,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+            if (isPhotoFeatureEnabled) {
+                milestone?.photoUrls?.takeIf { it.isNotEmpty() }?.let { urls ->
+                    PhotoGallery(
+                        urls = urls,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
             }
 
             if (schedules.isEmpty()) {

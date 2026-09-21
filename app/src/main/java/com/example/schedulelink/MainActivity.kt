@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val isDarkTheme by app.themePreferences.isDarkTheme.collectAsState()
+            val isPhotoFeatureEnabled by app.photoFeaturePreferences.isEnabled.collectAsState()
 
             // 独自のライト/ダーク配色を使うため、端末の壁紙から色を作る
             // ダイナミックカラーは無効にする(そうしないと視認性を保証できない)。
@@ -31,7 +32,9 @@ class MainActivity : ComponentActivity() {
                     AppRoot(
                         app = app,
                         isDarkTheme = isDarkTheme,
-                        onToggleTheme = { app.themePreferences.setDarkTheme(!isDarkTheme) }
+                        onToggleTheme = { app.themePreferences.setDarkTheme(!isDarkTheme) },
+                        isPhotoFeatureEnabled = isPhotoFeatureEnabled,
+                        onTogglePhotoFeature = { app.photoFeaturePreferences.setEnabled(it) }
                     )
                 }
             }

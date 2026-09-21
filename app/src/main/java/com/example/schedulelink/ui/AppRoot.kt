@@ -43,19 +43,32 @@ private sealed interface FamilyGateState {
  * サインイン画面 → 家族グループ作成/参加画面 → 本編 の順に切り替える。
  */
 @Composable
-fun AppRoot(app: ScheduleLinkApplication, isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
+fun AppRoot(
+    app: ScheduleLinkApplication,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+    isPhotoFeatureEnabled: Boolean,
+    onTogglePhotoFeature: (Boolean) -> Unit
+) {
     val user by app.authRepository.currentUser.collectAsState(initial = null)
     val firebaseUser = user
 
     if (firebaseUser == null) {
         SignInScreen(authRepository = app.authRepository)
     } else {
-        FamilyGate(app, firebaseUser, isDarkTheme, onToggleTheme)
+        FamilyGate(app, firebaseUser, isDarkTheme, onToggleTheme, isPhotoFeatureEnabled, onTogglePhotoFeature)
     }
 }
 
 @Composable
-private fun FamilyGate(app: ScheduleLinkApplication, user: FirebaseUser, isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
+private fun FamilyGate(
+    app: ScheduleLinkApplication,
+    user: FirebaseUser,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+    isPhotoFeatureEnabled: Boolean,
+    onTogglePhotoFeature: (Boolean) -> Unit
+) {
     // Firestoreのセキュリティルール未整備・権限エラーなどでFlowが例外終了しても
     // アプリ全体がクラッシュしないよう、ここで必ず捕まえてエラー画面に変換する。
     val state by remember(user.uid) {
@@ -79,7 +92,9 @@ private fun FamilyGate(app: ScheduleLinkApplication, user: FirebaseUser, isDarkT
             uid = user.uid,
             familyId = current.familyId,
             isDarkTheme = isDarkTheme,
-            onToggleTheme = onToggleTheme
+            onToggleTheme = onToggleTheme,
+            isPhotoFeatureEnabled = isPhotoFeatureEnabled,
+            onTogglePhotoFeature = onTogglePhotoFeature
         )
         is FamilyGateState.Error -> FamilyGateErrorScreen(
             message = current.message,
@@ -110,7 +125,9 @@ private fun MainApp(
     uid: String,
     familyId: String,
     isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    isPhotoFeatureEnabled: Boolean,
+    onTogglePhotoFeature: (Boolean) -> Unit
 ) {
     val scheduleRepository = remember(familyId) { ScheduleRepository(app.firestore, familyId) }
     val goalRepository = remember(familyId) { GoalRepository(app.firestore, familyId) }
@@ -127,6 +144,8 @@ private fun MainApp(
         familyRepository = app.familyRepository,
         isDarkTheme = isDarkTheme,
         onToggleTheme = onToggleTheme,
+        isPhotoFeatureEnabled = isPhotoFeatureEnabled,
+        onTogglePhotoFeature = onTogglePhotoFeature,
         onSignOut = { app.authRepository.signOut() }
     )
 }
