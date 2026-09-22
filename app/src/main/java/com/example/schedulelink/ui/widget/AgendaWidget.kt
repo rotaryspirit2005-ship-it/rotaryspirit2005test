@@ -35,7 +35,6 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -61,7 +60,7 @@ class AgendaWidget : GlanceAppWidget() {
                     runCatching {
                         val repo = ScheduleRepository(app.firestore, familyId)
                         val today = LocalDate.now()
-                        schedules = repo.schedulesInRange(today, today.plusDays(6)).first()
+                        schedules = repo.schedulesInRangeOnce(today, today.plusDays(6))
                     }.onFailure { e -> WidgetErrorLog.record(context, "AgendaWidget.fetch", e) }
                 } == null
                 if (timedOut) {

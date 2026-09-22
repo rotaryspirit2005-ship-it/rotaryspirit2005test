@@ -44,7 +44,6 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.YearMonth
@@ -97,10 +96,10 @@ class MonthMiniWidget : GlanceAppWidget() {
                 val timedOut = withTimeoutOrNull(8_000) {
                     runCatching {
                         val repo = ScheduleRepository(app.firestore, familyId)
-                        scheduleDates = repo.schedulesInRange(month.atDay(1), month.atEndOfMonth()).first()
+                        scheduleDates = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
                             .map { it.date }
                             .toSet()
-                        selectedDaySchedules = repo.schedulesForDateWithLinks(selectedDate).first()
+                        selectedDaySchedules = repo.schedulesForDateWithLinksOnce(selectedDate)
                     }.onFailure { e ->
                         // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
                         fetchError = "${e::class.simpleName}: ${e.message}"

@@ -78,6 +78,30 @@ class ScheduleRepository(
             }
         }
 
+    /**
+     * ウィジェットのように「今だけ一度取得できればよい」用途向けの単発取得。
+     * schedulesInRange/schedulesForDateWithLinksはリアルタイム購読(スナップショット
+     * リスナー)の最初の1件をFlow.first()で拾う設計だが、その「最初の1件」は
+     * サーバー同期が終わる前のキャッシュのみの不完全な結果であることがあり、
+     * 直前に保存した予定が反映されないまま購読を終了してしまうことがあった。
+     * ここでは購読せず、その都度サーバーへ問い合わせて確実に最新を取得する。
+     */
+    suspend fun schedulesInRangeOnce(start: LocalDate, end: LocalDate): List<ScheduleEntity> =
+        collection.whereGreaterThanOrEqualTo("date", start.toString())
+            .whereLessThanOrEqualTo("date", end.toString())
+            .get().await()
+            .documents.map { it.toSchedule() }.sortedWith(byDateTime)
+
+    suspend fun schedulesForDateWithLinksOnce(date: LocalDate): List<ScheduleWithLinks> {
+        val dayList = collection.whereEqualTo("date", date.toString()).get().await()
+            .documents.map { it.toSchedule() }.sortedWith(byDateTime)
+        val all = collection.get().await().documents.map { it.toSchedule() }
+        val byId = all.associateBy { it.id }
+        return dayList.map { item ->
+            ScheduleWithLinks(item, item.linkedIds.mapNotNull { byId[it] }.sortedWith(byDateTime))
+        }
+    }
+
     fun scheduleById(id: String): Flow<ScheduleEntity?> =
         collection.document(id).observeAsFlow().map { snap -> if (snap.exists()) snap.toSchedule() else null }
 
