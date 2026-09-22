@@ -44,6 +44,7 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
 import com.example.schedulelink.data.WidgetPreferences
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -77,15 +78,24 @@ class MonthMiniWidget : GlanceAppWidget() {
         var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
         var fetchError: String? = null
         if (familyId != null) {
-            runCatching {
-                val repo = ScheduleRepository(app.firestore, familyId)
-                scheduleDates = repo.schedulesInRange(month.atDay(1), month.atEndOfMonth()).first()
-                    .map { it.date }
-                    .toSet()
-                selectedDaySchedules = repo.schedulesForDateWithLinks(selectedDate).first()
-            }.onFailure { e ->
-                // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
-                fetchError = "${e::class.simpleName}: ${e.message}"
+            // ウィジェットの更新処理はOSから実行時間の制約を受けるため、Firestoreへの
+            // 通信が遅い・詰まっている場合に無期限に待ち続けると、更新自体が
+            // 何も起きないまま失敗する(「更新やタップの反応が不安定」に見える原因)。
+            // 明示的にタイムアウトを設け、必ずウィジェットの表示を完了させる。
+            val timedOut = withTimeoutOrNull(8_000) {
+                runCatching {
+                    val repo = ScheduleRepository(app.firestore, familyId)
+                    scheduleDates = repo.schedulesInRange(month.atDay(1), month.atEndOfMonth()).first()
+                        .map { it.date }
+                        .toSet()
+                    selectedDaySchedules = repo.schedulesForDateWithLinks(selectedDate).first()
+                }.onFailure { e ->
+                    // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
+                    fetchError = "${e::class.simpleName}: ${e.message}"
+                }
+            } == null
+            if (timedOut) {
+                fetchError = "データ取得がタイムアウトしました(通信状況をご確認ください)"
             }
         }
 

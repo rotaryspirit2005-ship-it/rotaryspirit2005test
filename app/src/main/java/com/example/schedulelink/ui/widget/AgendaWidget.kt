@@ -35,6 +35,7 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.WidgetPreferences
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -47,11 +48,16 @@ class AgendaWidget : GlanceAppWidget() {
         val app = context.applicationContext as ScheduleLinkApplication
         val familyId = WidgetPreferences(context).familyId
         val schedules: List<ScheduleEntity> = if (familyId != null) {
-            runCatching {
-                val repo = ScheduleRepository(app.firestore, familyId)
-                val today = LocalDate.now()
-                repo.schedulesInRange(today, today.plusDays(6)).first()
-            }.getOrDefault(emptyList())
+            // ウィジェット更新はOSの実行時間制約を受けるため、Firestore通信が
+            // 詰まった場合に無期限に待つと更新自体が失敗して見える。
+            // タイムアウトを設けて必ず表示を完了させる。
+            withTimeoutOrNull(8_000) {
+                runCatching {
+                    val repo = ScheduleRepository(app.firestore, familyId)
+                    val today = LocalDate.now()
+                    repo.schedulesInRange(today, today.plusDays(6)).first()
+                }.getOrDefault(emptyList())
+            } ?: emptyList()
         } else {
             emptyList()
         }
