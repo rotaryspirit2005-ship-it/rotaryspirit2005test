@@ -42,6 +42,7 @@ import com.example.schedulelink.MainActivity
 import com.example.schedulelink.ScheduleLinkApplication
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
+import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -62,41 +63,63 @@ private val DATE_PARAM = ActionParameters.Key<String>("date")
 /** ホーム画面ウィジェット: 上半分に今月のミニカレンダー、下半分にタップした日の予定(簡易フロー風)。 */
 class MonthMiniWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val app = context.applicationContext as ScheduleLinkApplication
-        val familyId = WidgetPreferences(context).familyId
-        val month = YearMonth.now()
+        WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "provideGlance開始")
 
-        // どの日を選んでいるかは、SharedPreferencesを自前でキー管理するのではなく、
-        // Glance自身がウィジェットインスタンスごとに正しく紐付けてくれる
-        // 標準の状態保存機構(PreferencesGlanceStateDefinition)を使う。
-        val prefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
-        val selectedDate = prefs[SELECTED_DATE_KEY]
-            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            ?: LocalDate.now()
-
+        var month = YearMonth.now()
+        var selectedDate = LocalDate.now()
         var scheduleDates: Set<LocalDate> = emptySet()
         var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
         var fetchError: String? = null
-        if (familyId != null) {
-            // ウィジェットの更新処理はOSから実行時間の制約を受けるため、Firestoreへの
-            // 通信が遅い・詰まっている場合に無期限に待ち続けると、更新自体が
-            // 何も起きないまま失敗する(「更新やタップの反応が不安定」に見える原因)。
-            // 明示的にタイムアウトを設け、必ずウィジェットの表示を完了させる。
-            val timedOut = withTimeoutOrNull(8_000) {
-                runCatching {
-                    val repo = ScheduleRepository(app.firestore, familyId)
-                    scheduleDates = repo.schedulesInRange(month.atDay(1), month.atEndOfMonth()).first()
-                        .map { it.date }
-                        .toSet()
-                    selectedDaySchedules = repo.schedulesForDateWithLinks(selectedDate).first()
-                }.onFailure { e ->
-                    // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
-                    fetchError = "${e::class.simpleName}: ${e.message}"
+        var isSignedIn = false
+
+        // getAppWidgetStateなど、この処理全体のどこで失敗しても
+        // 原因不明のまま表示が止まらないよう、丸ごと捕まえて記録する。
+        try {
+            val app = context.applicationContext as ScheduleLinkApplication
+            val familyId = WidgetPreferences(context).familyId
+            isSignedIn = familyId != null
+            month = YearMonth.now()
+
+            // どの日を選んでいるかは、SharedPreferencesを自前でキー管理するのではなく、
+            // Glance自身がウィジェットインスタンスごとに正しく紐付けてくれる
+            // 標準の状態保存機構(PreferencesGlanceStateDefinition)を使う。
+            val prefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+            selectedDate = prefs[SELECTED_DATE_KEY]
+                ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?: LocalDate.now()
+            WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "選択日読み込み完了: $selectedDate")
+
+            if (familyId != null) {
+                // ウィジェットの更新処理はOSから実行時間の制約を受けるため、Firestoreへの
+                // 通信が遅い・詰まっている場合に無期限に待ち続けると、更新自体が
+                // 何も起きないまま失敗する(「更新やタップの反応が不安定」に見える原因)。
+                // 明示的にタイムアウトを設け、必ずウィジェットの表示を完了させる。
+                val timedOut = withTimeoutOrNull(8_000) {
+                    runCatching {
+                        val repo = ScheduleRepository(app.firestore, familyId)
+                        scheduleDates = repo.schedulesInRange(month.atDay(1), month.atEndOfMonth()).first()
+                            .map { it.date }
+                            .toSet()
+                        selectedDaySchedules = repo.schedulesForDateWithLinks(selectedDate).first()
+                    }.onFailure { e ->
+                        // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
+                        fetchError = "${e::class.simpleName}: ${e.message}"
+                        WidgetErrorLog.record(context, "MonthMiniWidget.fetch", e)
+                    }
+                } == null
+                if (timedOut) {
+                    fetchError = "データ取得がタイムアウトしました(通信状況をご確認ください)"
+                    WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "データ取得タイムアウト")
                 }
-            } == null
-            if (timedOut) {
-                fetchError = "データ取得がタイムアウトしました(通信状況をご確認ください)"
             }
+            WidgetErrorLog.recordInfo(
+                context,
+                "MonthMiniWidget",
+                "データ取得完了: schedules=${selectedDaySchedules.size}件, error=$fetchError"
+            )
+        } catch (e: Throwable) {
+            WidgetErrorLog.record(context, "MonthMiniWidget.provideGlance", e)
+            fetchError = "致命的エラー: ${e::class.simpleName}: ${e.message}"
         }
 
         provideContent {
@@ -105,10 +128,11 @@ class MonthMiniWidget : GlanceAppWidget() {
                 scheduleDates = scheduleDates,
                 selectedDate = selectedDate,
                 selectedDaySchedules = selectedDaySchedules,
-                isSignedIn = familyId != null,
+                isSignedIn = isSignedIn,
                 fetchError = fetchError
             )
         }
+        WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "provideGlance完了(provideContent呼び出し済み)")
     }
 }
 
@@ -118,17 +142,34 @@ class MonthMiniWidgetReceiver : GlanceAppWidgetReceiver() {
 
 class MonthMiniRefreshAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        MonthMiniWidget().update(context, glanceId)
+        WidgetErrorLog.recordInfo(context, "MonthMiniRefreshAction", "onAction呼び出された")
+        try {
+            MonthMiniWidget().update(context, glanceId)
+            WidgetErrorLog.recordInfo(context, "MonthMiniRefreshAction", "update()完了")
+        } catch (e: Throwable) {
+            WidgetErrorLog.record(context, "MonthMiniRefreshAction", e)
+        }
     }
 }
 
 class SelectDateAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val date = parameters[DATE_PARAM]?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return
-        updateAppWidgetState(context, glanceId) { prefs ->
-            prefs[SELECTED_DATE_KEY] = date.toString()
+        WidgetErrorLog.recordInfo(context, "SelectDateAction", "onAction呼び出された: date=${parameters[DATE_PARAM]}")
+        try {
+            val date = parameters[DATE_PARAM]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            if (date == null) {
+                WidgetErrorLog.recordInfo(context, "SelectDateAction", "dateパラメータが不正または欠落")
+                return
+            }
+            updateAppWidgetState(context, glanceId) { prefs ->
+                prefs[SELECTED_DATE_KEY] = date.toString()
+            }
+            WidgetErrorLog.recordInfo(context, "SelectDateAction", "状態書き込み完了: $date")
+            MonthMiniWidget().update(context, glanceId)
+            WidgetErrorLog.recordInfo(context, "SelectDateAction", "update()完了")
+        } catch (e: Throwable) {
+            WidgetErrorLog.record(context, "SelectDateAction", e)
         }
-        MonthMiniWidget().update(context, glanceId)
     }
 }
 

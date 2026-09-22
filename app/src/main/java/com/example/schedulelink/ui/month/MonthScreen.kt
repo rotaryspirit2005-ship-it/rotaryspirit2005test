@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,9 +51,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.ui.list.FlowLegend
 import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
@@ -99,6 +104,8 @@ fun MonthScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showPhotoFeatureWarning by remember { mutableStateOf(false) }
     var showVersionInfo by remember { mutableStateOf(false) }
+    var showWidgetLog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -153,6 +160,10 @@ fun MonthScreen(
                         DropdownMenuItem(
                             text = { Text("バージョン情報") },
                             onClick = { showMenu = false; showVersionInfo = true }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("ウィジェットログ") },
+                            onClick = { showMenu = false; showWidgetLog = true }
                         )
                     }
                 }
@@ -229,6 +240,36 @@ fun MonthScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showVersionInfo = false }) { Text("閉じる") }
+            }
+        )
+    }
+
+    if (showWidgetLog) {
+        var logText by remember { mutableStateOf(WidgetErrorLog.readAll(context)) }
+        AlertDialog(
+            onDismissRequest = { showWidgetLog = false },
+            title = { Text("ウィジェットログ") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(360.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = logText.ifBlank { "ログはまだありません。ウィジェットの更新ボタンや日付をタップしてから開いてください。" },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showWidgetLog = false }) { Text("閉じる") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    WidgetErrorLog.clear(context)
+                    logText = WidgetErrorLog.readAll(context)
+                }) { Text("クリア") }
             }
         )
     }

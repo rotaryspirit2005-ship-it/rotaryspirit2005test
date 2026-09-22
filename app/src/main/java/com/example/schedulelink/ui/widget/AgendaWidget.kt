@@ -33,6 +33,7 @@ import com.example.schedulelink.MainActivity
 import com.example.schedulelink.ScheduleLinkApplication
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
+import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -45,26 +46,37 @@ private val agendaDateFormatter = DateTimeFormatter.ofPattern("M/d(E)", Locale.J
 /** ホーム画面ウィジェット: 今日から1週間分の直近の予定を最大5件表示する。 */
 class AgendaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val app = context.applicationContext as ScheduleLinkApplication
-        val familyId = WidgetPreferences(context).familyId
-        val schedules: List<ScheduleEntity> = if (familyId != null) {
-            // ウィジェット更新はOSの実行時間制約を受けるため、Firestore通信が
-            // 詰まった場合に無期限に待つと更新自体が失敗して見える。
-            // タイムアウトを設けて必ず表示を完了させる。
-            withTimeoutOrNull(8_000) {
-                runCatching {
-                    val repo = ScheduleRepository(app.firestore, familyId)
-                    val today = LocalDate.now()
-                    repo.schedulesInRange(today, today.plusDays(6)).first()
-                }.getOrDefault(emptyList())
-            } ?: emptyList()
-        } else {
-            emptyList()
+        WidgetErrorLog.recordInfo(context, "AgendaWidget", "provideGlance開始")
+        var schedules: List<ScheduleEntity> = emptyList()
+        var isSignedIn = false
+        try {
+            val app = context.applicationContext as ScheduleLinkApplication
+            val familyId = WidgetPreferences(context).familyId
+            isSignedIn = familyId != null
+            if (familyId != null) {
+                // ウィジェット更新はOSの実行時間制約を受けるため、Firestore通信が
+                // 詰まった場合に無期限に待つと更新自体が失敗して見える。
+                // タイムアウトを設けて必ず表示を完了させる。
+                val timedOut = withTimeoutOrNull(8_000) {
+                    runCatching {
+                        val repo = ScheduleRepository(app.firestore, familyId)
+                        val today = LocalDate.now()
+                        schedules = repo.schedulesInRange(today, today.plusDays(6)).first()
+                    }.onFailure { e -> WidgetErrorLog.record(context, "AgendaWidget.fetch", e) }
+                } == null
+                if (timedOut) {
+                    WidgetErrorLog.recordInfo(context, "AgendaWidget", "データ取得タイムアウト")
+                }
+            }
+            WidgetErrorLog.recordInfo(context, "AgendaWidget", "データ取得完了: schedules=${schedules.size}件")
+        } catch (e: Throwable) {
+            WidgetErrorLog.record(context, "AgendaWidget.provideGlance", e)
         }
 
         provideContent {
-            AgendaWidgetContent(schedules = schedules, isSignedIn = familyId != null)
+            AgendaWidgetContent(schedules = schedules, isSignedIn = isSignedIn)
         }
+        WidgetErrorLog.recordInfo(context, "AgendaWidget", "provideGlance完了")
     }
 }
 
@@ -74,7 +86,13 @@ class AgendaWidgetReceiver : GlanceAppWidgetReceiver() {
 
 class AgendaRefreshAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        AgendaWidget().update(context, glanceId)
+        WidgetErrorLog.recordInfo(context, "AgendaRefreshAction", "onAction呼び出された")
+        try {
+            AgendaWidget().update(context, glanceId)
+            WidgetErrorLog.recordInfo(context, "AgendaRefreshAction", "update()完了")
+        } catch (e: Throwable) {
+            WidgetErrorLog.record(context, "AgendaRefreshAction", e)
+        }
     }
 }
 
