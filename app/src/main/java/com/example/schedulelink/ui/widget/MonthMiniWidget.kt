@@ -75,6 +75,7 @@ class MonthMiniWidget : GlanceAppWidget() {
 
         var scheduleDates: Set<LocalDate> = emptySet()
         var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
+        var fetchError: String? = null
         if (familyId != null) {
             runCatching {
                 val repo = ScheduleRepository(app.firestore, familyId)
@@ -82,6 +83,9 @@ class MonthMiniWidget : GlanceAppWidget() {
                     .map { it.date }
                     .toSet()
                 selectedDaySchedules = repo.schedulesForDateWithLinks(selectedDate).first()
+            }.onFailure { e ->
+                // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
+                fetchError = "${e::class.simpleName}: ${e.message}"
             }
         }
 
@@ -91,7 +95,8 @@ class MonthMiniWidget : GlanceAppWidget() {
                 scheduleDates = scheduleDates,
                 selectedDate = selectedDate,
                 selectedDaySchedules = selectedDaySchedules,
-                isSignedIn = familyId != null
+                isSignedIn = familyId != null,
+                fetchError = fetchError
             )
         }
     }
@@ -137,7 +142,8 @@ private fun MonthMiniWidgetContent(
     scheduleDates: Set<LocalDate>,
     selectedDate: LocalDate,
     selectedDaySchedules: List<ScheduleWithLinks>,
-    isSignedIn: Boolean
+    isSignedIn: Boolean,
+    fetchError: String?
 ) {
     val weeks = buildMonthGrid(month)
     val today = LocalDate.now()
@@ -227,30 +233,49 @@ private fun MonthMiniWidgetContent(
             }
 
             Spacer(modifier = GlanceModifier.height(8.dp))
+
+            if (fetchError != null) {
+                Text(
+                    text = "取得エラー: $fetchError",
+                    style = TextStyle(color = WidgetSubText)
+                )
+            }
+
             Text(
                 text = "${selectedDate.format(selectedDateWidgetFormatter)}の予定",
                 style = TextStyle(color = WidgetOnBackground, fontWeight = FontWeight.Bold)
             )
             Spacer(modifier = GlanceModifier.height(4.dp))
 
-            if (selectedDaySchedules.isEmpty()) {
-                Text(
-                    text = "予定はありません",
-                    style = TextStyle(color = WidgetSubText),
-                    modifier = GlanceModifier.clickable(openAppAction)
-                )
-            } else {
-                Column(modifier = GlanceModifier.clickable(openAppAction)) {
-                    selectedDaySchedules.take(3).forEach { item ->
-                        ScheduleFlowRowSimple(item)
-                    }
-                    if (selectedDaySchedules.size > 3) {
-                        Text(
-                            text = "ほか${selectedDaySchedules.size - 3}件",
-                            style = TextStyle(color = WidgetSubText)
-                        )
+            // このブロックで例外が起きると、原因がわからないまま表示が丸ごと
+            // 消えてしまう(Glanceはコンポーザブルの例外を静かに握りつぶすことが
+            // あるため)。次回切り分けられるよう、失敗時はエラー内容自体を表示する。
+            val renderResult = runCatching {
+                if (selectedDaySchedules.isEmpty()) {
+                    Text(
+                        text = "予定はありません",
+                        style = TextStyle(color = WidgetSubText),
+                        modifier = GlanceModifier.clickable(openAppAction)
+                    )
+                } else {
+                    Column(modifier = GlanceModifier.clickable(openAppAction)) {
+                        selectedDaySchedules.take(3).forEach { item ->
+                            ScheduleFlowRowSimple(item)
+                        }
+                        if (selectedDaySchedules.size > 3) {
+                            Text(
+                                text = "ほか${selectedDaySchedules.size - 3}件",
+                                style = TextStyle(color = WidgetSubText)
+                            )
+                        }
                     }
                 }
+            }
+            renderResult.exceptionOrNull()?.let { e ->
+                Text(
+                    text = "表示エラー: ${e::class.simpleName}: ${e.message}",
+                    style = TextStyle(color = WidgetSubText)
+                )
             }
         }
     }
