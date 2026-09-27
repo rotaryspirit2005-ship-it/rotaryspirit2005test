@@ -485,7 +485,12 @@ private fun ScheduleFlowRowSimple(item: ScheduleWithLinks, onClick: Action) {
         // 後の予定がなければ直前の予定を「←」で示す。時刻だけではどの日か分からないので日付も出す。
         val schedule = item.schedule
         val next = item.linkedSchedules.firstOrNull {
-            it.date > schedule.date || (it.date == schedule.date && it.startTime > schedule.startTime)
+            // アプリ本体(ScheduleFlowComponentsのisLater)と同じ順序付け。同時刻はidで決める。
+            when {
+                it.date != schedule.date -> it.date > schedule.date
+                it.startTime != schedule.startTime -> it.startTime > schedule.startTime
+                else -> it.id > schedule.id
+            }
         }
         val linked = next ?: item.linkedSchedules.lastOrNull()
         if (linked != null) {
