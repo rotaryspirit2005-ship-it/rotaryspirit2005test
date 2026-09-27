@@ -171,26 +171,57 @@ fun WholeTreeFlowScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (tree.nodes.isEmpty()) {
-                Text(
-                    text = "まだ大目的がありません。右下の + から作成しましょう",
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                WholeTreeCanvas(
-                    tree = tree,
-                    onNodeClick = { node ->
-                        when (node.tier) {
-                            TreeTier.GOAL -> onGoalClick(node.id)
-                            TreeTier.MILESTONE -> onMilestoneClick(node.id)
-                            TreeTier.SCHEDULE -> onScheduleClick(node.id)
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (tree.nodes.isNotEmpty()) {
+                TreeLegend()
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                if (tree.nodes.isEmpty()) {
+                    Text(
+                        text = "まだ大目的がありません。右下の + から作成しましょう",
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    WholeTreeCanvas(
+                        tree = tree,
+                        onNodeClick = { node ->
+                            when (node.tier) {
+                                TreeTier.GOAL -> onGoalClick(node.id)
+                                TreeTier.MILESTONE -> onMilestoneClick(node.id)
+                                TreeTier.SCHEDULE -> onScheduleClick(node.id)
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
+    }
+}
+
+/** 色の意味(階層)が初見でも分かるよう、目的マップ上部に出す簡易凡例。 */
+@Composable
+private fun TreeLegend() {
+    val isDark = LocalIsDarkTheme.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        TreeLegendItem(color = TreeTier.GOAL.color(isDark), label = "大目的")
+        TreeLegendItem(color = TreeTier.MILESTONE.color(isDark), label = "中日程")
+        TreeLegendItem(color = TreeTier.SCHEDULE.color(isDark), label = "小日程")
+    }
+}
+
+@Composable
+private fun TreeLegendItem(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.common.PhotoGallery
+import com.example.schedulelink.ui.common.commonTimeFormatter
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -90,17 +92,25 @@ fun ScheduleDetailScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(current.title, style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    text = "${current.date.format(dateFormatter)}  ${current.startTime} 〜 ${current.endTime}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (current.memo.isNotBlank()) {
-                    Text(current.memo, style = MaterialTheme.typography.bodyMedium)
-                }
-                if (isPhotoFeatureEnabled) {
-                    PhotoGallery(urls = current.photoUrls)
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(current.title, style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            text = "${current.date.format(dateFormatter)}  " +
+                                "${current.startTime.format(commonTimeFormatter)} 〜 ${current.endTime.format(commonTimeFormatter)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (current.memo.isNotBlank()) {
+                            Text(current.memo, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (isPhotoFeatureEnabled) {
+                            PhotoGallery(urls = current.photoUrls)
+                        }
+                    }
                 }
 
                 Text(
@@ -156,7 +166,8 @@ private fun LinkedScheduleRow(schedule: ScheduleEntity, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(schedule.title, style = MaterialTheme.typography.titleSmall)
             Text(
-                text = "${schedule.date.format(dateFormatter)}  ${schedule.startTime} 〜 ${schedule.endTime}",
+                text = "${schedule.date.format(dateFormatter)}  " +
+                    "${schedule.startTime.format(commonTimeFormatter)} 〜 ${schedule.endTime.format(commonTimeFormatter)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

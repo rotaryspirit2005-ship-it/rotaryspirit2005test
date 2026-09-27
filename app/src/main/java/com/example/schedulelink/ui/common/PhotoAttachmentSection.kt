@@ -19,10 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +81,7 @@ fun PhotoAttachmentSection(
                     }
                 }
             ) { item ->
+                var showRemoveConfirm by remember { mutableStateOf(false) }
                 PhotoThumbnail(
                     model = when (item) {
                         is PhotoItem.Existing -> item.url
@@ -82,11 +89,29 @@ fun PhotoAttachmentSection(
                     },
                     onRemove = {
                         when (item) {
-                            is PhotoItem.Existing -> onRemoveExisting(item.url)
+                            // アップロード済みの写真は削除すると復元できないため確認を挟む。
+                            // 選択直後でまだ保存していない写真は、その場で取り消せるので即削除でよい。
+                            is PhotoItem.Existing -> showRemoveConfirm = true
                             is PhotoItem.Pending -> onRemovePending(item.uri)
                         }
                     }
                 )
+                if (showRemoveConfirm && item is PhotoItem.Existing) {
+                    AlertDialog(
+                        onDismissRequest = { showRemoveConfirm = false },
+                        title = { Text("写真を削除しますか?") },
+                        text = { Text("この操作は取り消せません。") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showRemoveConfirm = false
+                                onRemoveExisting(item.url)
+                            }) { Text("削除する", color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showRemoveConfirm = false }) { Text("キャンセル") }
+                        }
+                    )
+                }
             }
             item {
                 AddPhotoTile(
@@ -135,23 +160,30 @@ private fun PhotoThumbnail(model: Any, onRemove: () -> Unit) {
         )
         Box(
             modifier = Modifier
-                .padding(2.dp)
-                .size(22.dp)
                 .align(Alignment.TopEnd)
-                .clip(CircleShape)
-                // 写真の上に重ねる削除バッジ。背景の明暗に関わらず常に
-                // 白いアイコンとのコントラストを保つ必要があるため、
-                // テーマに関係なく固定の暗色にする。
-                .background(Color.Black.copy(alpha = 0.6f))
+                // 見た目のバッジ(22dp)は変えず、実際のタップ領域だけ32dpに広げる
+                // (横スクロール中の誤タップ・タップ精度の問題を減らすため)。
+                .size(32.dp)
                 .clickable(onClick = onRemove),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = "削除",
-                tint = Color.White,
-                modifier = Modifier.size(14.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    // 写真の上に重ねる削除バッジ。背景の明暗に関わらず常に
+                    // 白いアイコンとのコントラストを保つ必要があるため、
+                    // テーマに関係なく固定の暗色にする。
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "削除",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
         }
     }
 }

@@ -39,7 +39,9 @@ private val DarkColors = darkColorScheme(
 @Composable
 fun ScheduleLinkTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    // 端末の壁紙に連動するMaterial You配色よりも、調整済みの緑基調ブランドカラーを
+    // 常に優先する(端末によって見た目がバラつくのを避けるため)。
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

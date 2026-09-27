@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
@@ -66,7 +67,7 @@ class MonthMiniWidget : GlanceAppWidget() {
 
         var month = YearMonth.now()
         var selectedDate = LocalDate.now()
-        var scheduleDates: Set<LocalDate> = emptySet()
+        var scheduleCounts: Map<LocalDate, Int> = emptyMap()
         var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
         var fetchError: String? = null
         var isSignedIn = false
@@ -96,9 +97,9 @@ class MonthMiniWidget : GlanceAppWidget() {
                 val timedOut = withTimeoutOrNull(8_000) {
                     runCatching {
                         val repo = ScheduleRepository(app.firestore, familyId)
-                        scheduleDates = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
-                            .map { it.date }
-                            .toSet()
+                        scheduleCounts = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
+                            .groupingBy { it.date }
+                            .eachCount()
                         selectedDaySchedules = repo.schedulesForDateWithLinksOnce(selectedDate)
                     }.onFailure { e ->
                         // データ取得の失敗を握りつぶさず、原因切り分けのため表示する。
@@ -124,7 +125,7 @@ class MonthMiniWidget : GlanceAppWidget() {
         provideContent {
             MonthMiniWidgetContent(
                 month = month,
-                scheduleDates = scheduleDates,
+                scheduleCounts = scheduleCounts,
                 selectedDate = selectedDate,
                 selectedDaySchedules = selectedDaySchedules,
                 isSignedIn = isSignedIn,
@@ -189,7 +190,7 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
 @Composable
 private fun MonthMiniWidgetContent(
     month: YearMonth,
-    scheduleDates: Set<LocalDate>,
+    scheduleCounts: Map<LocalDate, Int>,
     selectedDate: LocalDate,
     selectedDaySchedules: List<ScheduleWithLinks>,
     isSignedIn: Boolean,
@@ -216,7 +217,11 @@ private fun MonthMiniWidgetContent(
             Text(
                 text = "更新",
                 style = TextStyle(color = WidgetAccent),
-                modifier = GlanceModifier.clickable(actionRunCallback<MonthMiniRefreshAction>())
+                // 文字そのものだけだとタップ判定が狭いため、周囲にpaddingを足して
+                // タップ領域を広げる(Glance/RemoteViewsでもpadding込みで判定される)。
+                modifier = GlanceModifier
+                    .padding(8.dp)
+                    .clickable(actionRunCallback<MonthMiniRefreshAction>())
             )
         }
         Spacer(modifier = GlanceModifier.height(4.dp))
@@ -267,13 +272,23 @@ private fun MonthMiniWidgetContent(
                                             fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
                                     )
-                                    if (date in scheduleDates) {
+                                    val count = scheduleCounts[date] ?: 0
+                                    if (count > 0) {
                                         Box(
                                             modifier = GlanceModifier
                                                 .size(4.dp)
                                                 .background(if (isSelected) WidgetSelectedText else WidgetAccent)
                                                 .cornerRadius(2.dp)
                                         ) {}
+                                        if (count > 1) {
+                                            Text(
+                                                text = count.toString(),
+                                                style = TextStyle(
+                                                    color = if (isSelected) WidgetSelectedText else WidgetSubText,
+                                                    fontSize = 9.sp
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             }

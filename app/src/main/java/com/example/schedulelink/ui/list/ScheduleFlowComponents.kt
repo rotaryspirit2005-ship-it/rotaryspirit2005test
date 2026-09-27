@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,8 +39,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleWithLinks
 import com.example.schedulelink.ui.theme.ArrowColorDark
@@ -106,16 +107,24 @@ fun FlowLegend() {
 }
 
 @Composable
-fun ScheduleEmptyState(modifier: Modifier = Modifier) {
+fun ScheduleEmptyState(modifier: Modifier = Modifier, onAddClick: (() -> Unit)? = null) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "この日の予定はありません",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "この日の予定はありません",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (onAddClick != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                FilledTonalButton(onClick = onAddClick) {
+                    Text("予定を追加")
+                }
+            }
+        }
     }
 }
 

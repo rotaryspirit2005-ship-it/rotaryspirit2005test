@@ -38,6 +38,8 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.importing.ImportedEvent
 import com.example.schedulelink.importing.IcsParser
+import com.example.schedulelink.ui.common.commonDateFormatter
+import com.example.schedulelink.ui.common.commonTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -141,7 +143,8 @@ fun ImportIcsScreen(repository: ScheduleRepository, onBack: () -> Unit) {
                             Column {
                                 Text(event.title, style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    "${event.date} ${event.startTime}〜${event.endTime}",
+                                    "${event.date.format(commonDateFormatter)} " +
+                                        "${event.startTime.format(commonTimeFormatter)}〜${event.endTime.format(commonTimeFormatter)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

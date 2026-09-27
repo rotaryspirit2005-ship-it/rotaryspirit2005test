@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,7 +38,10 @@ fun FamilyGroupScreen(
     var familyName by remember { mutableStateOf("") }
     var inviteCodeInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(false) }
+    // 作成・参加どちらの通信中かを区別し、実行中でない方のボタンにまで
+    // スピナーが出てしまわないようにする。
+    var creating by remember { mutableStateOf(false) }
+    var joining by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -71,19 +76,25 @@ fun FamilyGroupScreen(
                         errorMessage = "グループ名を入力してください"
                     } else {
                         errorMessage = null
-                        loading = true
+                        creating = true
                         scope.launch {
                             runCatching { familyRepository.createFamily(uid, displayName, familyName.trim()) }
                                 .onFailure { errorMessage = it.message }
-                            loading = false
+                            creating = false
                         }
                     }
                 },
-                enabled = !loading,
+                enabled = !creating && !joining,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("作成する") }
+            ) {
+                if (creating) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Text("作成する")
+                }
+            }
 
-            Divider()
+            HorizontalDivider()
 
             OutlinedTextField(
                 value = inviteCodeInput,
@@ -97,17 +108,23 @@ fun FamilyGroupScreen(
                         errorMessage = "招待コードを入力してください"
                     } else {
                         errorMessage = null
-                        loading = true
+                        joining = true
                         scope.launch {
                             familyRepository.joinFamily(uid, displayName, inviteCodeInput)
                                 .onFailure { errorMessage = it.message }
-                            loading = false
+                            joining = false
                         }
                     }
                 },
-                enabled = !loading,
+                enabled = !creating && !joining,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("参加する") }
+            ) {
+                if (joining) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Text("参加する")
+                }
+            }
 
             errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }

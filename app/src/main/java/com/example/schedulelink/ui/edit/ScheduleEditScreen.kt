@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
+import com.example.schedulelink.ui.common.commonTimeFormatter
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -57,6 +58,9 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Lo
 fun ScheduleEditScreen(
     scheduleId: String?,
     initialMilestoneId: String?,
+    // MonthScreenで選択中の日付から直接この画面を開いたときに、日付欄をあらかじめ
+    // その日にしておくための引数。新規作成時のみ使う(編集時は既存の日付を使う)。
+    initialDate: LocalDate? = null,
     viewModel: ScheduleEditViewModel,
     onSaved: () -> Unit,
     onBack: () -> Unit,
@@ -64,7 +68,7 @@ fun ScheduleEditScreen(
 ) {
     var title by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(LocalDate.now()) }
+    var date by remember { mutableStateOf(initialDate ?: LocalDate.now()) }
     var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var linkedIds by remember { mutableStateOf(setOf<String>()) }
@@ -151,14 +155,21 @@ fun ScheduleEditScreen(
                         onClick = { showStartTimePicker = true },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("開始: $startTime")
+                        Text("開始: ${startTime.format(commonTimeFormatter)}")
                     }
                     OutlinedButton(
                         onClick = { showEndTimePicker = true },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("終了: $endTime")
+                        Text("終了: ${endTime.format(commonTimeFormatter)}")
                     }
+                }
+                if (!endTime.isAfter(startTime)) {
+                    Text(
+                        text = "終了時刻は開始時刻より後にしてください",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
 
                 OutlinedButton(onClick = { showMilestonePicker = true }, modifier = Modifier.fillMaxWidth()) {
@@ -211,7 +222,8 @@ fun ScheduleEditScreen(
                                 Column {
                                     Text(candidate.title, style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        text = "${candidate.date.format(dateFormatter)} ${candidate.startTime}〜${candidate.endTime}",
+                                        text = "${candidate.date.format(dateFormatter)} " +
+                                            "${candidate.startTime.format(commonTimeFormatter)}〜${candidate.endTime.format(commonTimeFormatter)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

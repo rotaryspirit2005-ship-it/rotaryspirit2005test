@@ -53,7 +53,7 @@ private const val ROUTE_MONTH = "month"
 private const val ROUTE_WEEK = "week/{date}"
 private const val ROUTE_LIST = "list?date={date}"
 private const val ROUTE_DETAIL = "detail/{id}"
-private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}"
+private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}&date={date}"
 private const val ROUTE_GOALS = "goals"
 private const val ROUTE_WHOLE_TREE = "wholeTree"
 private const val ROUTE_GOAL_EDIT = "goalEdit?id={id}"
@@ -105,6 +105,7 @@ fun ScheduleNavHost(
                     animatedVisibilityScope = this@composable,
                     onDayClick = { date -> navController.navigate("week/$date") },
                     onScheduleClick = { id -> navController.navigate("detail/$id") },
+                    onAddScheduleClick = { date -> navController.navigate("edit?date=$date") },
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
@@ -172,15 +173,18 @@ fun ScheduleNavHost(
             ROUTE_EDIT,
             arguments = listOf(
                 navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null },
-                navArgument("milestoneId") { type = NavType.StringType; nullable = true; defaultValue = null }
+                navArgument("milestoneId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("date") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getString("id")
             val milestoneId = backStackEntry.arguments?.getString("milestoneId")
+            val initialDate = backStackEntry.arguments?.getString("date")?.let { LocalDate.parse(it) }
             val vm: ScheduleEditViewModel = viewModel(factory = factory)
             ScheduleEditScreen(
                 scheduleId = id,
                 initialMilestoneId = milestoneId,
+                initialDate = initialDate,
                 viewModel = vm,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },

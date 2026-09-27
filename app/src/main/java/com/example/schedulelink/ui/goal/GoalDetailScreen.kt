@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ import com.example.schedulelink.data.GoalType
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
 import com.example.schedulelink.ui.common.PhotoGallery
+import com.example.schedulelink.ui.common.commonDateFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,29 +100,36 @@ fun GoalDetailScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(current.title, style = MaterialTheme.typography.headlineSmall)
-                if (current.memo.isNotBlank()) {
-                    Text(current.memo, style = MaterialTheme.typography.bodyMedium)
-                }
-                if (isPhotoFeatureEnabled) {
-                    PhotoGallery(urls = current.photoUrls)
-                }
-                if (current.type == GoalType.PHASED) {
-                    Text(
-                        "中日程 ${progress.doneCount}/${progress.totalCount} 完了",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    LinearProgressIndicator(
-                        progress = progress.ratio,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    Text(
-                        "継続中の習慣目的",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(current.title, style = MaterialTheme.typography.headlineSmall)
+                        if (current.memo.isNotBlank()) {
+                            Text(current.memo, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (isPhotoFeatureEnabled) {
+                            PhotoGallery(urls = current.photoUrls)
+                        }
+                        if (current.type == GoalType.PHASED) {
+                            Text(
+                                "中日程 ${progress.doneCount}/${progress.totalCount} 完了",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            LinearProgressIndicator(
+                                progress = progress.ratio,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            Text(
+                                "継続中の習慣目的",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
 
                 Text(
@@ -187,7 +196,7 @@ private fun MilestoneRow(milestone: MilestoneEntity, onClick: () -> Unit) {
                 Text(milestone.title, style = MaterialTheme.typography.titleSmall, color = contentColor)
                 if (milestone.startDate != null && milestone.endDate != null) {
                     Text(
-                        "${milestone.startDate} 〜 ${milestone.endDate}",
+                        "${milestone.startDate.format(commonDateFormatter)} 〜 ${milestone.endDate.format(commonDateFormatter)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = contentColor
                     )

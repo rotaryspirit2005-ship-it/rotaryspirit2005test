@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -36,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.common.PhotoGallery
+import com.example.schedulelink.ui.common.commonDateFormatter
+import com.example.schedulelink.ui.common.commonTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,15 +81,19 @@ fun MilestoneDetailScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            milestone?.memo?.takeIf { it.isNotBlank() }?.let {
-                Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
-            if (isPhotoFeatureEnabled) {
-                milestone?.photoUrls?.takeIf { it.isNotEmpty() }?.let { urls ->
-                    PhotoGallery(
-                        urls = urls,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+            val memo = milestone?.memo?.takeIf { it.isNotBlank() }
+            val photoUrls = milestone?.photoUrls?.takeIf { isPhotoFeatureEnabled && it.isNotEmpty() }
+            if (memo != null || photoUrls != null) {
+                ElevatedCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        memo?.let { Text(it) }
+                        photoUrls?.let { urls ->
+                            PhotoGallery(
+                                urls = urls,
+                                modifier = Modifier.padding(top = if (memo != null) 8.dp else 0.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -139,7 +146,8 @@ private fun ScheduleRow(schedule: ScheduleEntity, onClick: () -> Unit) {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                "${schedule.date} ${schedule.startTime}〜${schedule.endTime}",
+                "${schedule.date.format(commonDateFormatter)} " +
+                    "${schedule.startTime.format(commonTimeFormatter)}〜${schedule.endTime.format(commonTimeFormatter)}",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )

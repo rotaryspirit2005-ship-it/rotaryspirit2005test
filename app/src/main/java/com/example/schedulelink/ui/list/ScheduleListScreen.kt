@@ -16,11 +16,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -62,28 +60,20 @@ fun ScheduleListScreen(
                 title = { Text(selectedDate.format(dateFormatter)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "週表示に戻る", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "週表示に戻る")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.goToPreviousDay() }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の日", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の日")
                     }
                     IconButton(onClick = { viewModel.goToToday() }) {
-                        Icon(Icons.Default.Today, contentDescription = "今日", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.Default.Today, contentDescription = "今日")
                     }
                     IconButton(onClick = { viewModel.goToNextDay() }) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "次の日", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.Default.ChevronRight, contentDescription = "次の日")
                     }
-                },
-                // 白決め打ちだと、ダークモードのprimary(明るい緑)の上では
-                // 文字・アイコンが読みにくくなるため、テーマが計算するonPrimaryを使う。
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         },
         floatingActionButton = {
@@ -95,7 +85,7 @@ fun ScheduleListScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             FlowLegend()
             if (schedules.isEmpty()) {
-                ScheduleEmptyState(modifier = Modifier.fillMaxSize())
+                ScheduleEmptyState(modifier = Modifier.fillMaxSize(), onAddClick = onAddClick)
             } else {
                 ScheduleFlowList(
                     items = schedules,

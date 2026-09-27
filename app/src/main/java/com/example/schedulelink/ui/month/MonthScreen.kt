@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
@@ -31,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +69,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 
 private val monthFormatter = DateTimeFormatter.ofPattern("yyyy年M月", Locale.JAPAN)
 private val selectedDateFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
@@ -88,6 +90,7 @@ fun MonthScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
     onScheduleClick: (String) -> Unit,
+    onAddScheduleClick: (LocalDate) -> Unit,
     onGoalMapClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
     onImportIcsClick: () -> Unit,
@@ -142,6 +145,7 @@ fun MonthScreen(
                             text = { Text("端末のカレンダーから読み込む") },
                             onClick = { showMenu = false; onImportCalendarClick() }
                         )
+                        HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text(if (isDarkTheme) "ホワイトモードにする" else "ブラックモードにする") },
                             onClick = { showMenu = false; onToggleTheme() }
@@ -157,6 +161,7 @@ fun MonthScreen(
                                 }
                             }
                         )
+                        HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("バージョン情報") },
                             onClick = { showMenu = false; showVersionInfo = true }
@@ -168,6 +173,11 @@ fun MonthScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { onAddScheduleClick(selectedDate) }) {
+                Icon(Icons.Default.Add, contentDescription = "予定を追加")
+            }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -182,7 +192,7 @@ fun MonthScreen(
                 onDayClick = { date -> viewModel.selectDate(date) },
                 onPinchZoomDate = onDayClick
             )
-            Divider()
+            HorizontalDivider()
             Text(
                 text = "${selectedDate.format(selectedDateFormatter)}の予定",
                 style = MaterialTheme.typography.titleSmall,
@@ -190,7 +200,10 @@ fun MonthScreen(
             )
             FlowLegend()
             if (selectedDateSchedules.isEmpty()) {
-                ScheduleEmptyState(modifier = Modifier.weight(1f))
+                ScheduleEmptyState(
+                    modifier = Modifier.weight(1f),
+                    onAddClick = { onAddScheduleClick(selectedDate) }
+                )
             } else {
                 ScheduleFlowList(
                     items = selectedDateSchedules,
@@ -355,7 +368,9 @@ private fun MonthGrid(
                         modifier = Modifier
                             .weight(1f)
                             .aspectRatio(1f)
-                            .padding(2.dp)
+                            // 2dpずつ削ると小型端末で48dpのタップ推奨サイズを
+                            // わずかに下回ることがあるため、1dpに減らして確保する。
+                            .padding(1.dp)
                     ) {
                         if (date != null) {
                             DayCell(

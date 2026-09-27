@@ -151,6 +151,13 @@ fun MilestoneEditScreen(
                     Text("終了: ${endDate.format(dateFormatter)}")
                 }
             }
+            if (!endDate.isAfter(startDate)) {
+                Text(
+                    text = "終了日は開始日より後にしてください",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
 
             if (isPhotoFeatureEnabled) {
                 PhotoAttachmentSection(

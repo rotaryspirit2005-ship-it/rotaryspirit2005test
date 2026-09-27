@@ -118,7 +118,9 @@ private fun AgendaWidgetContent(schedules: List<ScheduleEntity>, isSignedIn: Boo
             Text(
                 text = "更新",
                 style = TextStyle(color = WidgetAccent),
-                modifier = GlanceModifier.clickable(actionRunCallback<AgendaRefreshAction>())
+                modifier = GlanceModifier
+                    .padding(8.dp)
+                    .clickable(actionRunCallback<AgendaRefreshAction>())
             )
         }
         Spacer(modifier = GlanceModifier.height(8.dp))

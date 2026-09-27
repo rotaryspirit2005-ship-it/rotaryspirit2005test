@@ -16,6 +16,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -47,8 +49,10 @@ fun FamilySettingsScreen(
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var showLeaveConfirm by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("家族グループの設定") },
@@ -87,6 +91,7 @@ fun FamilySettingsScreen(
                         Row(modifier = Modifier.padding(top = 8.dp)) {
                             OutlinedButton(onClick = {
                                 clipboardManager.setText(AnnotatedString(current.inviteCode))
+                                scope.launch { snackbarHostState.showSnackbar("コピーしました") }
                             }) {
                                 Text("コピー")
                             }
