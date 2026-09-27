@@ -95,13 +95,18 @@ fun FlowLegend() {
 }
 
 @Composable
-fun ScheduleEmptyState(modifier: Modifier = Modifier, onAddClick: (() -> Unit)? = null) {
+fun ScheduleEmptyState(
+    modifier: Modifier = Modifier,
+    onAddClick: (() -> Unit)? = null,
+    compact: Boolean = false
+) {
     EmptyState(
         icon = Icons.Outlined.EventNote,
         message = "この日の予定はありません",
         modifier = modifier,
         actionLabel = "予定を追加",
-        onAction = onAddClick
+        onAction = onAddClick,
+        showIcon = !compact
     )
 }
 

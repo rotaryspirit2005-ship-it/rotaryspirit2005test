@@ -48,6 +48,7 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.importing.DeviceCalendar
 import com.example.schedulelink.importing.DeviceCalendarReader
 import com.example.schedulelink.importing.ImportedEvent
+import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.commonDateFormatter
 import com.example.schedulelink.ui.common.commonTimeFormatter
@@ -126,7 +127,7 @@ fun ImportCalendarScreen(repository: ScheduleRepository, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("アクセスを許可する") }
             } else {
-                Text("読み込むカレンダー", style = MaterialTheme.typography.titleSmall)
+                FormLabel("読み込むカレンダー")
                 if (calendars.isEmpty()) {
                     Text(
                         "端末に同期されているカレンダーが見つかりません",

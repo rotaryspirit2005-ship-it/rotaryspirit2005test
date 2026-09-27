@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -214,7 +215,9 @@ private fun WeekDayCard(
                             text = schedule.startTime.format(commonTimeFormatter),
                             style = MaterialTheme.typography.bodyMedium.tabularNums(),
                             color = subTextColor,
-                            modifier = Modifier.width(44.dp)
+                            maxLines = 1,
+                            // 文字サイズを大きくした端末でも「23:59」が折り返さないよう、最小幅だけ揃える。
+                            modifier = Modifier.widthIn(min = 44.dp).padding(end = 8.dp)
                         )
                         Text(
                             text = schedule.title,

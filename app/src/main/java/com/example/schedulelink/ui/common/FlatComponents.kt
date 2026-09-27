@@ -105,17 +105,21 @@ fun EmptyState(
     message: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    // 狭い領域(月画面の下半分など)ではアイコンを省いて高さを抑える。
+    showIcon: Boolean = true
 ) {
     Box(modifier = modifier.padding(Dimens.ScreenPadding), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            if (showIcon) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyLarge,

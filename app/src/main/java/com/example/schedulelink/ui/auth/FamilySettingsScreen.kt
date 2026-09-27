@@ -114,9 +114,7 @@ fun FamilySettingsScreen(
             }
 
             HorizontalDivider()
-            TextButton(onClick = { showLeaveConfirm = true }) {
-                Text("この家族グループを抜ける", color = MaterialTheme.colorScheme.error)
-            }
+            DestructiveTextButton("この家族グループを抜ける") { showLeaveConfirm = true }
             TextButton(onClick = onSignOut) {
                 Text("サインアウト")
             }

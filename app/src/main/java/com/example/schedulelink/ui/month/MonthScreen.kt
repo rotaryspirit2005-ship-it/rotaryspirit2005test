@@ -51,8 +51,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.BuildConfig
@@ -217,9 +218,11 @@ fun MonthScreen(
             }
             FlowLegend()
             if (selectedDateSchedules.isEmpty()) {
+                // 月グリッドの下の残り領域は狭いため、アイコンなしの小さい表示にする。
+                // 追加は右下のFABと同じ操作になるので、ここにはボタンを重ねて出さない。
                 ScheduleEmptyState(
-                    modifier = Modifier.weight(1f),
-                    onAddClick = { onAddScheduleClick(selectedDate) }
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    compact = true
                 )
             } else {
                 ScheduleFlowList(
@@ -426,7 +429,10 @@ private fun DayCell(
                 // 選択中の日はセル全体をprimaryContainerで塗る(枠線は使わない)。
                 .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                 .clickable(onClick = onClick)
-                .semantics(mergeDescendants = true) { contentDescription = description }
+                .clearAndSetSemantics {
+                    contentDescription = description
+                    selected = isSelected
+                }
                 .padding(top = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
