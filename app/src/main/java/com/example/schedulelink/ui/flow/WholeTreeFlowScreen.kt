@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -163,6 +164,8 @@ fun WholeTreeFlowScreen(
     val outline by viewModel.outline.collectAsState()
     // 0 = ツリー(既定)、1 = タイムライン。
     var viewMode by rememberSaveable { mutableStateOf(0) }
+    // 表示を切り替えて戻ったときも、ツリーの開閉やスクロール位置を保つ。
+    val viewStateHolder = rememberSaveableStateHolder()
 
     Scaffold(
         topBar = {
@@ -204,42 +207,44 @@ fun WholeTreeFlowScreen(
                 modifier = Modifier.weight(1f),
                 label = "wholeMapMode"
             ) { mode ->
-                if (mode == 0) {
-                    // 読み込み前(null)は何も出さない。
-                    outline?.let {
-                        WholeTreeOutlineView(
-                            outline = it,
-                            onGoalClick = onGoalClick,
-                            onMilestoneClick = onMilestoneClick,
-                            onScheduleClick = onScheduleClick,
-                            onAddGoalClick = onAddGoalClick
-                        )
-                    } ?: Box(modifier = Modifier.fillMaxSize())
-                } else {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        if (tree.nodes.isNotEmpty()) {
-                            TreeLegend()
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (tree.nodes.isEmpty()) {
-                                EmptyState(
-                                    icon = Icons.Outlined.Flag,
-                                    message = "まだ大目的がありません",
-                                    modifier = Modifier.fillMaxSize(),
-                                    actionLabel = "大目的を追加",
-                                    onAction = onAddGoalClick
-                                )
-                            } else {
-                                WholeTreeCanvas(
-                                    tree = tree,
-                                    onNodeClick = { node ->
-                                        when (node.tier) {
-                                            TreeTier.GOAL -> onGoalClick(node.id)
-                                            TreeTier.MILESTONE -> onMilestoneClick(node.id)
-                                            TreeTier.SCHEDULE -> onScheduleClick(node.id)
+                viewStateHolder.SaveableStateProvider(mode) {
+                    if (mode == 0) {
+                        // 読み込み前(null)は何も出さない。
+                        outline?.let {
+                            WholeTreeOutlineView(
+                                outline = it,
+                                onGoalClick = onGoalClick,
+                                onMilestoneClick = onMilestoneClick,
+                                onScheduleClick = onScheduleClick,
+                                onAddGoalClick = onAddGoalClick
+                            )
+                        } ?: Box(modifier = Modifier.fillMaxSize())
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            if (tree.nodes.isNotEmpty()) {
+                                TreeLegend()
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (tree.nodes.isEmpty()) {
+                                    EmptyState(
+                                        icon = Icons.Outlined.Flag,
+                                        message = "まだ大目的がありません",
+                                        modifier = Modifier.fillMaxSize(),
+                                        actionLabel = "大目的を追加",
+                                        onAction = onAddGoalClick
+                                    )
+                                } else {
+                                    WholeTreeCanvas(
+                                        tree = tree,
+                                        onNodeClick = { node ->
+                                            when (node.tier) {
+                                                TreeTier.GOAL -> onGoalClick(node.id)
+                                                TreeTier.MILESTONE -> onMilestoneClick(node.id)
+                                                TreeTier.SCHEDULE -> onScheduleClick(node.id)
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -436,13 +441,17 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
 
                     val slot = busLayout.slotByParent[parentId] ?: 0
                     val bus = busY(parent.tier, slot).toPx()
-                    val parentTopLeft = topLeftOf(parent)
+                    // 線の端はカードの中心に置く(カードは不透明で上に重なるので端は隠れる。カードの高さは
+                    // 文字量で変わり、拡大時は縮小表示されるため、縁に合わせると線が離れてしまう)。
+                    val parentCenter = centerOf(parent)
                     // 同じ日付の親(別レーン)どうしの幹が重ならないよう、段ごとにカード内の横位置をずらす。
-                    val trunkX = (parentTopLeft.x.dp + NODE_WIDTH * ((slot + 1f) / (slotCount(parent.tier) + 1f))).toPx()
-                    val trunkTop = (parentTopLeft.y.dp + NODE_HEIGHT).toPx()
+                    // ずらし幅は拡大時に縮小表示されるカードの幅に合わせる。
+                    val slotFraction = (slot + 1f) / (slotCount(parent.tier) + 1f) - 0.5f
+                    val trunkX = (parentCenter.x.dp + NODE_WIDTH * slotFraction * strokeFactor).toPx()
+                    val trunkTop = parentCenter.y.dp.toPx()
                     val childPxList = children.map { child ->
-                        val topLeft = topLeftOf(child)
-                        Triple(child.id, Offset((topLeft.x.dp + NODE_WIDTH / 2).toPx(), topLeft.y.dp.toPx()), child)
+                        val c = centerOf(child)
+                        Triple(child.id, Offset(c.x.dp.toPx(), c.y.dp.toPx()), child)
                     }
                     val minX = minOf(trunkX, childPxList.minOf { it.second.x })
                     val maxX = maxOf(trunkX, childPxList.maxOf { it.second.x })
@@ -460,11 +469,11 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     }
                     val trunkStroke = if (selectedNodeId != null && groupHighlighted) edgeStroke * 1.6f else edgeStroke
 
-                    // 幹: 親カードの下端から、兄弟をまとめる共通のバス(横線)まで下ろす。
+                    // 幹: 親カードから、兄弟をまとめる共通のバス(横線)まで下ろす。
                     drawLine(color = trunkColor, start = Offset(trunkX, trunkTop), end = Offset(trunkX, bus), strokeWidth = trunkStroke)
                     // バス: 兄弟をまとめる横線。
                     drawLine(color = trunkColor, start = Offset(minX, bus), end = Offset(maxX, bus), strokeWidth = trunkStroke)
-                    // 枝: バスから各子カードの上端へ下ろす。
+                    // 枝: バスから各子カードへ下ろす。
                     childPxList.forEach { (childId, childTop, _) ->
                         val isChildHighlighted = selectedNodeId == null || isParentSelected || selectedNodeId == childId
                         val branchColor = when {

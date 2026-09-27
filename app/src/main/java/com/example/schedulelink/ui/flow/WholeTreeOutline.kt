@@ -120,6 +120,7 @@ fun buildTreeOutline(
     fun outlineOf(schedule: ScheduleEntity) = OutlineSchedule(
         schedule = schedule,
         links = schedule.linkedIds
+            .distinct()
             .mapNotNull { scheduleById[it] }
             .sortedWith(scheduleOrder)
             .map { linked ->
@@ -148,8 +149,9 @@ fun buildTreeOutline(
         // 済んだ大目的は下へ。それ以外は始まりの早い順(開始日のない目的は後ろ)。
         .sortedWith(compareBy({ it.status == NodeStatus.DONE }, { it.goal.startDate ?: LocalDate.MAX }))
 
-    // 中日程が削除済みなどで見つからない小日程も「中日程なし」にまとめる。
-    val knownMilestoneIds = milestones.map { it.id }.toSet()
+    // 中日程(またはその大目的)が削除済みなどでツリーに出ない小日程も「中日程なし」にまとめる。
+    val goalIds = goals.map { it.id }.toSet()
+    val knownMilestoneIds = milestones.filter { it.goalId in goalIds }.map { it.id }.toSet()
     val unassigned = schedules
         .filter { it.milestoneId == null || it.milestoneId !in knownMilestoneIds }
         .sortedWith(scheduleOrder)
@@ -193,7 +195,8 @@ private sealed interface OutlineRow {
         override val key = "p:$groupId"
     }
 
-    data class TodayDivider(val groupId: String, override val level: Int) : OutlineRow {
+    /** [showLabel]: 直後の予定が今日なら、その行の「今日」と重ならないよう線だけにする。 */
+    data class TodayDivider(val groupId: String, override val level: Int, val showLabel: Boolean) : OutlineRow {
         override val key = "t:$groupId"
     }
 
@@ -238,7 +241,7 @@ private fun flattenOutline(
         }
         // 過去と今後の境目に「今日」の線を引き、今どこにいるかを一目で分かるようにする。
         if (past.isNotEmpty() && upcoming.isNotEmpty()) {
-            rows += OutlineRow.TodayDivider(groupId, level)
+            rows += OutlineRow.TodayDivider(groupId, level, showLabel = upcoming.first().schedule.date != today)
         }
         upcoming.forEach { addSchedule(it, level) }
     }
@@ -404,6 +407,7 @@ fun WholeTreeOutlineView(
                 }
                 is OutlineRow.TodayDivider -> TodayDividerRow(
                     level = row.level,
+                    showLabel = row.showLabel,
                     lineColor = if (isDark) TodayLineColorDark else TodayLineColorLight,
                     guideColor = guideColor,
                     modifier = itemModifier
@@ -743,7 +747,7 @@ private fun LinkOutlineRow(row: OutlineRow.Link, linkColor: Color, guideColor: C
 }
 
 @Composable
-private fun TodayDividerRow(level: Int, lineColor: Color, guideColor: Color, modifier: Modifier) {
+private fun TodayDividerRow(level: Int, showLabel: Boolean, lineColor: Color, guideColor: Color, modifier: Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -752,8 +756,10 @@ private fun TodayDividerRow(level: Int, lineColor: Color, guideColor: Color, mod
             .padding(start = INDENT * level + LEADING_SLOT, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TodayBadge()
-        Spacer(modifier = Modifier.width(8.dp))
+        if (showLabel) {
+            TodayBadge()
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Box(modifier = Modifier.weight(1f).height(1.dp).background(lineColor))
     }
 }
