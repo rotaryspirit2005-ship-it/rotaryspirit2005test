@@ -58,11 +58,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.graphicsLayer
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -433,7 +435,10 @@ private fun MonthGrid(
     val today = remember { LocalDate.now() }
     // スワイプ中、しきい値に達するまで何も動かないと「カクつく」ため、指の動きに
     // そのまま追従させる。スワイプが不成立(離した/ピンチに切り替わった)ときは0へ戻す。
+    // Animatableの更新はawaitEachGesture内部の制限付きスコープ(@RestrictsSuspension)からは
+    // 直接呼べないため、rememberCoroutineScopeで取った通常のスコープ経由でlaunchする。
     val dragOffset = remember(month) { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -453,7 +458,7 @@ private fun MonthGrid(
                         if (pressedCount > 1) {
                             // ピンチ中に横ドラッグ分だけ誤って月送りしないよう、指を追加した時点で捨てる。
                             horizontalDrag = 0f
-                            dragOffset.snapTo(0f)
+                            coroutineScope.launch { dragOffset.snapTo(0f) }
                             val zoom = event.calculateZoom()
                             accumulatedZoom = (accumulatedZoom * zoom).coerceIn(0.3f, 4f)
                             if (!handled && accumulatedZoom > ZOOM_IN_THRESHOLD) {
@@ -467,7 +472,7 @@ private fun MonthGrid(
                             }
                         } else if (!handled) {
                             horizontalDrag += event.calculatePan().x
-                            dragOffset.snapTo(horizontalDrag)
+                            coroutineScope.launch { dragOffset.snapTo(horizontalDrag) }
                             when {
                                 horizontalDrag <= -swipeThresholdPx -> {
                                     onSwipeNext()
@@ -482,9 +487,11 @@ private fun MonthGrid(
                     } while (event.changes.any { it.pressed })
                     if (handled) {
                         // 月が切り替わった直後。以降の見た目はAnimatedContent側のスライドに任せる。
-                        dragOffset.snapTo(0f)
+                        coroutineScope.launch { dragOffset.snapTo(0f) }
                     } else {
-                        dragOffset.animateTo(0f, tween(Motion.DurationMedium, easing = Motion.EmphasizedDecelerate))
+                        coroutineScope.launch {
+                            dragOffset.animateTo(0f, tween(Motion.DurationMedium, easing = Motion.EmphasizedDecelerate))
+                        }
                     }
                 }
             }
