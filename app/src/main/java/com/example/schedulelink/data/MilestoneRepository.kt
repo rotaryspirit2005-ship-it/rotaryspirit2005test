@@ -43,14 +43,14 @@ class MilestoneRepository(
     private val byOrder = compareBy<MilestoneEntity>({ it.orderIndex }, { it.id })
 
     fun milestonesForGoal(goalId: String): Flow<List<MilestoneEntity>> =
-        collection.whereEqualTo("goalId", goalId).observeAsFlow()
+        collection.whereEqualTo("goalId", goalId).observeAsFlow().endOnPermissionDenied()
             .map { snap -> snap.documents.map { it.toMilestone() }.sortedWith(byOrder) }
 
     fun allMilestones(): Flow<List<MilestoneEntity>> =
-        collection.observeAsFlow().map { snap -> snap.documents.map { it.toMilestone() }.sortedWith(byOrder) }
+        collection.observeAsFlow().endOnPermissionDenied().map { snap -> snap.documents.map { it.toMilestone() }.sortedWith(byOrder) }
 
     fun milestoneById(id: String): Flow<MilestoneEntity?> =
-        collection.document(id).observeAsFlow().map { snap -> if (snap.exists()) snap.toMilestone() else null }
+        collection.document(id).observeAsFlow().endOnPermissionDenied().map { snap -> if (snap.exists()) snap.toMilestone() else null }
 
     fun progressForGoal(goalId: String): Flow<GoalProgress> =
         milestonesForGoal(goalId).map { list ->

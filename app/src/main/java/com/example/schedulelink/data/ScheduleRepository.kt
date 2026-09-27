@@ -47,18 +47,18 @@ class ScheduleRepository(
     private val byDateTime = compareBy<ScheduleEntity>({ it.date }, { it.startTime })
 
     fun allSchedules(): Flow<List<ScheduleEntity>> =
-        collection.observeAsFlow()
+        collection.observeAsFlow().endOnPermissionDenied()
             .map { snap -> snap.documents.map { it.toSchedule() }.sortedWith(byDateTime) }
 
     /** 月表示・週表示で使う、日付範囲(両端含む)の予定一覧。 */
     fun schedulesInRange(start: LocalDate, end: LocalDate): Flow<List<ScheduleEntity>> =
         collection.whereGreaterThanOrEqualTo("date", start.toString())
             .whereLessThanOrEqualTo("date", end.toString())
-            .observeAsFlow()
+            .observeAsFlow().endOnPermissionDenied()
             .map { snap -> snap.documents.map { it.toSchedule() }.sortedWith(byDateTime) }
 
     fun schedulesForDate(date: LocalDate): Flow<List<ScheduleWithLinkCount>> =
-        collection.whereEqualTo("date", date.toString()).observeAsFlow()
+        collection.whereEqualTo("date", date.toString()).observeAsFlow().endOnPermissionDenied()
             .map { snap ->
                 snap.documents.map { it.toSchedule() }
                     .sortedWith(byDateTime)
@@ -103,10 +103,10 @@ class ScheduleRepository(
     }
 
     fun scheduleById(id: String): Flow<ScheduleEntity?> =
-        collection.document(id).observeAsFlow().map { snap -> if (snap.exists()) snap.toSchedule() else null }
+        collection.document(id).observeAsFlow().endOnPermissionDenied().map { snap -> if (snap.exists()) snap.toSchedule() else null }
 
     fun schedulesForMilestone(milestoneId: String): Flow<List<ScheduleEntity>> =
-        collection.whereEqualTo("milestoneId", milestoneId).observeAsFlow()
+        collection.whereEqualTo("milestoneId", milestoneId).observeAsFlow().endOnPermissionDenied()
             .map { snap -> snap.documents.map { it.toSchedule() }.sortedWith(byDateTime) }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -116,7 +116,7 @@ class ScheduleRepository(
             if (ids.isEmpty()) {
                 flowOf(emptyList())
             } else {
-                combine(ids.map { linkedId -> collection.document(linkedId).observeAsFlow().map { it.toSchedule() } }) { list ->
+                combine(ids.map { linkedId -> collection.document(linkedId).observeAsFlow().endOnPermissionDenied().map { it.toSchedule() } }) { list ->
                     list.sortedWith(byDateTime)
                 }
             }

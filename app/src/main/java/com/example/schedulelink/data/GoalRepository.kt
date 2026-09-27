@@ -33,10 +33,10 @@ class GoalRepository(
     private val collection get() = firestore.collection("families").document(familyId).collection("goals")
 
     fun allGoals(): Flow<List<GoalEntity>> =
-        collection.observeAsFlow().map { snap -> snap.documents.map { it.toGoal() } }
+        collection.observeAsFlow().endOnPermissionDenied().map { snap -> snap.documents.map { it.toGoal() } }
 
     fun goalById(id: String): Flow<GoalEntity?> =
-        collection.document(id).observeAsFlow().map { snap -> if (snap.exists()) snap.toGoal() else null }
+        collection.document(id).observeAsFlow().endOnPermissionDenied().map { snap -> if (snap.exists()) snap.toGoal() else null }
 
     suspend fun saveGoal(goal: GoalEntity): String {
         val docRef = if (goal.id.isBlank()) collection.document() else collection.document(goal.id)
