@@ -14,7 +14,11 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -93,6 +97,8 @@ private val weekdayLabels = listOf("日", "月", "火", "水", "木", "金", "�
 
 /** 2本指のつまみ拡大でこの値を超えたら「その日を含む週」へドリルダウンする。 */
 private const val ZOOM_IN_THRESHOLD = 1.3f
+/** 月切り替えスワイプの判定に使う移動量(指1本での横ドラッグ)。 */
+private const val SWIPE_THRESHOLD_DP = 72
 
 /**
  * トップ画面。月全体を俯瞰し、日付をタップするか、その付近をピンチアウトすると
@@ -233,7 +239,9 @@ fun MonthScreen(
                     animatedVisibilityScope = animatedVisibilityScope,
                     // タップ = その場でカレンダーの下に予定を表示、ピンチズーム = 週表示へドリルダウン。
                     onDayClick = { date -> viewModel.selectDate(date) },
-                    onPinchZoomDate = onDayClick
+                    onPinchZoomDate = onDayClick,
+                    onSwipePrevious = { viewModel.goToPreviousMonth() },
+                    onSwipeNext = { viewModel.goToNextMonth() }
                 )
             }
             HorizontalDivider()
@@ -411,7 +419,9 @@ private fun MonthGrid(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
-    onPinchZoomDate: (LocalDate) -> Unit
+    onPinchZoomDate: (LocalDate) -> Unit,
+    onSwipePrevious: () -> Unit,
+    onSwipeNext: () -> Unit
 ) {
     val weeks = remember(month) { buildMonthGrid(month) }
     var accumulatedZoom by remember(month) { mutableFloatStateOf(1f) }
@@ -420,18 +430,46 @@ private fun MonthGrid(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // グリッド全体でピンチを検知し、指の中心(centroid)がどのマスの上にあるかで
-            // ズームインしたい日付を判定する。マス自体が小さく指2本を収めにくいための工夫。
+            // グリッド全体でピンチとスワイプの両方を検知する。指2本ならピンチズーム(週表示への
+            // ドリルダウン)、指1本の横ドラッグなら月送り。1ジェスチャー(指を置いてから離すまで)
+            // ごとに状態をリセットするため、awaitEachGestureで自前ループを組む。
             .pointerInput(month) {
-                detectTransformGestures { centroid, _, zoom, _ ->
-                    accumulatedZoom = (accumulatedZoom * zoom).coerceIn(0.3f, 4f)
-                    if (accumulatedZoom > ZOOM_IN_THRESHOLD) {
-                        val col = (centroid.x / (size.width / 7f)).toInt().coerceIn(0, 6)
-                        val row = (centroid.y / (size.height / weeks.size.toFloat())).toInt()
-                            .coerceIn(0, weeks.size - 1)
-                        weeks.getOrNull(row)?.getOrNull(col)?.let { onPinchZoomDate(it) }
-                        accumulatedZoom = 1f
-                    }
+                val swipeThresholdPx = SWIPE_THRESHOLD_DP.dp.toPx()
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var horizontalDrag = 0f
+                    var handled = false
+                    do {
+                        val event = awaitPointerEvent()
+                        val pressedCount = event.changes.count { it.pressed }
+                        if (pressedCount > 1) {
+                            // ピンチ中に横ドラッグ分だけ誤って月送りしないよう、指を追加した時点で捨てる。
+                            horizontalDrag = 0f
+                            val zoom = event.calculateZoom()
+                            accumulatedZoom = (accumulatedZoom * zoom).coerceIn(0.3f, 4f)
+                            if (!handled && accumulatedZoom > ZOOM_IN_THRESHOLD) {
+                                val centroid = event.calculateCentroid()
+                                val col = (centroid.x / (size.width / 7f)).toInt().coerceIn(0, 6)
+                                val row = (centroid.y / (size.height / weeks.size.toFloat())).toInt()
+                                    .coerceIn(0, weeks.size - 1)
+                                weeks.getOrNull(row)?.getOrNull(col)?.let { onPinchZoomDate(it) }
+                                accumulatedZoom = 1f
+                                handled = true
+                            }
+                        } else if (!handled) {
+                            horizontalDrag += event.calculatePan().x
+                            when {
+                                horizontalDrag <= -swipeThresholdPx -> {
+                                    onSwipeNext()
+                                    handled = true
+                                }
+                                horizontalDrag >= swipeThresholdPx -> {
+                                    onSwipePrevious()
+                                    handled = true
+                                }
+                            }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             }
     ) {
