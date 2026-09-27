@@ -180,7 +180,7 @@ fun ScheduleFlowList(
 }
 
 /**
- * 前の予定の終了から次の予定の開始までの空き時間(「30分後」「1時間30分後」など)。
+ * 前の予定の終了から次の予定の開始までの空き時間(「空き30分」「空き1時間30分」など)。
  * 日付をまたぐ・重なっている場合は何も出さない。
  */
 private fun gapLabel(current: ScheduleEntity, next: ScheduleEntity): String? {
@@ -194,26 +194,30 @@ private fun gapLabel(current: ScheduleEntity, next: ScheduleEntity): String? {
         rest == 0L -> "${hours}時間"
         else -> "${hours}時間${rest}分"
     }
-    return "${text}後"
+    return "空き$text"
 }
 
 @Composable
 private fun FlowArrowDown(gapLabel: String?) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    // 矢印を中央に置き、右半分に次の予定までの空き時間を控えめに添える
+    // (左右を同じ重みにして、文字が長くても矢印と重ならないようにする)。
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(modifier = Modifier.weight(1f))
         Icon(
             Icons.Default.KeyboardArrowDown,
             contentDescription = null,
             tint = arrowColor(),
             modifier = Modifier.size(20.dp)
         )
-        // 矢印の右隣に、次の予定までの空き時間を控えめに添える。
-        if (gapLabel != null) {
-            Text(
-                text = gapLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 64.dp)
-            )
+        Box(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+            if (gapLabel != null) {
+                Text(
+                    text = gapLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

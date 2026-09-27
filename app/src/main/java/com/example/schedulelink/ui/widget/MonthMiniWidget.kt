@@ -89,7 +89,12 @@ private fun parseSelectedDate(raw: String?): LocalDate =
  * 握りつぶさずに伝播させる: 以前はrunCatchingがタイムアウトの例外まで捕まえてしまい、
  * タイムアウト時の表示が一度も出ない状態になっていた。
  */
-private suspend fun loadMonthWidgetData(context: Context, selectedDate: LocalDate, refreshToken: Long): MonthWidgetData {
+private suspend fun loadMonthWidgetData(
+    context: Context,
+    selectedDate: LocalDate,
+    refreshToken: Long,
+    timeoutMillis: Long
+): MonthWidgetData {
     val month = YearMonth.now()
     var scheduleCounts: Map<LocalDate, Int> = emptyMap()
     var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
@@ -100,7 +105,7 @@ private suspend fun loadMonthWidgetData(context: Context, selectedDate: LocalDat
         val familyId = WidgetPreferences(context).familyId
         isSignedIn = familyId != null
         if (familyId != null) {
-            val completed = withTimeoutOrNull(8_000) {
+            val completed = withTimeoutOrNull(timeoutMillis) {
                 try {
                     val repo = ScheduleRepository(app.firestore, familyId)
                     scheduleCounts = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
@@ -152,7 +157,8 @@ class MonthMiniWidget : GlanceAppWidget() {
         val initial = loadMonthWidgetData(
             context,
             parseSelectedDate(prefs[SELECTED_DATE_KEY]),
-            prefs[REFRESH_TOKEN_KEY] ?: 0L
+            prefs[REFRESH_TOKEN_KEY] ?: 0L,
+            timeoutMillis = 8_000
         )
 
         provideContent {
@@ -163,7 +169,9 @@ class MonthMiniWidget : GlanceAppWidget() {
             val refreshToken = currentState(REFRESH_TOKEN_KEY) ?: 0L
             val data by produceState(initial, selectedDate, refreshToken) {
                 if (value.selectedDate != selectedDate || value.refreshToken != refreshToken) {
-                    value = loadMonthWidgetData(context, selectedDate, refreshToken)
+                    // 表示中のセッションはタップ後しばらくで閉じられるため、ここでは短めに打ち切る
+                    // (取得中にセッションが閉じて「読み込み中…」のまま残るのを避ける)。
+                    value = loadMonthWidgetData(context, selectedDate, refreshToken, timeoutMillis = 4_000)
                 }
             }
             MonthMiniWidgetContent(data = data, selectedDate = selectedDate)

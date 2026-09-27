@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
@@ -146,9 +147,10 @@ fun MonthScreen(
                                         fadeOut(tween(Motion.DurationShort))
                                     )
                             },
-                            label = "monthTitle"
+                            label = "monthTitle",
+                            modifier = Modifier.weight(1f, fill = false)
                         ) { month ->
-                            Text(month.format(monthFormatter))
+                            Text(month.format(monthFormatter), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         IconButton(onClick = { viewModel.goToNextMonth() }) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "次の月")
