@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.list
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -45,8 +46,10 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleWithLinks
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.Motion
 import com.example.schedulelink.ui.theme.tabularNums
 import java.time.LocalDate
+import java.time.Duration
 import java.time.format.DateTimeFormatter
 
 // 日表示のリスト画面と、月表示に埋め込む選択日の予定表示との両方で使う、
@@ -147,29 +150,55 @@ fun ScheduleFlowList(
         // 最後の予定がFABに隠れないよう、下にFAB分の余白を取る。
         contentPadding = PaddingValues(top = 16.dp, bottom = Dimens.FabClearance)
     ) {
-        items(items.size) { index ->
-            val item = items[index]
+        // キーを付けることで、予定の追加・削除・並び替え時に各行が滑らかに動く(animateItem)。
+        itemsIndexed(items, key = { _, item -> item.schedule.id }) { index, item ->
             val forward = item.forwardLinks()
             val chipTarget = forward.singleOrNull()
             val showPill = chipTarget == null && item.linkedSchedules.size >= 2
 
-            ScheduleFlowRow(
-                item = item,
-                chipTarget = chipTarget,
-                chipOnRight = chipSides[index] ?: true,
-                showLinkCountPill = showPill,
-                onClick = { onItemClick(item.schedule.id) },
-                onChipClick = { chipTarget?.let { onItemClick(it.id) } }
-            )
-            if (index != items.lastIndex) {
-                FlowArrowDown()
+            Column(
+                modifier = Modifier.animateItem(
+                    fadeInSpec = tween(Motion.DurationMedium),
+                    placementSpec = tween(Motion.DurationLong, easing = Motion.Emphasized),
+                    fadeOutSpec = tween(Motion.DurationShort)
+                )
+            ) {
+                ScheduleFlowRow(
+                    item = item,
+                    chipTarget = chipTarget,
+                    chipOnRight = chipSides[index] ?: true,
+                    showLinkCountPill = showPill,
+                    onClick = { onItemClick(item.schedule.id) },
+                    onChipClick = { chipTarget?.let { onItemClick(it.id) } }
+                )
+                items.getOrNull(index + 1)?.let { next ->
+                    FlowArrowDown(gapLabel = gapLabel(item.schedule, next.schedule))
+                }
             }
         }
     }
 }
 
+/**
+ * 前の予定の終了から次の予定の開始までの空き時間(「30分後」「1時間30分後」など)。
+ * 日付をまたぐ・重なっている場合は何も出さない。
+ */
+private fun gapLabel(current: ScheduleEntity, next: ScheduleEntity): String? {
+    if (current.date != next.date) return null
+    val minutes = Duration.between(current.endTime, next.startTime).toMinutes()
+    if (minutes <= 0) return null
+    val hours = minutes / 60
+    val rest = minutes % 60
+    val text = when {
+        hours == 0L -> "${rest}分"
+        rest == 0L -> "${hours}時間"
+        else -> "${hours}時間${rest}分"
+    }
+    return "${text}後"
+}
+
 @Composable
-private fun FlowArrowDown() {
+private fun FlowArrowDown(gapLabel: String?) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Icon(
             Icons.Default.KeyboardArrowDown,
@@ -177,6 +206,15 @@ private fun FlowArrowDown() {
             tint = arrowColor(),
             modifier = Modifier.size(20.dp)
         )
+        // 矢印の右隣に、次の予定までの空き時間を控えめに添える。
+        if (gapLabel != null) {
+            Text(
+                text = gapLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 64.dp)
+            )
+        }
     }
 }
 
@@ -336,7 +374,7 @@ private fun ScheduleBranchChip(target: ScheduleEntity, onClick: () -> Unit, modi
                 "${target.date.dayOfMonth}日 ${target.startTime.format(timeFormatter)}"
             },
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             color = branch
         )
         Text(

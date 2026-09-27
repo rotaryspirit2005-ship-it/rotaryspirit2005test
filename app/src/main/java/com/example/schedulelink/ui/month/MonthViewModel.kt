@@ -12,9 +12,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.YearMonth
+
+data class DaySchedules(
+    val date: LocalDate,
+    val items: List<ScheduleWithLinks>,
+    val loaded: Boolean
+)
 
 class MonthViewModel(private val repository: ScheduleRepository) : ViewModel() {
 
@@ -33,10 +40,23 @@ class MonthViewModel(private val repository: ScheduleRepository) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /**
+     * 選択日とその日の予定を必ず組で流す。日付だけ先に切り替わって、新しい日付の見出しの下に
+     * 前の日の予定が一瞬残る(Firestoreの応答待ちの間)のを防ぐため、切り替え直後は
+     * loaded=false の空の状態を先に出す。
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val selectedDateSchedules: StateFlow<List<ScheduleWithLinks>> = _selectedDate
-        .flatMapLatest { date -> repository.schedulesForDateWithLinks(date) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val selectedDay: StateFlow<DaySchedules> = _selectedDate
+        .flatMapLatest { date ->
+            repository.schedulesForDateWithLinks(date)
+                .map { DaySchedules(date, it, loaded = true) }
+                .onStart { emit(DaySchedules(date, emptyList(), loaded = false)) }
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            DaySchedules(LocalDate.now(), emptyList(), loaded = false)
+        )
 
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date

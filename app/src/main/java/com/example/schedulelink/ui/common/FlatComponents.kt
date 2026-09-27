@@ -1,6 +1,8 @@
 package com.example.schedulelink.ui.common
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -203,6 +205,20 @@ fun AppProgressBar(ratio: Float, modifier: Modifier = Modifier) {
         strokeCap = StrokeCap.Round,
         gapSize = 0.dp,
         drawStopIndicator = {}
+    )
+}
+
+/** 「今日」を示す小さなピル(週表示のカード・月画面の見出しで共通)。 */
+@Composable
+fun TodayBadge(modifier: Modifier = Modifier) {
+    Text(
+        text = "今日",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onPrimary,
+        modifier = modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
     )
 }
 

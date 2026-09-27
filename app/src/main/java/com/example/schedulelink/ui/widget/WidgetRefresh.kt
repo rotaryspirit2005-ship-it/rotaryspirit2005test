@@ -16,5 +16,6 @@ suspend fun refreshAgendaWidgets(context: Context) {
 
 suspend fun refreshMonthMiniWidgets(context: Context) {
     val ids = GlanceAppWidgetManager(context).getGlanceIds(MonthMiniWidget::class.java)
-    ids.forEach { id -> MonthMiniWidget().update(context, id) }
+    // 表示中のセッションが残っていても確実に取り直させるため、再取得要求の値も書き換える。
+    ids.forEach { id -> requestMonthMiniRefresh(context, id) }
 }

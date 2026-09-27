@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.milestone
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,6 +44,7 @@ import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.commonDateFormatter
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.Motion
 import com.example.schedulelink.ui.theme.tabularNums
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,7 +122,15 @@ fun MilestoneDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
                 ) {
                     items(schedules, key = { it.id }) { schedule ->
-                        ScheduleRow(schedule = schedule, onClick = { onScheduleClick(schedule.id) })
+                        ScheduleRow(
+                            schedule = schedule,
+                            onClick = { onScheduleClick(schedule.id) },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(Motion.DurationMedium),
+                                placementSpec = tween(Motion.DurationLong, easing = Motion.Emphasized),
+                                fadeOutSpec = tween(Motion.DurationShort)
+                            )
+                        )
                     }
                 }
             }
@@ -146,8 +156,8 @@ fun MilestoneDetailScreen(
 }
 
 @Composable
-private fun ScheduleRow(schedule: ScheduleEntity, onClick: () -> Unit) {
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+private fun ScheduleRow(schedule: ScheduleEntity, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    OutlinedCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV)) {
             Text(
                 "${schedule.date.format(commonDateFormatter)} " +

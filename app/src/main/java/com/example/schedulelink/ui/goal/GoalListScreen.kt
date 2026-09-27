@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.goal
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +32,7 @@ import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.Motion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +79,15 @@ fun GoalListScreen(
                 verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
             ) {
                 items(goals, key = { it.goal.id }) { item ->
-                    GoalCard(item = item, onClick = { onItemClick(item.goal.id) })
+                    GoalCard(
+                        item = item,
+                        onClick = { onItemClick(item.goal.id) },
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(Motion.DurationMedium),
+                            placementSpec = tween(Motion.DurationLong, easing = Motion.Emphasized),
+                            fadeOutSpec = tween(Motion.DurationShort)
+                        )
+                    )
                 }
             }
         }
@@ -85,9 +95,9 @@ fun GoalListScreen(
 }
 
 @Composable
-private fun GoalCard(item: GoalListItem, onClick: () -> Unit) {
+private fun GoalCard(item: GoalListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val goal = item.goal
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV),
             verticalArrangement = Arrangement.spacedBy(4.dp)

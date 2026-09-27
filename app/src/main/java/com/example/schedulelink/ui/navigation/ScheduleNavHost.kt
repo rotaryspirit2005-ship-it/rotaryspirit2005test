@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -45,6 +47,7 @@ import com.example.schedulelink.ui.milestone.MilestoneEditScreen
 import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
 import com.example.schedulelink.ui.month.MonthScreen
 import com.example.schedulelink.ui.month.MonthViewModel
+import com.example.schedulelink.ui.theme.Motion
 import com.example.schedulelink.ui.week.WeekScreen
 import com.example.schedulelink.ui.week.WeekViewModel
 import java.time.LocalDate
@@ -64,10 +67,22 @@ private const val ROUTE_FAMILY_SETTINGS = "familySettings"
 private const val ROUTE_IMPORT_ICS = "importIcs"
 private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
 
-/** すべての画面遷移に使う既定のフェード+スケールアニメーション。 */
-private val defaultEnter = fadeIn(tween(220)) + scaleIn(initialScale = 0.94f, animationSpec = tween(220))
-private val defaultExit = fadeOut(tween(180))
-private val defaultPopExit = fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
+// 画面遷移(Material 3の「Z軸」モーション)。階層を深く進むときは新しい画面が少し小さい所から
+// 手前に出てきて、前の画面は少し拡大しながら消える。戻るときはその逆向きに動かす。
+private val forwardEnter = fadeIn(tween(210, delayMillis = 90)) +
+    scaleIn(initialScale = 0.94f, animationSpec = tween(Motion.DurationLong, easing = Motion.EmphasizedDecelerate))
+private val forwardExit = fadeOut(tween(90)) +
+    scaleOut(targetScale = 1.06f, animationSpec = tween(Motion.DurationLong, easing = Motion.EmphasizedAccelerate))
+private val backEnter = fadeIn(tween(210, delayMillis = 90)) +
+    scaleIn(initialScale = 1.06f, animationSpec = tween(Motion.DurationLong, easing = Motion.EmphasizedDecelerate))
+private val backExit = fadeOut(tween(90)) +
+    scaleOut(targetScale = 0.94f, animationSpec = tween(Motion.DurationLong, easing = Motion.EmphasizedAccelerate))
+
+// 追加・編集画面は、全画面のダイアログのように下から少しせり上がって開き、閉じるときは下へ沈む。
+private val sheetEnter = fadeIn(tween(Motion.DurationMedium)) +
+    slideInVertically(tween(Motion.DurationLong, easing = Motion.EmphasizedDecelerate)) { it / 10 }
+private val sheetExit = fadeOut(tween(Motion.DurationMedium)) +
+    slideOutVertically(tween(Motion.DurationMedium, easing = Motion.EmphasizedAccelerate)) { it / 10 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -92,10 +107,10 @@ fun ScheduleNavHost(
         NavHost(
             navController = navController,
             startDestination = ROUTE_MONTH,
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultEnter },
-            popExitTransition = { defaultPopExit }
+            enterTransition = { forwardEnter },
+            exitTransition = { forwardExit },
+            popEnterTransition = { backEnter },
+            popExitTransition = { backExit }
         ) {
             composable(ROUTE_MONTH) {
                 val vm: MonthViewModel = viewModel(factory = factory)
@@ -171,6 +186,8 @@ fun ScheduleNavHost(
 
         composable(
             ROUTE_EDIT,
+            enterTransition = { sheetEnter },
+            popExitTransition = { sheetExit },
             arguments = listOf(
                 navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("milestoneId") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -217,6 +234,8 @@ fun ScheduleNavHost(
 
         composable(
             ROUTE_GOAL_EDIT,
+            enterTransition = { sheetEnter },
+            popExitTransition = { sheetExit },
             arguments = listOf(navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null })
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getString("id")
@@ -249,6 +268,8 @@ fun ScheduleNavHost(
 
         composable(
             ROUTE_MILESTONE_EDIT,
+            enterTransition = { sheetEnter },
+            popExitTransition = { sheetExit },
             arguments = listOf(
                 navArgument("goalId") { type = NavType.StringType },
                 navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null }

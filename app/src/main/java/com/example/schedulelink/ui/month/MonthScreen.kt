@@ -1,6 +1,14 @@
 package com.example.schedulelink.ui.month
 
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
@@ -10,12 +18,14 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -47,7 +57,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -60,10 +69,14 @@ import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.ui.common.AppFab
+import com.example.schedulelink.ui.common.TodayBadge
 import com.example.schedulelink.ui.list.FlowLegend
 import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
 import com.example.schedulelink.ui.theme.weekendColor
+import com.example.schedulelink.ui.theme.Motion
+import com.example.schedulelink.ui.theme.directionalSlide
+import com.example.schedulelink.ui.theme.fadeThrough
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -105,7 +118,7 @@ fun MonthScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val selectedDateSchedules by viewModel.selectedDateSchedules.collectAsState()
+    val selectedDay by viewModel.selectedDay.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var showPhotoFeatureWarning by remember { mutableStateOf(false) }
     var showVersionInfo by remember { mutableStateOf(false) }
@@ -115,21 +128,39 @@ fun MonthScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(currentMonth.format(monthFormatter)) },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.goToPreviousMonth() }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "前の月")
+                // 前月・次月の矢印を月の表示の両側にまとめ、右側は「今日」「目的マップ」「その他」に整理する。
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { viewModel.goToPreviousMonth() }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "前の月")
+                        }
+                        AnimatedContent(
+                            targetState = currentMonth,
+                            transitionSpec = {
+                                val direction = if (targetState > initialState) 1 else -1
+                                (
+                                    slideInVertically(tween(Motion.DurationMedium, easing = Motion.EmphasizedDecelerate)) { direction * it / 3 } +
+                                        fadeIn(tween(Motion.DurationMedium))
+                                    ) togetherWith (
+                                    slideOutVertically(tween(Motion.DurationShort, easing = Motion.EmphasizedAccelerate)) { -direction * it / 3 } +
+                                        fadeOut(tween(Motion.DurationShort))
+                                    )
+                            },
+                            label = "monthTitle"
+                        ) { month ->
+                            Text(month.format(monthFormatter))
+                        }
+                        IconButton(onClick = { viewModel.goToNextMonth() }) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "次の月")
+                        }
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.goToToday() }) {
+                        Icon(Icons.Default.Today, contentDescription = "今日")
+                    }
                     IconButton(onClick = onGoalMapClick) {
                         Icon(Icons.Default.Flag, contentDescription = "目的マップ")
-                    }
-                    IconButton(onClick = { viewModel.goToToday() }) {
-                        Icon(Icons.Default.Today, contentDescription = "今月")
-                    }
-                    IconButton(onClick = { viewModel.goToNextMonth() }) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "次の月")
                     }
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "その他")
@@ -186,50 +217,55 @@ fun MonthScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             WeekdayHeaderRow()
-            MonthGrid(
-                month = currentMonth,
-                schedulesByDate = schedulesByDate,
-                selectedDate = selectedDate,
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope,
-                // タップ = その場でカレンダーの下に予定を表示、ピンチズーム = 週表示へドリルダウン。
-                onDayClick = { date -> viewModel.selectDate(date) },
-                onPinchZoomDate = onDayClick
-            )
-            HorizontalDivider()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${selectedDate.format(selectedDateFormatter)}の予定",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
+            AnimatedContent(
+                targetState = currentMonth,
+                transitionSpec = { directionalSlide(forward = targetState > initialState) },
+                label = "monthGrid"
+            ) { month ->
+                MonthGrid(
+                    // ピンチ判定などは、遷移中も各グリッド自身の月(=ラムダ引数)で行う。
+                    month = month,
+                    schedulesByDate = schedulesByDate,
+                    selectedDate = selectedDate,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    // タップ = その場でカレンダーの下に予定を表示、ピンチズーム = 週表示へドリルダウン。
+                    onDayClick = { date -> viewModel.selectDate(date) },
+                    onPinchZoomDate = onDayClick
                 )
-                if (selectedDateSchedules.isNotEmpty()) {
-                    Text(
-                        text = "${selectedDateSchedules.size}件",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
-            FlowLegend()
-            if (selectedDateSchedules.isEmpty()) {
-                // 月グリッドの下の残り領域は狭いため、アイコンなしの小さい表示にする。
-                // 追加は右下のFABと同じ操作になるので、ここにはボタンを重ねて出さない。
-                ScheduleEmptyState(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    compact = true
-                )
-            } else {
-                ScheduleFlowList(
-                    items = selectedDateSchedules,
-                    onItemClick = onScheduleClick,
-                    modifier = Modifier.weight(1f)
-                )
+            HorizontalDivider()
+            // 見出し・件数・一覧を「日付」単位でまとめて切り替える。同じ日のデータ更新では動かさない。
+            AnimatedContent(
+                targetState = selectedDay,
+                contentKey = { it.date },
+                transitionSpec = { fadeThrough() },
+                modifier = Modifier.weight(1f),
+                label = "selectedDay"
+            ) { day ->
+                Column(modifier = Modifier.fillMaxSize()) {
+                    SelectedDayHeading(day)
+                    if (day.items.any { it.linkedSchedules.isNotEmpty() }) {
+                        FlowLegend()
+                    }
+                    when {
+                        // 取得中は何も出さない(「予定はありません」が一瞬見えるのを避ける)。
+                        !day.loaded -> Unit
+                        day.items.isEmpty() -> {
+                            // 月グリッドの下の残り領域は狭いため、アイコンなしの小さい表示にする。
+                            // 追加は右下のFABと同じ操作になるので、ここにはボタンを重ねて出さない。
+                            ScheduleEmptyState(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                compact = true
+                            )
+                        }
+                        else -> ScheduleFlowList(
+                            items = day.items,
+                            onItemClick = onScheduleClick,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -305,6 +341,33 @@ fun MonthScreen(
                 }) { Text("クリア") }
             }
         )
+    }
+}
+
+@Composable
+private fun SelectedDayHeading(day: DaySchedules) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "${day.date.format(selectedDateFormatter)}の予定",
+            style = MaterialTheme.typography.titleMedium
+        )
+        if (day.date == LocalDate.now()) {
+            Spacer(modifier = Modifier.width(8.dp))
+            TodayBadge()
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        if (day.loaded && day.items.isNotEmpty()) {
+            Text(
+                text = "${day.items.size}件",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -415,6 +478,13 @@ private fun DayCell(
     // このマスを起点に、週表示の同じ日付のカードへ「コンテナごと」滑らかに
     // 拡大していく(Material Design で言うコンテナ変形)。日付ごとに同じキーを
     // 使うことで、タップ/ピンチした日だけがWeekScreen側の該当カードと結びつく。
+    // Color.Transparent(透明な黒)との補間だと途中が濁るため、同じ色のalpha 0と補間する。
+    val selectedContainer = MaterialTheme.colorScheme.primaryContainer
+    val selectedFill by animateColorAsState(
+        targetValue = if (isSelected) selectedContainer else selectedContainer.copy(alpha = 0f),
+        animationSpec = tween(Motion.DurationSelect, easing = Motion.Standard),
+        label = "dayCellFill"
+    )
     val description = "${date.monthValue}月${date.dayOfMonth}日" +
         if (scheduleCount > 0) " 予定${scheduleCount}件" else ""
     with(sharedTransitionScope) {
@@ -427,7 +497,7 @@ private fun DayCell(
                 )
                 .clip(MaterialTheme.shapes.medium)
                 // 選択中の日はセル全体をprimaryContainerで塗る(枠線は使わない)。
-                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                .background(selectedFill)
                 .clickable(onClick = onClick)
                 .clearAndSetSemantics {
                     contentDescription = description
