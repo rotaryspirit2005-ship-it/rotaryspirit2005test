@@ -294,7 +294,7 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                 style = TextStyle(
                     color = WidgetOnBackground,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     textAlign = if (data.isSignedIn) TextAlign.Center else TextAlign.Start
                 ),
                 maxLines = 1,
@@ -321,7 +321,7 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                 style = TextStyle(color = WidgetAccent, fontWeight = FontWeight.Medium),
                 // 文字そのものだけだとタップ判定が狭いため、周囲のpadding込みでタップ領域を広げる。
                 modifier = GlanceModifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
                     .clickable(actionRunCallback<MonthMiniRefreshAction>())
             )
         }
