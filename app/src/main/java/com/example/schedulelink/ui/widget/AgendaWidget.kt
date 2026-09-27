@@ -35,6 +35,7 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
+import com.example.schedulelink.ui.common.commonTimeFormatter
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -136,7 +137,7 @@ private fun AgendaWidgetContent(schedules: List<ScheduleEntity>, isSignedIn: Boo
             else -> schedules.take(5).forEach { schedule ->
                 Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp)) {
                     Text(
-                        text = "${schedule.date.format(agendaDateFormatter)} ${schedule.startTime}",
+                        text = "${schedule.date.format(agendaDateFormatter)} ${schedule.startTime.format(commonTimeFormatter)}",
                         style = TextStyle(color = WidgetSubText),
                         modifier = GlanceModifier.width(96.dp)
                     )

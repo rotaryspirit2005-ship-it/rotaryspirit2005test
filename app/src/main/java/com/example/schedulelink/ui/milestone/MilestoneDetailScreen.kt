@@ -1,7 +1,6 @@
 package com.example.schedulelink.ui.milestone
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,15 +13,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.EventNote
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,11 +31,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.AppFab
+import com.example.schedulelink.ui.common.DestructiveTextButton
+import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoGallery
+import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.commonDateFormatter
 import com.example.schedulelink.ui.common.commonTimeFormatter
+import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.tabularNums
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,41 +80,44 @@ fun MilestoneDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { onAddSchedule(milestoneId) }) {
-                Icon(Icons.Default.Add, contentDescription = "小日程を追加")
-            }
+            AppFab(onClick = { onAddSchedule(milestoneId) }, icon = Icons.Default.Add, contentDescription = "小日程を追加")
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             val memo = milestone?.memo?.takeIf { it.isNotBlank() }
             val photoUrls = milestone?.photoUrls?.takeIf { isPhotoFeatureEnabled && it.isNotEmpty() }
             if (memo != null || photoUrls != null) {
-                ElevatedCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        memo?.let { Text(it) }
-                        photoUrls?.let { urls ->
-                            PhotoGallery(
-                                urls = urls,
-                                modifier = Modifier.padding(top = if (memo != null) 8.dp else 0.dp)
-                            )
-                        }
-                    }
+                InfoPanel(
+                    modifier = Modifier.padding(
+                        start = Dimens.ScreenPadding,
+                        end = Dimens.ScreenPadding,
+                        top = Dimens.ScreenPadding
+                    )
+                ) {
+                    memo?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                    photoUrls?.let { urls -> PhotoGallery(urls = urls) }
                 }
             }
 
             if (schedules.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    Text(
-                        "まだ小日程がありません",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyState(
+                    icon = Icons.Outlined.EventNote,
+                    message = "まだ小日程がありません",
+                    modifier = Modifier.fillMaxSize(),
+                    actionLabel = "小日程を追加",
+                    onAction = { onAddSchedule(milestoneId) }
+                )
             } else {
+                SectionHeader("小日程", modifier = Modifier.padding(horizontal = Dimens.ScreenPadding))
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(
+                        start = Dimens.ScreenPadding,
+                        end = Dimens.ScreenPadding,
+                        top = 4.dp,
+                        bottom = Dimens.FabClearance
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
                 ) {
                     items(schedules, key = { it.id }) { schedule ->
                         ScheduleRow(schedule = schedule, onClick = { onScheduleClick(schedule.id) })
@@ -125,10 +133,10 @@ fun MilestoneDetailScreen(
             title = { Text("中日程を削除しますか?") },
             text = { Text("紐づく小日程はリンクが解除されますが削除はされません。") },
             confirmButton = {
-                TextButton(onClick = {
+                DestructiveTextButton("削除") {
                     showDeleteConfirm = false
                     viewModel.deleteMilestone(milestoneId) { onBack() }
-                }) { Text("削除") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("キャンセル") }
@@ -139,16 +147,13 @@ fun MilestoneDetailScreen(
 
 @Composable
 private fun ScheduleRow(schedule: ScheduleEntity, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV)) {
             Text(
                 "${schedule.date.format(commonDateFormatter)} " +
                     "${schedule.startTime.format(commonTimeFormatter)}〜${schedule.endTime.format(commonTimeFormatter)}",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.tabularNums(),
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(schedule.title, style = MaterialTheme.typography.titleSmall)

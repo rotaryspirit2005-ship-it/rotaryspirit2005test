@@ -234,15 +234,18 @@ private fun MonthMiniWidgetContent(
             )
         } else {
             Row(modifier = GlanceModifier.fillMaxWidth()) {
-                weekdayLabels.forEach { label ->
+                weekdayLabels.forEachIndexed { index, label ->
                     Box(modifier = GlanceModifier.defaultWeight(), contentAlignment = Alignment.Center) {
-                        Text(text = label, style = TextStyle(color = WidgetSubText, textAlign = TextAlign.Center))
+                        Text(
+                            text = label,
+                            style = TextStyle(color = widgetWeekdayColor(index, WidgetSubText), textAlign = TextAlign.Center)
+                        )
                     }
                 }
             }
             weeks.forEach { week ->
                 Row(modifier = GlanceModifier.fillMaxWidth()) {
-                    week.forEach { date ->
+                    week.forEachIndexed { columnIndex, date ->
                         val isSelected = date != null && date == selectedDate
                         val isToday = date == today
                         val cellModifier = if (date != null) {
@@ -250,7 +253,7 @@ private fun MonthMiniWidgetContent(
                                 .defaultWeight()
                                 .padding(2.dp)
                                 .cornerRadius(8.dp)
-                                .background(if (isSelected) WidgetAccent else WidgetBackground)
+                                .background(if (isSelected) WidgetSelectedContainer else WidgetBackground)
                                 .clickable(
                                     actionRunCallback<SelectDateAction>(actionParametersOf(DATE_PARAM to date.toString()))
                                 )
@@ -265,9 +268,9 @@ private fun MonthMiniWidgetContent(
                                         text = date.dayOfMonth.toString(),
                                         style = TextStyle(
                                             color = when {
-                                                isSelected -> WidgetSelectedText
                                                 isToday -> WidgetAccent
-                                                else -> WidgetOnBackground
+                                                isSelected -> widgetWeekdayColor(columnIndex, WidgetOnSelected)
+                                                else -> widgetWeekdayColor(columnIndex, WidgetOnBackground)
                                             },
                                             fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -277,14 +280,14 @@ private fun MonthMiniWidgetContent(
                                         Box(
                                             modifier = GlanceModifier
                                                 .size(4.dp)
-                                                .background(if (isSelected) WidgetSelectedText else WidgetAccent)
+                                                .background(WidgetAccent)
                                                 .cornerRadius(2.dp)
                                         ) {}
                                         if (count > 1) {
                                             Text(
                                                 text = count.toString(),
                                                 style = TextStyle(
-                                                    color = if (isSelected) WidgetSelectedText else WidgetSubText,
+                                                    color = if (isSelected) WidgetOnSelected else WidgetSubText,
                                                     fontSize = 9.sp
                                                 )
                                             )

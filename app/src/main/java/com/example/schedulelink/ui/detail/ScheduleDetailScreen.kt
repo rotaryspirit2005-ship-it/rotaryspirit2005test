@@ -3,23 +3,24 @@ package com.example.schedulelink.ui.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,8 +35,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.DestructiveTextButton
+import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoGallery
+import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.commonTimeFormatter
+import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.tabularNums
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -88,42 +94,34 @@ fun ScheduleDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(Dimens.ScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
             ) {
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(current.title, style = MaterialTheme.typography.headlineSmall)
-                        Text(
-                            text = "${current.date.format(dateFormatter)}  " +
-                                "${current.startTime.format(commonTimeFormatter)} 〜 ${current.endTime.format(commonTimeFormatter)}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (current.memo.isNotBlank()) {
-                            Text(current.memo, style = MaterialTheme.typography.bodyMedium)
-                        }
-                        if (isPhotoFeatureEnabled) {
-                            PhotoGallery(urls = current.photoUrls)
-                        }
+                InfoPanel {
+                    Text(current.title, style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        text = "${current.date.format(dateFormatter)}  " +
+                            "${current.startTime.format(commonTimeFormatter)} 〜 ${current.endTime.format(commonTimeFormatter)}",
+                        style = MaterialTheme.typography.bodyLarge.tabularNums(),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (current.memo.isNotBlank()) {
+                        Text(current.memo, style = MaterialTheme.typography.bodyLarge)
+                    }
+                    if (isPhotoFeatureEnabled) {
+                        PhotoGallery(urls = current.photoUrls)
                     }
                 }
 
-                Text(
-                    text = "関連する行動予定 (${linked.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
+                SectionHeader("関連する行動予定 (${linked.size})")
 
                 if (linked.isEmpty()) {
                     Text(
                         text = "リンクされた予定はありません",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
                     )
                 } else {
                     linked.forEach { l ->
@@ -140,11 +138,9 @@ fun ScheduleDetailScreen(
             title = { Text("予定を削除しますか?") },
             text = { Text("この操作は取り消せません。関連するリンクも削除されます。") },
             confirmButton = {
-                TextButton(onClick = {
+                DestructiveTextButton("削除") {
                     showDeleteConfirm = false
                     viewModel.deleteSchedule(scheduleId) { onBack() }
-                }) {
-                    Text("削除")
                 }
             },
             dismissButton = {
@@ -158,19 +154,27 @@ fun ScheduleDetailScreen(
 
 @Composable
 private fun LinkedScheduleRow(schedule: ScheduleEntity, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(schedule.title, style = MaterialTheme.typography.titleSmall)
-            Text(
-                text = "${schedule.date.format(dateFormatter)}  " +
-                    "${schedule.startTime.format(commonTimeFormatter)} 〜 ${schedule.endTime.format(commonTimeFormatter)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                Icons.Default.Link,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
             )
+            Column {
+                Text(schedule.title, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "${schedule.date.format(dateFormatter)}  " +
+                        "${schedule.startTime.format(commonTimeFormatter)} 〜 ${schedule.endTime.format(commonTimeFormatter)}",
+                    style = MaterialTheme.typography.bodySmall.tabularNums(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

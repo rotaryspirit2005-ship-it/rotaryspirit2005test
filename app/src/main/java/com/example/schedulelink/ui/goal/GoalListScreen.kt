@@ -1,7 +1,6 @@
 package com.example.schedulelink.ui.goal
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,22 +11,26 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalType
+import com.example.schedulelink.ui.common.AppFab
+import com.example.schedulelink.ui.common.AppProgressBar
+import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.theme.Dimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,24 +54,27 @@ fun GoalListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
-                Icon(Icons.Default.Add, contentDescription = "目的を追加")
-            }
+            AppFab(onClick = onAddClick, icon = Icons.Default.Add, contentDescription = "目的を追加")
         }
     ) { padding ->
         if (goals.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(
-                    "まだ大目的がありません",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            EmptyState(
+                icon = Icons.Outlined.Flag,
+                message = "まだ大目的がありません",
+                modifier = Modifier.fillMaxSize().padding(padding),
+                actionLabel = "大目的を追加",
+                onAction = onAddClick
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(
+                    start = Dimens.ScreenPadding,
+                    end = Dimens.ScreenPadding,
+                    top = Dimens.ScreenPadding,
+                    bottom = Dimens.FabClearance
+                ),
+                verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
             ) {
                 items(goals, key = { it.goal.id }) { item ->
                     GoalCard(item = item, onClick = { onItemClick(item.goal.id) })
@@ -81,15 +87,19 @@ fun GoalListScreen(
 @Composable
 private fun GoalCard(item: GoalListItem, onClick: () -> Unit) {
     val goal = item.goal
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(goal.title, style = MaterialTheme.typography.titleMedium)
             if (goal.memo.isNotBlank()) {
                 Text(
                     goal.memo,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             if (goal.type == GoalType.HABIT) {
@@ -104,16 +114,7 @@ private fun GoalCard(item: GoalListItem, onClick: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
-                ) {
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = item.progress.ratio,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                AppProgressBar(ratio = item.progress.ratio, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }

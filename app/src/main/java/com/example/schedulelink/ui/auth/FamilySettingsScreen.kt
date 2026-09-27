@@ -2,19 +2,20 @@ package com.example.schedulelink.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -31,8 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.schedulelink.data.FamilyRepository
+import com.example.schedulelink.ui.common.DestructiveTextButton
+import com.example.schedulelink.ui.common.InfoPanel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,27 +84,36 @@ fun FamilySettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("招待コード", style = MaterialTheme.typography.labelLarge)
-                        Text(current.inviteCode, style = MaterialTheme.typography.headlineMedium)
-                        Text(
-                            "このコードを家族に伝えると、同じ予定を一緒に編集できます",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                InfoPanel {
+                    Text(
+                        "招待コード",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        current.inviteCode,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 2.sp
                         )
-                        Row(modifier = Modifier.padding(top = 8.dp)) {
-                            OutlinedButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(current.inviteCode))
-                                scope.launch { snackbarHostState.showSnackbar("コピーしました") }
-                            }) {
-                                Text("コピー")
-                            }
-                        }
+                    )
+                    Text(
+                        "このコードを家族に伝えると、同じ予定を一緒に編集できます",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FilledTonalButton(onClick = {
+                        clipboardManager.setText(AnnotatedString(current.inviteCode))
+                        scope.launch { snackbarHostState.showSnackbar("コピーしました") }
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text("コピー")
                     }
                 }
             }
 
+            HorizontalDivider()
             TextButton(onClick = { showLeaveConfirm = true }) {
                 Text("この家族グループを抜ける", color = MaterialTheme.colorScheme.error)
             }
@@ -115,13 +129,13 @@ fun FamilySettingsScreen(
             title = { Text("家族グループを抜けますか?") },
             text = { Text("共有されている予定は見られなくなります。") },
             confirmButton = {
-                TextButton(onClick = {
+                DestructiveTextButton("抜ける") {
                     showLeaveConfirm = false
                     scope.launch {
                         familyRepository.leaveFamily(uid, familyId)
                         onLeft()
                     }
-                }) { Text("抜ける") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showLeaveConfirm = false }) { Text("キャンセル") }

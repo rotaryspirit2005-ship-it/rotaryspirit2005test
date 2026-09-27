@@ -11,15 +11,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,7 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalType
+import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
+import com.example.schedulelink.ui.common.PickerField
+import com.example.schedulelink.ui.common.SelectableChip
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -114,38 +116,34 @@ fun GoalEditScreen(
                 minLines = 2
             )
 
-            Text("種類", style = MaterialTheme.typography.titleSmall)
+            FormLabel("種類")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+                SelectableChip(
                     selected = type == GoalType.PHASED,
                     onClick = { type = GoalType.PHASED },
-                    label = { Text("期間のある目的") }
+                    label = "期間のある目的"
                 )
-                FilterChip(
+                SelectableChip(
                     selected = type == GoalType.HABIT,
                     onClick = { type = GoalType.HABIT },
-                    label = { Text("継続する習慣") }
+                    label = "継続する習慣"
                 )
             }
 
             if (type == GoalType.PHASED) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { showStartDatePicker = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("開始: ${startDate.format(dateFormatter)}")
-                    }
-                    OutlinedButton(
-                        onClick = { showEndDatePicker = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("終了: ${endDate.format(dateFormatter)}")
-                    }
-                }
+                // 「yyyy年M月d日」は半分の幅に収まらず折り返すため、縦に並べる。
+                PickerField(
+                    label = "開始日",
+                    value = startDate.format(dateFormatter),
+                    icon = Icons.Outlined.CalendarMonth,
+                    onClick = { showStartDatePicker = true }
+                )
+                PickerField(
+                    label = "終了日",
+                    value = endDate.format(dateFormatter),
+                    icon = Icons.Outlined.CalendarMonth,
+                    onClick = { showEndDatePicker = true }
+                )
                 if (!endDate.isAfter(startDate)) {
                     Text(
                         text = "終了日は開始日より後にしてください",

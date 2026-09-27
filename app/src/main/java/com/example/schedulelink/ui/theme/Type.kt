@@ -23,3 +23,6 @@ val Typography = defaultTypography.copy(
     titleLarge = defaultTypography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
     titleMedium = defaultTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
 )
+
+/** 時刻の桁幅を揃える(等幅数字)。予定一覧で時刻の縦位置がずれないようにする。 */
+fun TextStyle.tabularNums(): TextStyle = copy(fontFeatureSettings = "tnum")

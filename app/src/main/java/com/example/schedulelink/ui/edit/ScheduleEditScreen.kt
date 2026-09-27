@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -22,7 +25,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -43,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
+import com.example.schedulelink.ui.common.PickerField
+import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import java.time.Instant
 import java.time.LocalDate
@@ -143,26 +147,31 @@ fun ScheduleEditScreen(
                     minLines = 3
                 )
 
-                OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("日付: ${date.format(dateFormatter)}")
-                }
+                PickerField(
+                    label = "日付",
+                    value = date.format(dateFormatter),
+                    icon = Icons.Outlined.CalendarMonth,
+                    onClick = { showDatePicker = true }
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(
+                    PickerField(
+                        label = "開始",
+                        value = startTime.format(commonTimeFormatter),
+                        icon = Icons.Outlined.Schedule,
                         onClick = { showStartTimePicker = true },
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text("開始: ${startTime.format(commonTimeFormatter)}")
-                    }
-                    OutlinedButton(
+                    )
+                    PickerField(
+                        label = "終了",
+                        value = endTime.format(commonTimeFormatter),
+                        icon = Icons.Outlined.Schedule,
                         onClick = { showEndTimePicker = true },
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text("終了: ${endTime.format(commonTimeFormatter)}")
-                    }
+                    )
                 }
                 if (!endTime.isAfter(startTime)) {
                     Text(
@@ -172,9 +181,12 @@ fun ScheduleEditScreen(
                     )
                 }
 
-                OutlinedButton(onClick = { showMilestonePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("所属する中日程: $selectedMilestoneTitle")
-                }
+                PickerField(
+                    label = "所属する中日程",
+                    value = selectedMilestoneTitle,
+                    icon = Icons.Outlined.Flag,
+                    onClick = { showMilestonePicker = true }
+                )
 
                 if (isPhotoFeatureEnabled) {
                     PhotoAttachmentSection(
@@ -189,11 +201,7 @@ fun ScheduleEditScreen(
                     )
                 }
 
-                Text(
-                    text = "関連する行動予定",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                SectionHeader("関連する行動予定")
 
                 if (candidateLinks.isEmpty()) {
                     Text(

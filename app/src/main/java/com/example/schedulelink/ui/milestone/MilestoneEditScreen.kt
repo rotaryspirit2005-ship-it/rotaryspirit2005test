@@ -11,15 +11,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,7 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
+import com.example.schedulelink.ui.common.PickerField
+import com.example.schedulelink.ui.common.SelectableChip
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -115,42 +117,38 @@ fun MilestoneEditScreen(
                 minLines = 2
             )
 
-            Text("状態", style = MaterialTheme.typography.titleSmall)
+            FormLabel("状態")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+                SelectableChip(
                     selected = status == MilestoneStatus.UPCOMING,
                     onClick = { status = MilestoneStatus.UPCOMING },
-                    label = { Text("未着手") }
+                    label = "未着手"
                 )
-                FilterChip(
+                SelectableChip(
                     selected = status == MilestoneStatus.ACTIVE,
                     onClick = { status = MilestoneStatus.ACTIVE },
-                    label = { Text("進行中") }
+                    label = "進行中"
                 )
-                FilterChip(
+                SelectableChip(
                     selected = status == MilestoneStatus.DONE,
                     onClick = { status = MilestoneStatus.DONE },
-                    label = { Text("完了") }
+                    label = "完了"
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { showStartDatePicker = true },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("開始: ${startDate.format(dateFormatter)}")
-                }
-                OutlinedButton(
-                    onClick = { showEndDatePicker = true },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("終了: ${endDate.format(dateFormatter)}")
-                }
-            }
+            // 「yyyy年M月d日」は半分の幅に収まらず折り返すため、縦に並べる。
+            PickerField(
+                label = "開始日",
+                value = startDate.format(dateFormatter),
+                icon = Icons.Outlined.CalendarMonth,
+                onClick = { showStartDatePicker = true }
+            )
+            PickerField(
+                label = "終了日",
+                value = endDate.format(dateFormatter),
+                icon = Icons.Outlined.CalendarMonth,
+                onClick = { showEndDatePicker = true }
+            )
             if (!endDate.isAfter(startDate)) {
                 Text(
                     text = "終了日は開始日より後にしてください",

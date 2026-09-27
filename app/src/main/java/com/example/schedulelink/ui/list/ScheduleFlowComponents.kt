@@ -15,16 +15,16 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material.icons.outlined.EventNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,11 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleWithLinks
-import com.example.schedulelink.ui.theme.ArrowColorDark
-import com.example.schedulelink.ui.theme.ArrowColorLight
-import com.example.schedulelink.ui.theme.BranchColorDark
-import com.example.schedulelink.ui.theme.BranchColorLight
-import com.example.schedulelink.ui.theme.LocalIsDarkTheme
+import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.tabularNums
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -56,22 +54,13 @@ import java.time.format.DateTimeFormatter
 
 private val timeFormatter = DateTimeFormatter.ofPattern("H:mm")
 
-/**
- * つながる予定の枝(ブランチ)チップの色。時刻の流れと見分けられるよう緑系にする。
- * 白背景で明るい緑は読みにくくなるため、ライト/ダークで濃さを変える。
- */
+/** つながる予定(分岐)の色。ブランドの緑と同じ意味なのでprimaryを使う。 */
 @Composable
-private fun branchColor(): Color = if (LocalIsDarkTheme.current) BranchColorDark else BranchColorLight
+private fun branchColor(): Color = MaterialTheme.colorScheme.primary
 
-/** 「時刻の流れ」の矢印色。薄いグレーは白背景では見えにくくなるため、ライト/ダークで濃さを変える。 */
+/** 「時刻の流れ」の矢印色。 */
 @Composable
-private fun arrowColor(): Color = if (LocalIsDarkTheme.current) ArrowColorDark else ArrowColorLight
-
-/**
- * リンク件数バッジの背景は常にこの濃い緑で固定する(白い文字・アイコンを乗せるため、
- * テーマによらず十分な濃さを保つ必要がある)。
- */
-private val PILL_BACKGROUND_COLOR = BranchColorLight
+private fun arrowColor(): Color = MaterialTheme.colorScheme.outline
 
 /** 「時刻の流れ」と「つながる予定(分岐)」の意味を示す、控えめな凡例。 */
 @Composable
@@ -79,9 +68,8 @@ fun FlowLegend() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -108,24 +96,13 @@ fun FlowLegend() {
 
 @Composable
 fun ScheduleEmptyState(modifier: Modifier = Modifier, onAddClick: (() -> Unit)? = null) {
-    Box(
+    EmptyState(
+        icon = Icons.Outlined.EventNote,
+        message = "この日の予定はありません",
         modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "この日の予定はありません",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (onAddClick != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                FilledTonalButton(onClick = onAddClick) {
-                    Text("予定を追加")
-                }
-            }
-        }
-    }
+        actionLabel = "予定を追加",
+        onAction = onAddClick
+    )
 }
 
 private fun isLater(candidate: ScheduleEntity, reference: ScheduleEntity): Boolean {
@@ -162,7 +139,8 @@ fun ScheduleFlowList(
 
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(vertical = 16.dp)
+        // 最後の予定がFABに隠れないよう、下にFAB分の余白を取る。
+        contentPadding = PaddingValues(top = 16.dp, bottom = Dimens.FabClearance)
     ) {
         items(items.size) { index ->
             val item = items[index]
@@ -209,15 +187,21 @@ private fun ScheduleFlowRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
             // Boxの子は横に並ばず重なってしまうため、Rowで並べる。
             // 右端(=メインカードに接する側)に線が来るよう、チップ→線の順で並べる。
+            // チップにweight(fill=false)を付けて、線(コネクタ)の幅を先に確保する
+            // (付けないと狭い端末でチップが幅を取り切り、線が消えてしまう)。
             if (chipTarget != null && !chipOnRight) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ScheduleBranchChip(target = chipTarget, onClick = onChipClick)
+                    ScheduleBranchChip(
+                        target = chipTarget,
+                        onClick = onChipClick,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
                     BranchConnector(pointsRight = false)
                 }
@@ -228,7 +212,7 @@ private fun ScheduleFlowRow(
             item = item,
             showLinkCountPill = showLinkCountPill,
             onClick = onClick,
-            modifier = Modifier.width(190.dp)
+            modifier = Modifier.width(168.dp)
         )
 
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
@@ -237,7 +221,11 @@ private fun ScheduleFlowRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     BranchConnector(pointsRight = true)
                     Spacer(modifier = Modifier.width(4.dp))
-                    ScheduleBranchChip(target = chipTarget, onClick = onChipClick)
+                    ScheduleBranchChip(
+                        target = chipTarget,
+                        onClick = onChipClick,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
                 }
             }
         }
@@ -253,7 +241,7 @@ private fun BranchConnector(pointsRight: Boolean) {
         }
         Box(
             modifier = Modifier
-                .width(12.dp)
+                .width(8.dp)
                 .height(2.dp)
                 .background(branch)
         )
@@ -271,20 +259,21 @@ private fun MainScheduleCard(
     modifier: Modifier = Modifier
 ) {
     val schedule = item.schedule
+    val shape = MaterialTheme.shapes.medium
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(shape)
                 .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
                 text = "${schedule.startTime.format(timeFormatter)}〜${schedule.endTime.format(timeFormatter)}",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge.tabularNums(),
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
@@ -299,17 +288,24 @@ private fun MainScheduleCard(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 6.dp, y = (-6).dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(PILL_BACKGROUND_COLOR)
+                    // 背景色の縁取りで、カードの枠線と重なる部分を切り抜いたように見せる。
+                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Icon(Icons.Default.Link, contentDescription = "リンク済みの予定数", tint = Color.White, modifier = Modifier.size(10.dp))
+                Icon(
+                    Icons.Default.Link,
+                    contentDescription = "リンク済みの予定数",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(12.dp)
+                )
                 Text(
                     text = item.linkedSchedules.size.toString(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
@@ -317,16 +313,16 @@ private fun MainScheduleCard(
 }
 
 @Composable
-private fun ScheduleBranchChip(target: ScheduleEntity, onClick: () -> Unit) {
+private fun ScheduleBranchChip(target: ScheduleEntity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val branch = branchColor()
     Column(
-        modifier = Modifier
-            .width(96.dp)
-            .clip(RoundedCornerShape(12.dp))
+        modifier = modifier
+            .widthIn(max = 96.dp)
+            .clip(MaterialTheme.shapes.medium)
             .background(branch.copy(alpha = 0.08f))
             .dashedBorder(branch, cornerRadius = 12.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(8.dp)
     ) {
         Text(
             text = if (target.date == LocalDate.now()) {

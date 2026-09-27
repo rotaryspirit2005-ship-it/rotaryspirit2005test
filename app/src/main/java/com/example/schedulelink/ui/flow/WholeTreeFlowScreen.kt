@@ -17,14 +17,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.theme.GoalColorDark
 import com.example.schedulelink.ui.theme.GoalColorLight
 import com.example.schedulelink.ui.theme.LocalIsDarkTheme
@@ -89,7 +88,7 @@ private const val RULER_LINE_ALPHA = 0.12f
 /** 日の目盛りのフェード開始色(薄い状態)。中間的な明るさなので、どちらの背景でも視認できる。 */
 private val DAY_DETAIL_GRAY = Color(0xFF808080)
 /** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
-private const val CARD_TINT_RATIO = 0.30f
+private const val CARD_TINT_RATIO = 0.12f
 
 /** 日の目盛りが常に「ちらっと見える」最低限の透明度。 */
 private const val DAY_TICK_MIN_ALPHA = 0.12f
@@ -167,9 +166,7 @@ fun WholeTreeFlowScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddGoalClick) {
-                Icon(Icons.Default.Add, contentDescription = "大目的を追加")
-            }
+            AppFab(onClick = onAddGoalClick, icon = Icons.Default.Add, contentDescription = "大目的を追加")
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -484,23 +481,29 @@ private fun TreeNodeCard(
 ) {
     val isDark = LocalIsDarkTheme.current
     val tierColor = node.tier.color(isDark)
-    // 無地ではなく階層色をうっすら混ぜた塗り(不透明)にして、ポップな印象にする。
-    // 線を完全に隠すため透過なしで塗る点は変えない。
-    val fillColor = lerp(MaterialTheme.colorScheme.surfaceVariant, tierColor, CARD_TINT_RATIO)
     val isDone = node.status == NodeStatus.DONE
+    // 背景の線を完全に隠すため、透過なしで塗る。階層色はごく薄く混ぜる程度にして
+    // フラットな印象を保つ。完了したものは透明度で薄くすると文字が読みにくくなるため、
+    // 一段沈んだ面の色と控えめな枠線で「済んだ」ことを表す。
+    val fillColor = if (isDone) {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    } else {
+        lerp(MaterialTheme.colorScheme.surface, tierColor, CARD_TINT_RATIO)
+    }
+    val borderColor = if (isDone && !isSelected) MaterialTheme.colorScheme.outlineVariant else tierColor
+    val textColor = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    val shape = MaterialTheme.shapes.medium
     Column(
         modifier = modifier
             .width(NODE_WIDTH)
             .counterScale(scale)
-            // 完了したものは少し暗くして、進み具合が一目でわかるようにする。
-            .graphicsLayer(alpha = if (isDone) 0.55f else 1f)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(shape)
             .background(fillColor)
             // 長押しで選ぶと、そのノードに関わる線だけが強調されるので、
             // 選択中であることが分かるよう枠を太くする。
-            .border(if (isSelected) 4.dp else 2.dp, tierColor, RoundedCornerShape(16.dp))
+            .border(if (isSelected) 3.dp else 1.5.dp, borderColor, shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (isDone) {
@@ -524,7 +527,7 @@ private fun TreeNodeCard(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
+                color = textColor
             )
         }
         if (node.subtitle.isNotBlank()) {
@@ -534,7 +537,7 @@ private fun TreeNodeCard(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = tierColor,
+                color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else tierColor,
                 modifier = Modifier.padding(start = 14.dp)
             )
         }

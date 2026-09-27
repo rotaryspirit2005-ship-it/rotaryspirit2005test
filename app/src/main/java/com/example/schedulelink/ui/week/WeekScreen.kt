@@ -3,13 +3,19 @@ package com.example.schedulelink.ui.week
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -33,11 +39,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.commonTimeFormatter
+import com.example.schedulelink.ui.theme.Dimens
+import com.example.schedulelink.ui.theme.tabularNums
+import com.example.schedulelink.ui.theme.weekendColor
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -94,8 +107,8 @@ fun WeekScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(Dimens.ScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
         ) {
             items(days, key = { it.toString() }) { date ->
                 WeekDayCard(
@@ -144,42 +157,78 @@ private fun WeekDayCard(
                     }
                 }
             },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isToday) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-        )
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = date.format(dayHeaderFormatter),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
+        // 今日だけ強調色で塗り、それ以外は背景と同じ面に細い枠線だけを付ける(フラット)。
+        colors = if (isToday) {
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
+        } else {
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        border = if (isToday) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = date.format(dayHeaderFormatter),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isToday) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        weekendColor(date.dayOfWeek.value % 7).takeOrElse { MaterialTheme.colorScheme.onSurface }
+                    }
+                )
+                if (isToday) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "今日",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            val subTextColor = if (isToday) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
             if (schedules.isEmpty()) {
                 Text(
                     text = "予定はありません",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = subTextColor,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             } else {
                 schedules.take(3).forEach { schedule ->
-                    Text(
-                        text = "${schedule.startTime} ${schedule.title}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
+                    Row(modifier = Modifier.padding(top = 4.dp)) {
+                        Text(
+                            text = schedule.startTime.format(commonTimeFormatter),
+                            style = MaterialTheme.typography.bodyMedium.tabularNums(),
+                            color = subTextColor,
+                            modifier = Modifier.width(44.dp)
+                        )
+                        Text(
+                            text = schedule.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 if (schedules.size > 3) {
                     Text(
                         text = "ほか${schedules.size - 3}件",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = subTextColor,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }

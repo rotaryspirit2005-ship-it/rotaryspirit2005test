@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -16,16 +19,15 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,12 +40,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.schedulelink.data.GoalProgress
 import com.example.schedulelink.data.GoalType
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.common.AppFab
+import com.example.schedulelink.ui.common.AppProgressBar
+import com.example.schedulelink.ui.common.DestructiveTextButton
+import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoGallery
+import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.commonDateFormatter
+import com.example.schedulelink.ui.theme.Dimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,9 +68,7 @@ fun GoalDetailScreen(
 ) {
     val goal by viewModel.goal(goalId).collectAsState(initial = null)
     val milestones by viewModel.milestones(goalId).collectAsState(initial = emptyList())
-    val progress by viewModel.progress(goalId).collectAsState(
-        initial = com.example.schedulelink.data.GoalProgress(0, 0)
-    )
+    val progress by viewModel.progress(goalId).collectAsState(initial = GoalProgress(0, 0))
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -83,9 +91,7 @@ fun GoalDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { onAddMilestone(goalId) }) {
-                Icon(Icons.Default.Add, contentDescription = "中日程を追加")
-            }
+            AppFab(onClick = { onAddMilestone(goalId) }, icon = Icons.Default.Add, contentDescription = "中日程を追加")
         }
     ) { padding ->
         val current = goal
@@ -96,58 +102,48 @@ fun GoalDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(Dimens.ScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
             ) {
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(current.title, style = MaterialTheme.typography.headlineSmall)
-                        if (current.memo.isNotBlank()) {
-                            Text(current.memo, style = MaterialTheme.typography.bodyMedium)
-                        }
-                        if (isPhotoFeatureEnabled) {
-                            PhotoGallery(urls = current.photoUrls)
-                        }
-                        if (current.type == GoalType.PHASED) {
-                            Text(
-                                "中日程 ${progress.doneCount}/${progress.totalCount} 完了",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            LinearProgressIndicator(
-                                progress = progress.ratio,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            Text(
-                                "継続中の習慣目的",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                InfoPanel {
+                    Text(current.title, style = MaterialTheme.typography.headlineSmall)
+                    if (current.memo.isNotBlank()) {
+                        Text(current.memo, style = MaterialTheme.typography.bodyLarge)
+                    }
+                    if (isPhotoFeatureEnabled) {
+                        PhotoGallery(urls = current.photoUrls)
+                    }
+                    if (current.type == GoalType.PHASED) {
+                        Text(
+                            "中日程 ${progress.doneCount}/${progress.totalCount} 完了",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        AppProgressBar(ratio = progress.ratio)
+                    } else {
+                        Text(
+                            "継続中の習慣目的",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
 
-                Text(
-                    "中日程",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                SectionHeader("中日程")
                 if (milestones.isEmpty()) {
                     Text(
                         "まだ中日程がありません",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
                     )
                 } else {
                     milestones.forEach { milestone ->
                         MilestoneRow(milestone = milestone, onClick = { onMilestoneClick(milestone.id) })
                     }
                 }
+                Spacer(modifier = Modifier.height(Dimens.FabClearance))
             }
         }
     }
@@ -158,10 +154,10 @@ fun GoalDetailScreen(
             title = { Text("大目的を削除しますか?") },
             text = { Text("この操作は取り消せません。中日程もすべて削除されます。") },
             confirmButton = {
-                TextButton(onClick = {
+                DestructiveTextButton("削除") {
                     showDeleteConfirm = false
                     viewModel.deleteGoal(goalId) { onBack() }
-                }) { Text("削除") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("キャンセル") }
@@ -172,36 +168,57 @@ fun GoalDetailScreen(
 
 @Composable
 private fun MilestoneRow(milestone: MilestoneEntity, onClick: () -> Unit) {
-    val (containerColor, contentColor) = when (milestone.status) {
-        MilestoneStatus.DONE -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        MilestoneStatus.ACTIVE -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        MilestoneStatus.UPCOMING -> MaterialTheme.colorScheme.surface to MaterialTheme.colorScheme.onSurface
-    }
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = containerColor)
-    ) {
+    val content: @Composable (Color, Color) -> Unit = { textColor, iconColor ->
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimens.ListItemPaddingH, vertical = Dimens.ListItemPaddingV),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            when (milestone.status) {
-                MilestoneStatus.DONE -> Icon(Icons.Default.CheckCircle, contentDescription = "完了", tint = contentColor)
-                MilestoneStatus.ACTIVE -> Icon(Icons.Default.Loop, contentDescription = "進行中", tint = contentColor)
-                MilestoneStatus.UPCOMING -> {}
+            val (icon, label) = when (milestone.status) {
+                MilestoneStatus.DONE -> Icons.Default.CheckCircle to "完了"
+                MilestoneStatus.ACTIVE -> Icons.Default.Loop to "進行中"
+                MilestoneStatus.UPCOMING -> Icons.Outlined.RadioButtonUnchecked to "未着手"
             }
+            Icon(icon, contentDescription = label, tint = iconColor, modifier = Modifier.size(20.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(milestone.title, style = MaterialTheme.typography.titleSmall, color = contentColor)
+                Text(milestone.title, style = MaterialTheme.typography.titleSmall, color = textColor)
                 if (milestone.startDate != null && milestone.endDate != null) {
                     Text(
                         "${milestone.startDate.format(commonDateFormatter)} 〜 ${milestone.endDate.format(commonDateFormatter)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = contentColor
+                        color = textColor
                     )
                 }
             }
+        }
+    }
+
+    // 状態ごとに面の色で区別する: 進行中は強調色で塗り、完了は一段沈んだ面、未着手は枠線のみ。
+    when (milestone.status) {
+        MilestoneStatus.ACTIVE -> Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        ) {
+            content(MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+        MilestoneStatus.DONE -> Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            content(MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.primary)
+        }
+        MilestoneStatus.UPCOMING -> OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+            content(MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.outline)
         }
     }
 }

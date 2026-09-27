@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,7 +66,7 @@ fun PhotoAttachmentSection(
         pendingUris.map { PhotoItem.Pending(it) }
 
     Column(modifier = modifier) {
-        Text("写真", style = MaterialTheme.typography.titleSmall)
+        FormLabel("写真")
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -190,11 +191,13 @@ private fun PhotoThumbnail(model: Any, onRemove: () -> Unit) {
 
 @Composable
 private fun AddPhotoTile(onClick: () -> Unit) {
+    val shape = MaterialTheme.shapes.small
     Box(
         modifier = Modifier
             .size(88.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {

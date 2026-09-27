@@ -5,7 +5,6 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -32,7 +30,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,14 +51,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.WidgetErrorLog
+import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.list.FlowLegend
 import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
-import com.example.schedulelink.ui.theme.LocalIsDarkTheme
+import com.example.schedulelink.ui.theme.weekendColor
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -175,9 +176,11 @@ fun MonthScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { onAddScheduleClick(selectedDate) }) {
-                Icon(Icons.Default.Add, contentDescription = "予定を追加")
-            }
+            AppFab(
+                onClick = { onAddScheduleClick(selectedDate) },
+                icon = Icons.Default.Add,
+                contentDescription = "予定を追加"
+            )
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -193,11 +196,25 @@ fun MonthScreen(
                 onPinchZoomDate = onDayClick
             )
             HorizontalDivider()
-            Text(
-                text = "${selectedDate.format(selectedDateFormatter)}の予定",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${selectedDate.format(selectedDateFormatter)}の予定",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                if (selectedDateSchedules.isNotEmpty()) {
+                    Text(
+                        text = "${selectedDateSchedules.size}件",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             FlowLegend()
             if (selectedDateSchedules.isEmpty()) {
                 ScheduleEmptyState(
@@ -290,27 +307,16 @@ fun MonthScreen(
 
 @Composable
 private fun WeekdayHeaderRow() {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)) {
         weekdayLabels.forEachIndexed { index, label ->
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
-                    color = weekdayColor(index)
+                    color = weekendColor(index).takeOrElse { MaterialTheme.colorScheme.onSurfaceVariant }
                 )
             }
         }
-    }
-}
-
-/** 日曜・土曜の色。白背景では明るい色が読みにくくなるため、ライト/ダークで濃さを変える。 */
-@Composable
-private fun weekdayColor(columnIndex: Int): Color {
-    val isDark = LocalIsDarkTheme.current
-    return when (columnIndex) {
-        0 -> if (isDark) Color(0xFFE5484D) else Color(0xFFC62828) // 日曜
-        6 -> if (isDark) Color(0xFF3B82F6) else Color(0xFF1565C0) // 土曜
-        else -> Color.Unspecified
     }
 }
 
@@ -406,6 +412,8 @@ private fun DayCell(
     // このマスを起点に、週表示の同じ日付のカードへ「コンテナごと」滑らかに
     // 拡大していく(Material Design で言うコンテナ変形)。日付ごとに同じキーを
     // 使うことで、タップ/ピンチした日だけがWeekScreen側の該当カードと結びつく。
+    val description = "${date.monthValue}月${date.dayOfMonth}日" +
+        if (scheduleCount > 0) " 予定${scheduleCount}件" else ""
     with(sharedTransitionScope) {
         Column(
             modifier = Modifier
@@ -414,47 +422,47 @@ private fun DayCell(
                     rememberSharedContentState(key = "day-$date"),
                     animatedVisibilityScope = animatedVisibilityScope
                 )
-                .clip(RoundedCornerShape(12.dp))
+                .clip(MaterialTheme.shapes.medium)
+                // 選択中の日はセル全体をprimaryContainerで塗る(枠線は使わない)。
+                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                 .clickable(onClick = onClick)
-                .padding(4.dp),
+                .semantics(mergeDescendants = true) { contentDescription = description }
+                .padding(top = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
                     .size(28.dp)
                     .then(
-                        when {
-                            // 今日は塗りつぶし、選択中(今日以外)は枠線で区別する。
-                            isToday -> Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
-                            isSelected -> Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                            else -> Modifier
-                        }
+                        if (isToday) Modifier.background(MaterialTheme.colorScheme.primary, CircleShape) else Modifier
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = date.dayOfMonth.toString(),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isToday) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        weekdayColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onSurface }
+                    fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
+                    color = when {
+                        isToday -> MaterialTheme.colorScheme.onPrimary
+                        isSelected -> weekendColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onPrimaryContainer }
+                        else -> weekendColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onSurface }
                     }
                 )
             }
+            // 件数の数字は小さいセルに収まらず切れていたため、最大3個の点で表す
+            // (正確な件数は読み上げ用のcontentDescriptionと、下の一覧の見出しで分かる)。
             if (scheduleCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(6.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                )
-                if (scheduleCount > 1) {
-                    Text(
-                        text = scheduleCount.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    repeat(minOf(scheduleCount, 3)) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        )
+                    }
                 }
             }
         }
