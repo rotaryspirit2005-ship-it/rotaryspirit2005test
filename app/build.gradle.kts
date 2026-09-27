@@ -51,6 +51,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 配布しているのはこのdebugビルドなので、実機での滑らかさを優先する。
+            // debuggableなアプリはARTの最適化の多くが無効になり、Composeのアニメーションや
+            // スクロールが目に見えてカクつく。署名(=SHA-1)は変わらないのでサインインへの影響はない。
+            isDebuggable = false
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

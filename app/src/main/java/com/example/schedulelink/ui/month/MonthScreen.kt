@@ -3,13 +3,7 @@ package com.example.schedulelink.ui.month
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
-import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,9 +46,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,7 +62,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
@@ -84,7 +82,6 @@ import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
 import com.example.schedulelink.ui.theme.weekendColor
 import com.example.schedulelink.ui.theme.Motion
-import com.example.schedulelink.ui.theme.directionalSlide
 import com.example.schedulelink.ui.theme.fadeThrough
 import java.time.Instant
 import java.time.LocalDate
@@ -92,7 +89,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.ceil
 import androidx.compose.material3.HorizontalDivider
 
 private val monthFormatter = DateTimeFormatter.ofPattern("yyyy年M月", Locale.JAPAN)
@@ -101,14 +97,21 @@ private val weekdayLabels = listOf("日", "月", "火", "水", "木", "金", "�
 
 /** 2本指のつまみ拡大でこの値を超えたら「その日を含む週」へドリルダウンする。 */
 private const val ZOOM_IN_THRESHOLD = 1.3f
-/** 月切り替えスワイプの判定に使う移動量(指1本での横ドラッグ)。 */
-private const val SWIPE_THRESHOLD_DP = 72
+
+/** 月ページャーのページ番号 = 1970年1月からの月数。「今」に依存しない固定の対応にする。 */
+private val PAGE_BASE_MONTH: YearMonth = YearMonth.of(1970, 1)
+private const val MONTH_PAGE_COUNT = 12 * 200
+
+private fun pageOf(month: YearMonth): Int =
+    ((month.year - PAGE_BASE_MONTH.year) * 12 + month.monthValue - 1).coerceIn(0, MONTH_PAGE_COUNT - 1)
+
+private fun monthOf(page: Int): YearMonth = PAGE_BASE_MONTH.plusMonths(page.toLong())
 
 /**
  * トップ画面。月全体を俯瞰し、日付をタップするか、その付近をピンチアウトすると
  * その日を含む週の表示(WeekScreen)へ進める。
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun MonthScreen(
     viewModel: MonthViewModel,
@@ -126,7 +129,6 @@ fun MonthScreen(
     isPhotoFeatureEnabled: Boolean,
     onTogglePhotoFeature: (Boolean) -> Unit
 ) {
-    val currentMonth by viewModel.currentMonth.collectAsState()
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
@@ -135,6 +137,16 @@ fun MonthScreen(
     var showVersionInfo by remember { mutableStateOf(false) }
     var showWidgetLog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // どの月を表示しているかはページャーが正。ViewModelへはページが止まってから伝える
+    // (途中で伝えると、選択日のリセットや予定の再取得がスワイプ中に走ってカクつく)。
+    val pagerState = rememberPagerState(initialPage = pageOf(viewModel.currentMonth.value)) { MONTH_PAGE_COUNT }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { viewModel.showMonth(monthOf(it)) }
+    }
+    // 見出しはスワイプの途中(半分を越えた時点)で切り替えて、指の動きに遅れないようにする。
+    val displayedMonth by remember { derivedStateOf { monthOf(pagerState.currentPage) } }
 
     Scaffold(
         topBar = {
@@ -142,36 +154,45 @@ fun MonthScreen(
                 // 前月・次月の矢印を月の表示の両側にまとめ、右側は「今日」「目的マップ」「その他」に整理する。
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { viewModel.goToPreviousMonth() }) {
+                        IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.targetPage - 1) } }) {
                             Icon(Icons.Default.ChevronLeft, contentDescription = "前の月")
                         }
-                        AnimatedContent(
-                            targetState = currentMonth,
-                            transitionSpec = {
-                                val direction = if (targetState > initialState) 1 else -1
-                                (
-                                    slideInVertically(tween(Motion.DurationMedium, easing = Motion.EmphasizedDecelerate)) { direction * it / 3 } +
-                                        fadeIn(tween(Motion.DurationMedium))
-                                    ) togetherWith (
-                                    slideOutVertically(tween(Motion.DurationShort, easing = Motion.EmphasizedAccelerate)) { -direction * it / 3 } +
-                                        fadeOut(tween(Motion.DurationShort))
+                        // 最も幅の広い表記で箱の幅を固定し、実際の年月はその中央に置く。月によって
+                        // 文字幅が変わっても矢印や文字の位置が動かないようにするため。切り替えはフェードのみ。
+                        Box(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+                            Text(
+                                "0000年00月",
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.alpha(0f).clearAndSetSemantics {}
+                            )
+                            AnimatedContent(
+                                targetState = displayedMonth,
+                                transitionSpec = { fadeThrough() },
+                                contentAlignment = Alignment.Center,
+                                label = "monthTitle",
+                                modifier = Modifier.matchParentSize()
+                            ) { month ->
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        month.format(monthFormatter),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                            },
-                            label = "monthTitle",
-                            // fill = falseだと月によって文字幅が変わるたびに矢印ボタンの位置が
-                            // ずれていた(例: 「9月」と「10月」で幅が違う)。maxLines/ellipsisで
-                            // 幅超過は既に吸収しているので、幅を固定するfill = trueにする。
-                            modifier = Modifier.weight(1f)
-                        ) { month ->
-                            Text(month.format(monthFormatter), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
                         }
-                        IconButton(onClick = { viewModel.goToNextMonth() }) {
+                        IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.targetPage + 1) } }) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "次の月")
                         }
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.goToToday() }) {
+                    IconButton(onClick = {
+                        viewModel.selectDate(LocalDate.now())
+                        scope.launch { pagerState.animateScrollToPage(pageOf(YearMonth.now())) }
+                    }) {
                         Icon(Icons.Default.Today, contentDescription = "今日")
                     }
                     IconButton(onClick = onGoalMapClick) {
@@ -232,23 +253,23 @@ fun MonthScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             WeekdayHeaderRow()
-            AnimatedContent(
-                targetState = currentMonth,
-                transitionSpec = { directionalSlide(forward = targetState > initialState) },
-                label = "monthGrid"
-            ) { month ->
+            // 横スワイプで月送り。指に追従し、隣の月を見せながら慣性で止まる。
+            // 前後の月も先に組み立てておき(beyondViewportPageCount)、ドラッグ開始時の引っかかりを防ぐ。
+            HorizontalPager(
+                state = pagerState,
+                beyondViewportPageCount = 1,
+                pageSpacing = 8.dp,
+                verticalAlignment = Alignment.Top
+            ) { page ->
                 MonthGrid(
-                    // ピンチ判定などは、遷移中も各グリッド自身の月(=ラムダ引数)で行う。
-                    month = month,
+                    month = monthOf(page),
                     schedulesByDate = schedulesByDate,
                     selectedDate = selectedDate,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
                     // タップ = その場でカレンダーの下に予定を表示、ピンチズーム = 週表示へドリルダウン。
                     onDayClick = { date -> viewModel.selectDate(date) },
-                    onPinchZoomDate = onDayClick,
-                    onSwipePrevious = { viewModel.goToPreviousMonth() },
-                    onSwipeNext = { viewModel.goToNextMonth() }
+                    onPinchZoomDate = onDayClick
                 )
             }
             HorizontalDivider()
@@ -403,14 +424,15 @@ private fun WeekdayHeaderRow() {
     }
 }
 
-/** 前後月の空マスも含めた、7列×n行のカレンダーマス目を組み立てる。 */
+/**
+ * 前後月の空マスも含めた、7列×6行のカレンダーマス目を組み立てる。
+ * 5週の月も6行にそろえ、月を送るたびにグリッドと下の予定一覧の高さが変わらないようにする。
+ */
 private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
     val firstOfMonth = month.atDay(1)
     val daysInMonth = month.lengthOfMonth()
     val firstDowIndex = firstOfMonth.dayOfWeek.value % 7 // SUNDAY(7)->0, MONDAY(1)->1, ...
-    val totalCells = firstDowIndex + daysInMonth
-    val rowCount = ceil(totalCells / 7.0).toInt()
-    val cells = MutableList<LocalDate?>(rowCount * 7) { null }
+    val cells = MutableList<LocalDate?>(6 * 7) { null }
     for (d in 1..daysInMonth) {
         cells[firstDowIndex + d - 1] = month.atDay(d)
     }
@@ -426,100 +448,64 @@ private fun MonthGrid(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onDayClick: (LocalDate) -> Unit,
-    onPinchZoomDate: (LocalDate) -> Unit,
-    onSwipePrevious: () -> Unit,
-    onSwipeNext: () -> Unit
+    onPinchZoomDate: (LocalDate) -> Unit
 ) {
     val weeks = remember(month) { buildMonthGrid(month) }
-    var accumulatedZoom by remember(month) { mutableFloatStateOf(1f) }
     val today = remember { LocalDate.now() }
-    // スワイプ中、しきい値に達するまで何も動かないと「カクつく」ため、指の動きに
-    // そのまま追従させる。スワイプが不成立(離した/ピンチに切り替わった)ときは0へ戻す。
-    // Animatableの更新はawaitEachGesture内部の制限付きスコープ(@RestrictsSuspension)からは
-    // 直接呼べないため、rememberCoroutineScopeで取った通常のスコープ経由でlaunchする。
-    val dragOffset = remember(month) { Animatable(0f) }
-    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // グリッド全体でピンチとスワイプの両方を検知する。指2本ならピンチズーム(週表示への
-            // ドリルダウン)、指1本の横ドラッグなら月送り。1ジェスチャー(指を置いてから離すまで)
-            // ごとに状態をリセットするため、awaitEachGestureで自前ループを組む。
+            // 指1本の横ドラッグは親のHorizontalPagerに任せ、ここでは指2本のピンチだけを扱う。
+            // 指の中心(centroid)がどのマスの上にあるかで、ズームインしたい日付を判定する。
+            // 2本指の間はイベントを消費して、ピンチ中にページ送りが動かないようにする。
             .pointerInput(month) {
-                val swipeThresholdPx = SWIPE_THRESHOLD_DP.dp.toPx()
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
-                    var horizontalDrag = 0f
+                    var accumulatedZoom = 1f
                     var handled = false
                     do {
                         val event = awaitPointerEvent()
-                        val pressedCount = event.changes.count { it.pressed }
-                        if (pressedCount > 1) {
-                            // ピンチ中に横ドラッグ分だけ誤って月送りしないよう、指を追加した時点で捨てる。
-                            horizontalDrag = 0f
-                            coroutineScope.launch { dragOffset.snapTo(0f) }
-                            val zoom = event.calculateZoom()
-                            accumulatedZoom = (accumulatedZoom * zoom).coerceIn(0.3f, 4f)
-                            if (!handled && accumulatedZoom > ZOOM_IN_THRESHOLD) {
-                                val centroid = event.calculateCentroid()
-                                val col = (centroid.x / (size.width / 7f)).toInt().coerceIn(0, 6)
-                                val row = (centroid.y / (size.height / weeks.size.toFloat())).toInt()
-                                    .coerceIn(0, weeks.size - 1)
-                                weeks.getOrNull(row)?.getOrNull(col)?.let { onPinchZoomDate(it) }
-                                accumulatedZoom = 1f
-                                handled = true
-                            }
-                        } else if (!handled) {
-                            horizontalDrag += event.calculatePan().x
-                            coroutineScope.launch { dragOffset.snapTo(horizontalDrag) }
-                            when {
-                                horizontalDrag <= -swipeThresholdPx -> {
-                                    onSwipeNext()
-                                    handled = true
-                                }
-                                horizontalDrag >= swipeThresholdPx -> {
-                                    onSwipePrevious()
+                        if (event.changes.count { it.pressed } > 1) {
+                            event.changes.forEach { it.consume() }
+                            if (!handled) {
+                                accumulatedZoom = (accumulatedZoom * event.calculateZoom()).coerceIn(0.3f, 4f)
+                                if (accumulatedZoom > ZOOM_IN_THRESHOLD) {
+                                    val centroid = event.calculateCentroid()
+                                    val col = (centroid.x / (size.width / 7f)).toInt().coerceIn(0, 6)
+                                    val row = (centroid.y / (size.height / weeks.size.toFloat())).toInt()
+                                        .coerceIn(0, weeks.size - 1)
+                                    weeks.getOrNull(row)?.getOrNull(col)?.let { onPinchZoomDate(it) }
                                     handled = true
                                 }
                             }
                         }
                     } while (event.changes.any { it.pressed })
-                    if (handled) {
-                        // 月が切り替わった直後。以降の見た目はAnimatedContent側のスライドに任せる。
-                        coroutineScope.launch { dragOffset.snapTo(0f) }
-                    } else {
-                        coroutineScope.launch {
-                            dragOffset.animateTo(0f, tween(Motion.DurationMedium, easing = Motion.EmphasizedDecelerate))
-                        }
-                    }
                 }
             }
     ) {
-        Column(modifier = Modifier.graphicsLayer { translationX = dragOffset.value }) {
-            weeks.forEach { week ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    week.forEachIndexed { columnIndex, date ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                // 2dpずつ削ると小型端末で48dpのタップ推奨サイズを
-                                // わずかに下回ることがあるため、1dpに減らして確保する。
-                                .padding(1.dp)
-                        ) {
-                            if (date != null) {
-                                DayCell(
-                                    date = date,
-                                    columnIndex = columnIndex,
-                                    isToday = date == today,
-                                    isSelected = date == selectedDate,
-                                    scheduleCount = schedulesByDate[date]?.size ?: 0,
-                                    sharedTransitionScope = sharedTransitionScope,
-                                    animatedVisibilityScope = animatedVisibilityScope,
-                                    onClick = { onDayClick(date) }
-                                )
-                            }
+        weeks.forEach { week ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                week.forEachIndexed { columnIndex, date ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            // 2dpずつ削ると小型端末で48dpのタップ推奨サイズを
+                            // わずかに下回ることがあるため、1dpに減らして確保する。
+                            .padding(1.dp)
+                    ) {
+                        if (date != null) {
+                            DayCell(
+                                date = date,
+                                columnIndex = columnIndex,
+                                isToday = date == today,
+                                isSelected = date == selectedDate,
+                                scheduleCount = schedulesByDate[date]?.size ?: 0,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                onClick = { onDayClick(date) }
+                            )
                         }
                     }
                 }

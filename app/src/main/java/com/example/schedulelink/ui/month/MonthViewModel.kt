@@ -33,10 +33,11 @@ class MonthViewModel(private val repository: ScheduleRepository) : ViewModel() {
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
+    /** 表示中の月と前後1か月分。スワイプ中に見えている隣の月にも予定の点を出すため。 */
     @OptIn(ExperimentalCoroutinesApi::class)
     val schedulesByDate: StateFlow<Map<LocalDate, List<ScheduleEntity>>> = _currentMonth
         .flatMapLatest { month ->
-            repository.schedulesInRange(month.atDay(1), month.atEndOfMonth())
+            repository.schedulesInRange(month.minusMonths(1).atDay(1), month.plusMonths(1).atEndOfMonth())
                 .map { list -> list.groupBy { it.date } }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
@@ -67,18 +68,16 @@ class MonthViewModel(private val repository: ScheduleRepository) : ViewModel() {
         _selectedDate.value = date
     }
 
-    fun goToPreviousMonth() {
-        _currentMonth.value = _currentMonth.value.minusMonths(1)
-        _selectedDate.value = _currentMonth.value.atDay(1)
-    }
-
-    fun goToNextMonth() {
-        _currentMonth.value = _currentMonth.value.plusMonths(1)
-        _selectedDate.value = _currentMonth.value.atDay(1)
-    }
-
-    fun goToToday() {
-        _currentMonth.value = YearMonth.now()
-        _selectedDate.value = LocalDate.now()
+    /**
+     * 月表示のページ送りが止まったときに呼ぶ。選択日がその月の外なら、
+     * 今月なら今日・それ以外は1日を選び直す。
+     */
+    fun showMonth(month: YearMonth) {
+        if (_currentMonth.value == month) return
+        _currentMonth.value = month
+        if (YearMonth.from(_selectedDate.value) != month) {
+            val today = LocalDate.now()
+            _selectedDate.value = if (YearMonth.from(today) == month) today else month.atDay(1)
+        }
     }
 }
