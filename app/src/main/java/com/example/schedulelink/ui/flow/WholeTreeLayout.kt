@@ -38,8 +38,8 @@ data class WholeTree(
     val maxDate: LocalDate
 )
 
-/** ノード1つが横方向に占める日数の目安。レーン分けの衝突判定に使う。 */
-const val NODE_WIDTH_DAYS = 16L
+/** ノード1つが横方向に占める日数の目安(カード幅144dp÷8dp/日)。レーン分けの衝突判定に使う。 */
+const val NODE_WIDTH_DAYS = 19L
 const val MIN_GAP_DAYS = NODE_WIDTH_DAYS + 2L
 
 private val monthDayFormatter = DateTimeFormatter.ofPattern("M/d", Locale.JAPAN)
@@ -89,22 +89,10 @@ fun buildWholeTree(
         else -> NodeStatus.UPCOMING
     }
 
-    fun milestoneStatus(milestone: MilestoneEntity): NodeStatus = when (milestone.status) {
-        MilestoneStatus.DONE -> NodeStatus.DONE
-        MilestoneStatus.ACTIVE -> NodeStatus.ACTIVE
-        MilestoneStatus.UPCOMING -> NodeStatus.UPCOMING
-    }
+    fun milestoneStatus(milestone: MilestoneEntity): NodeStatus = milestone.status.toNodeStatus()
 
-    // 大目的自体には完了フラグが無いので、配下の中日程の状態から推測する。
-    // (中日程が1つも無い場合だけ、目的自身の開始日・終了日から推測する。)
-    fun goalStatus(goal: GoalEntity, milestoneStatuses: List<NodeStatus>): NodeStatus = when {
-        milestoneStatuses.isNotEmpty() && milestoneStatuses.all { it == NodeStatus.DONE } -> NodeStatus.DONE
-        milestoneStatuses.any { it == NodeStatus.DONE || it == NodeStatus.ACTIVE } -> NodeStatus.ACTIVE
-        milestoneStatuses.isNotEmpty() -> NodeStatus.UPCOMING
-        goal.endDate != null && goal.endDate.isBefore(today) -> NodeStatus.DONE
-        goal.startDate != null && !goal.startDate.isAfter(today) -> NodeStatus.ACTIVE
-        else -> NodeStatus.UPCOMING
-    }
+    fun goalStatus(goal: GoalEntity, milestoneStatuses: List<NodeStatus>): NodeStatus =
+        goalNodeStatus(goal, milestoneStatuses, today)
 
     val rawNodes = mutableListOf<RawNode>()
     val edges = mutableListOf<Pair<String, String>>()
@@ -201,7 +189,26 @@ fun buildWholeTree(
     return WholeTree(nodes, peerLinks, edges, minDate, maxDate)
 }
 
-private fun formatRangeSubtitle(start: LocalDate?, end: LocalDate?): String = when {
+internal fun MilestoneStatus.toNodeStatus(): NodeStatus = when (this) {
+    MilestoneStatus.DONE -> NodeStatus.DONE
+    MilestoneStatus.ACTIVE -> NodeStatus.ACTIVE
+    MilestoneStatus.UPCOMING -> NodeStatus.UPCOMING
+}
+
+/**
+ * 大目的自体には完了フラグが無いので、配下の中日程の状態から推測する。
+ * (中日程が1つも無い場合だけ、目的自身の開始日・終了日から推測する。)
+ */
+internal fun goalNodeStatus(goal: GoalEntity, milestoneStatuses: List<NodeStatus>, today: LocalDate): NodeStatus = when {
+    milestoneStatuses.isNotEmpty() && milestoneStatuses.all { it == NodeStatus.DONE } -> NodeStatus.DONE
+    milestoneStatuses.any { it == NodeStatus.DONE || it == NodeStatus.ACTIVE } -> NodeStatus.ACTIVE
+    milestoneStatuses.isNotEmpty() -> NodeStatus.UPCOMING
+    goal.endDate != null && goal.endDate.isBefore(today) -> NodeStatus.DONE
+    goal.startDate != null && !goal.startDate.isAfter(today) -> NodeStatus.ACTIVE
+    else -> NodeStatus.UPCOMING
+}
+
+internal fun formatRangeSubtitle(start: LocalDate?, end: LocalDate?): String = when {
     start != null && end != null -> "${start.format(monthDayFormatter)}〜${end.format(monthDayFormatter)}"
     start != null -> "${start.format(monthDayFormatter)}〜"
     end != null -> "〜${end.format(monthDayFormatter)}"

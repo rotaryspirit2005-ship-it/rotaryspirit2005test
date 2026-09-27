@@ -1,6 +1,7 @@
 package com.example.schedulelink.ui.flow
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,11 +23,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -34,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.ui.common.AppFab
+import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.theme.GoalColorDark
 import com.example.schedulelink.ui.theme.GoalColorLight
 import com.example.schedulelink.ui.theme.LocalIsDarkTheme
@@ -59,19 +66,21 @@ import com.example.schedulelink.ui.theme.ScheduleColorDark
 import com.example.schedulelink.ui.theme.ScheduleColorLight
 import com.example.schedulelink.ui.theme.TodayLineColorDark
 import com.example.schedulelink.ui.theme.TodayLineColorLight
+import com.example.schedulelink.ui.theme.fadeThrough
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 private const val PX_PER_DAY = 8f
-private val NODE_WIDTH = 120.dp
+/** 題名が省略されにくいよう広めにとる(WholeTreeLayoutのNODE_WIDTH_DAYSと対応させる)。 */
+private val NODE_WIDTH = 144.dp
 private val NODE_HEIGHT = 52.dp
 private val LANE_HEIGHT = NODE_HEIGHT + 14.dp
 private val TIER_GAP = 36.dp
 private val RULER_HEIGHT = 48.dp
 private val MARGIN = 24.dp
 
-/** 日の目盛り(線)は、この拡大率から常にうっすらグレーで見えている。 */
-private const val DAY_TICK_FADE_START = 0.4f
+/** 日の目盛り(線)は、この拡大率まで拡大したときだけ見え始める(通常の大きさでは線が多すぎて見づらい)。 */
+private const val DAY_TICK_FADE_START = 1.5f
 /** 日の数字は線より少し遅れて、この拡大率あたりから見え始める。 */
 private const val DAY_LABEL_FADE_START = 1.5f
 /** ここまで拡大すると、線・数字とも前景色(完全に見える状態)になる。 */
@@ -90,14 +99,17 @@ private val DAY_DETAIL_GRAY = Color(0xFF808080)
 /** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
 private const val CARD_TINT_RATIO = 0.12f
 
-/** 日の目盛りが常に「ちらっと見える」最低限の透明度。 */
-private const val DAY_TICK_MIN_ALPHA = 0.12f
+/** 日の目盛りの最低限の透明度(0 = 拡大するまでは出さない)。 */
+private const val DAY_TICK_MIN_ALPHA = 0f
 
-/**
- * 同じ階層の間(親子の隙間)に、線の高さをずらして重なりを減らすための段数。
- * 隣り合う親どうしに別の段を割り当てることで、水平線が同じ高さに集まりにくくする。
- */
-private const val BUS_SLOT_COUNT = 3
+/** 親子をつなぐ横線(バス)どうしの縦の間隔。横に重なるバスは段を分けてこの間隔で並べる。 */
+private val BUS_SPACING = 12.dp
+/** 横に重なっているとみなすバスどうしの最小の隙間。 */
+private val BUS_MIN_GAP = 8.dp
+/** 接続線の色の濃さ(親の階層色をこの透明度で使う)。 */
+private const val CONNECTOR_ALPHA = 0.55f
+/** 今日の線の濃さ。接続線より下に描き、カードや線を邪魔しない程度にする。 */
+private const val TODAY_LINE_ALPHA = 0.7f
 
 /** 選択中のノードと無関係な線を薄くする際の透明度。 */
 private const val DIMMED_LINE_ALPHA = 0.15f
@@ -106,7 +118,7 @@ private const val DIMMED_LINE_ALPHA = 0.15f
  * 階層ごとのアクセント色。白背景では明るい色は文字として読みにくくなるため、
  * ライト/ダークで別の濃さを使う([isDark]は[LocalIsDarkTheme]から取得する)。
  */
-private fun TreeTier.color(isDark: Boolean): Color = when (this) {
+internal fun TreeTier.color(isDark: Boolean): Color = when (this) {
     TreeTier.GOAL -> if (isDark) GoalColorDark else GoalColorLight
     TreeTier.MILESTONE -> if (isDark) MilestoneColorDark else MilestoneColorLight
     TreeTier.SCHEDULE -> if (isDark) ScheduleColorDark else ScheduleColorLight
@@ -148,6 +160,9 @@ fun WholeTreeFlowScreen(
     onBack: () -> Unit
 ) {
     val tree by viewModel.tree.collectAsState()
+    val outline by viewModel.outline.collectAsState()
+    // 0 = ツリー(既定)、1 = タイムライン。
+    var viewMode by rememberSaveable { mutableStateOf(0) }
 
     Scaffold(
         topBar = {
@@ -170,27 +185,64 @@ fun WholeTreeFlowScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (tree.nodes.isNotEmpty()) {
-                TreeLegend()
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                listOf("ツリー", "タイムライン").forEachIndexed { index, label ->
+                    SegmentedButton(
+                        selected = viewMode == index,
+                        onClick = { viewMode = index },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
+                    ) {
+                        Text(label)
+                    }
+                }
             }
-            Box(modifier = Modifier.weight(1f)) {
-                if (tree.nodes.isEmpty()) {
-                    Text(
-                        text = "まだ大目的がありません。右下の + から作成しましょう",
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            AnimatedContent(
+                targetState = viewMode,
+                transitionSpec = { fadeThrough() },
+                modifier = Modifier.weight(1f),
+                label = "wholeMapMode"
+            ) { mode ->
+                if (mode == 0) {
+                    // 読み込み前(null)は何も出さない。
+                    outline?.let {
+                        WholeTreeOutlineView(
+                            outline = it,
+                            onGoalClick = onGoalClick,
+                            onMilestoneClick = onMilestoneClick,
+                            onScheduleClick = onScheduleClick,
+                            onAddGoalClick = onAddGoalClick
+                        )
+                    } ?: Box(modifier = Modifier.fillMaxSize())
                 } else {
-                    WholeTreeCanvas(
-                        tree = tree,
-                        onNodeClick = { node ->
-                            when (node.tier) {
-                                TreeTier.GOAL -> onGoalClick(node.id)
-                                TreeTier.MILESTONE -> onMilestoneClick(node.id)
-                                TreeTier.SCHEDULE -> onScheduleClick(node.id)
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (tree.nodes.isNotEmpty()) {
+                            TreeLegend()
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (tree.nodes.isEmpty()) {
+                                EmptyState(
+                                    icon = Icons.Outlined.Flag,
+                                    message = "まだ大目的がありません",
+                                    modifier = Modifier.fillMaxSize(),
+                                    actionLabel = "大目的を追加",
+                                    onAction = onAddGoalClick
+                                )
+                            } else {
+                                WholeTreeCanvas(
+                                    tree = tree,
+                                    onNodeClick = { node ->
+                                        when (node.tier) {
+                                            TreeTier.GOAL -> onGoalClick(node.id)
+                                            TreeTier.MILESTONE -> onMilestoneClick(node.id)
+                                            TreeTier.SCHEDULE -> onScheduleClick(node.id)
+                                        }
+                                    }
+                                )
                             }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -262,19 +314,16 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
             .toList()
             .sortedBy { (parentId, _) -> nodesById[parentId]?.date ?: LocalDate.MIN }
     }
-    // 隣り合う親どうしのバスの高さが同じ位置に集まらないよう、段をずらして割り当てる。
-    val busSlotByParent = remember(parentGroups) {
-        parentGroups.mapIndexed { index, (parentId, _) -> parentId to (index % BUS_SLOT_COUNT) }.toMap()
-    }
+    // 横方向に重なるバスどうしは別の段(高さ)に割り当てる(区間スケジューリングの貪欲法)。
+    // 重ならないバスは同じ段を使い回すので、隙間の高さは必要な段数だけで済む。
+    val busLayout = remember(tree) { assignBusSlots(tree, parentGroups, nodesById) }
     // 長押しで選んだノードに関わる線だけをくっきり見せ、他は薄くして見やすくする。
     var selectedNodeId by remember(tree) { mutableStateOf<String?>(null) }
 
     val isDark = LocalIsDarkTheme.current
-    // 接続線は「今の背景に対してよく見える色」であるonSurfaceをそのまま使うので、
-    // ライト/ダークどちらでもはっきり読める。目盛りは同じ色をうっすら(低いalpha)使うことで
-    // 「背景に馴染む」効果を保ったまま、ライト/ダーク双方で自動的に成立させる。
+    // 目盛りはonSurfaceをうっすら(低いalpha)使い、ライト/ダークどちらでも背景に馴染ませる。
+    // 接続線は親の階層色で描く(描画部分を参照)。
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val treeLineColor = onSurfaceColor
     val rulerLineColor = onSurfaceColor.copy(alpha = RULER_LINE_ALPHA)
     val peerLinkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight
     val todayLineColor = if (isDark) TodayLineColorDark else TodayLineColorLight
@@ -284,11 +333,15 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
 
     fun maxLane(tier: TreeTier): Int = nodesByTier[tier]?.maxOfOrNull { it.lane } ?: -1
 
+    fun slotCount(parentTier: TreeTier): Int = busLayout.slotCountByTier[parentTier] ?: 1
+    // 親の階層の下の隙間は、バスの段数に応じて広げる(段が多くても線が詰まらないように)。
+    fun gapBelow(parentTier: TreeTier): Dp = maxOf(TIER_GAP, BUS_SPACING * (slotCount(parentTier) + 1))
+
     val goalBaseY = RULER_HEIGHT + TIER_GAP
     val goalTierHeight = LANE_HEIGHT * (maxLane(TreeTier.GOAL) + 1).coerceAtLeast(0)
-    val milestoneBaseY = goalBaseY + goalTierHeight + TIER_GAP
+    val milestoneBaseY = goalBaseY + goalTierHeight + gapBelow(TreeTier.GOAL)
     val milestoneTierHeight = LANE_HEIGHT * (maxLane(TreeTier.MILESTONE) + 1).coerceAtLeast(0)
-    val scheduleBaseY = milestoneBaseY + milestoneTierHeight + TIER_GAP
+    val scheduleBaseY = milestoneBaseY + milestoneTierHeight + gapBelow(TreeTier.MILESTONE)
     val scheduleTierHeight = LANE_HEIGHT * (maxLane(TreeTier.SCHEDULE) + 1).coerceAtLeast(0)
     val contentHeight = scheduleBaseY + scheduleTierHeight + TIER_GAP
 
@@ -307,7 +360,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
             TreeTier.MILESTONE -> milestoneBaseY + milestoneTierHeight to scheduleBaseY
             TreeTier.SCHEDULE -> scheduleBaseY to scheduleBaseY
         }
-        val fraction = (slot + 1f) / (BUS_SLOT_COUNT + 1f)
+        val fraction = (slot + 1f) / (slotCount(parentTier) + 1f)
         return gapTop + (gapBottom - gapTop) * fraction
     }
 
@@ -343,7 +396,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                 // 線の太さも、拡大しすぎたときだけ際限なく太くならないよう抑える。
                 val strokeFactor = capScale(scale)
                 val hairline = (1.dp * strokeFactor).toPx()
-                val edgeStroke = (1.5.dp * strokeFactor).toPx()
+                val edgeStroke = (1.dp * strokeFactor).toPx()
 
                 marks.forEach { (date, _) ->
                     val x = dateToX(date).toPx()
@@ -355,7 +408,7 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     )
                 }
 
-                dayMarksList.forEach { date ->
+                if (tickProgress > 0f) dayMarksList.forEach { date ->
                     val x = dateToX(date).toPx()
                     drawLine(
                         color = dayTickColor,
@@ -365,49 +418,63 @@ private fun WholeTreeCanvas(tree: WholeTree, onNodeClick: (TreeNode) -> Unit) {
                     )
                 }
 
+                // 今日の線は接続線より先(下)に描き、線の交差を増やさないようにする。
+                if (todayInRange) {
+                    val todayX = dateToX(today).toPx()
+                    drawLine(
+                        color = todayLineColor.copy(alpha = TODAY_LINE_ALPHA),
+                        start = Offset(todayX, 0f),
+                        end = Offset(todayX, contentHeight.toPx()),
+                        strokeWidth = edgeStroke * 1.6f
+                    )
+                }
+
                 parentGroups.forEach { (parentId, childIds) ->
                     val parent = nodesById[parentId] ?: return@forEach
                     val children = childIds.mapNotNull { nodesById[it] }
                     if (children.isEmpty()) return@forEach
 
-                    val slot = busSlotByParent[parentId] ?: 0
+                    val slot = busLayout.slotByParent[parentId] ?: 0
                     val bus = busY(parent.tier, slot).toPx()
-                    val parentCenter = centerOf(parent)
-                    val parentPx = Offset(parentCenter.x.dp.toPx(), parentCenter.y.dp.toPx())
+                    val parentTopLeft = topLeftOf(parent)
+                    // 同じ日付の親(別レーン)どうしの幹が重ならないよう、段ごとにカード内の横位置をずらす。
+                    val trunkX = (parentTopLeft.x.dp + NODE_WIDTH * ((slot + 1f) / (slotCount(parent.tier) + 1f))).toPx()
+                    val trunkTop = (parentTopLeft.y.dp + NODE_HEIGHT).toPx()
                     val childPxList = children.map { child ->
-                        val c = centerOf(child)
-                        Triple(child.id, Offset(c.x.dp.toPx(), c.y.dp.toPx()), child)
+                        val topLeft = topLeftOf(child)
+                        Triple(child.id, Offset((topLeft.x.dp + NODE_WIDTH / 2).toPx(), topLeft.y.dp.toPx()), child)
                     }
-                    val minX = minOf(parentPx.x, childPxList.minOf { it.second.x })
-                    val maxX = maxOf(parentPx.x, childPxList.maxOf { it.second.x })
+                    val minX = minOf(trunkX, childPxList.minOf { it.second.x })
+                    val maxX = maxOf(trunkX, childPxList.maxOf { it.second.x })
 
+                    // 線は親の階層色で描き、どの親からの線かを色でも追えるようにする。
+                    val baseColor = parent.tier.color(isDark)
                     val isParentSelected = selectedNodeId != null && selectedNodeId == parentId
                     val groupHighlighted = selectedNodeId == null ||
                         isParentSelected ||
                         childPxList.any { it.first == selectedNodeId }
-                    val trunkColor = if (groupHighlighted) treeLineColor else treeLineColor.copy(alpha = DIMMED_LINE_ALPHA)
-                    val trunkStroke = if (selectedNodeId != null && groupHighlighted) edgeStroke * 1.4f else edgeStroke
-
-                    // 幹: 親から、複数の子をまとめる共通のバス(横線)まで一本で下ろす。
-                    drawLine(color = trunkColor, start = parentPx, end = Offset(parentPx.x, bus), strokeWidth = trunkStroke)
-                    // バス: 兄弟をまとめる横線。子1つずつに水平線を引かないことで重なりを減らす。
-                    drawLine(color = trunkColor, start = Offset(minX, bus), end = Offset(maxX, bus), strokeWidth = trunkStroke)
-                    // 枝: バスから各子へ下ろす。
-                    childPxList.forEach { (childId, childPx, _) ->
-                        val isChildHighlighted = selectedNodeId == null || isParentSelected || selectedNodeId == childId
-                        val branchColor = if (isChildHighlighted) treeLineColor else treeLineColor.copy(alpha = DIMMED_LINE_ALPHA)
-                        val branchStroke = if (selectedNodeId != null && isChildHighlighted) edgeStroke * 1.4f else edgeStroke
-                        drawLine(color = branchColor, start = Offset(childPx.x, bus), end = childPx, strokeWidth = branchStroke)
+                    val trunkColor = when {
+                        !groupHighlighted -> baseColor.copy(alpha = DIMMED_LINE_ALPHA)
+                        selectedNodeId != null -> baseColor
+                        else -> baseColor.copy(alpha = CONNECTOR_ALPHA)
                     }
-                }
-                if (todayInRange) {
-                    val todayX = dateToX(today).toPx()
-                    drawLine(
-                        color = todayLineColor,
-                        start = Offset(todayX, 0f),
-                        end = Offset(todayX, contentHeight.toPx()),
-                        strokeWidth = edgeStroke * 1.6f
-                    )
+                    val trunkStroke = if (selectedNodeId != null && groupHighlighted) edgeStroke * 1.6f else edgeStroke
+
+                    // 幹: 親カードの下端から、兄弟をまとめる共通のバス(横線)まで下ろす。
+                    drawLine(color = trunkColor, start = Offset(trunkX, trunkTop), end = Offset(trunkX, bus), strokeWidth = trunkStroke)
+                    // バス: 兄弟をまとめる横線。
+                    drawLine(color = trunkColor, start = Offset(minX, bus), end = Offset(maxX, bus), strokeWidth = trunkStroke)
+                    // 枝: バスから各子カードの上端へ下ろす。
+                    childPxList.forEach { (childId, childTop, _) ->
+                        val isChildHighlighted = selectedNodeId == null || isParentSelected || selectedNodeId == childId
+                        val branchColor = when {
+                            !isChildHighlighted -> baseColor.copy(alpha = DIMMED_LINE_ALPHA)
+                            selectedNodeId != null -> baseColor
+                            else -> baseColor.copy(alpha = CONNECTOR_ALPHA)
+                        }
+                        val branchStroke = if (selectedNodeId != null && isChildHighlighted) edgeStroke * 1.6f else edgeStroke
+                        drawLine(color = branchColor, start = Offset(childTop.x, bus), end = childTop, strokeWidth = branchStroke)
+                    }
                 }
                 tree.peerLinks.forEach { link ->
                     val from = nodesById[link.fromId] ?: return@forEach
@@ -542,4 +609,46 @@ private fun TreeNodeCard(
             )
         }
     }
+}
+
+private data class BusLayout(val slotByParent: Map<String, Int>, val slotCountByTier: Map<TreeTier, Int>)
+
+/**
+ * 親ごとのバス(兄弟をまとめる横線)の段を決める。親の階層ごとに、横の範囲が重なるバスには
+ * 別の段を、重ならないバスには同じ段を割り当てる(左端の順に、空いている一番上の段へ詰める)。
+ * 横位置は日付だけで決まるので、縦の配置を決める前に計算できる。
+ */
+private fun assignBusSlots(
+    tree: WholeTree,
+    parentGroups: List<Pair<String, List<String>>>,
+    nodesById: Map<String, TreeNode>
+): BusLayout {
+    fun leftOf(node: TreeNode): Float = ChronoUnit.DAYS.between(tree.minDate, node.date) * PX_PER_DAY
+    val slotByParent = mutableMapOf<String, Int>()
+    val slotCountByTier = mutableMapOf<TreeTier, Int>()
+    parentGroups
+        .mapNotNull { (parentId, childIds) ->
+            val parent = nodesById[parentId] ?: return@mapNotNull null
+            val childCenters = childIds.mapNotNull { nodesById[it] }.map { leftOf(it) + NODE_WIDTH.value / 2 }
+            if (childCenters.isEmpty()) return@mapNotNull null
+            val left = minOf(leftOf(parent), childCenters.min())
+            val right = maxOf(leftOf(parent) + NODE_WIDTH.value, childCenters.max())
+            Triple(parent, left, right)
+        }
+        .groupBy { it.first.tier }
+        .forEach { (tier, spans) ->
+            val slotRightEdges = mutableListOf<Float>()
+            spans.sortedBy { it.second }.forEach { (parent, left, right) ->
+                var slot = slotRightEdges.indexOfFirst { it + BUS_MIN_GAP.value < left }
+                if (slot == -1) {
+                    slot = slotRightEdges.size
+                    slotRightEdges.add(right)
+                } else {
+                    slotRightEdges[slot] = right
+                }
+                slotByParent[parent.id] = slot
+            }
+            slotCountByTier[tier] = slotRightEdges.size.coerceAtLeast(1)
+        }
+    return BusLayout(slotByParent, slotCountByTier)
 }
