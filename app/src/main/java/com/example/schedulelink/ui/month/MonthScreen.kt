@@ -161,7 +161,7 @@ fun MonthScreen(
                         // 文字幅が変わっても矢印や文字の位置が動かないようにするため。切り替えはフェードのみ。
                         Box(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
                             Text(
-                                "0000年00月",
+                                "8888年88月",
                                 maxLines = 1,
                                 softWrap = false,
                                 modifier = Modifier.alpha(0f).clearAndSetSemantics {}
@@ -263,6 +263,7 @@ fun MonthScreen(
             ) { page ->
                 MonthGrid(
                     month = monthOf(page),
+                    isSettledPage = page == pagerState.settledPage,
                     schedulesByDate = schedulesByDate,
                     selectedDate = selectedDate,
                     sharedTransitionScope = sharedTransitionScope,
@@ -443,6 +444,7 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
 @Composable
 private fun MonthGrid(
     month: YearMonth,
+    isSettledPage: Boolean,
     schedulesByDate: Map<LocalDate, List<ScheduleEntity>>,
     selectedDate: LocalDate,
     sharedTransitionScope: SharedTransitionScope,
@@ -502,6 +504,9 @@ private fun MonthGrid(
                                 isToday = date == today,
                                 isSelected = date == selectedDate,
                                 scheduleCount = schedulesByDate[date]?.size ?: 0,
+                                // 画面外に組み立ててある前後の月のマスが、週表示との共有要素
+                                // アニメーションで画面外から飛んでこないよう、表示中の月だけに付ける。
+                                enableSharedBounds = isSettledPage,
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedVisibilityScope = animatedVisibilityScope,
                                 onClick = { onDayClick(date) }
@@ -522,6 +527,7 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     scheduleCount: Int,
+    enableSharedBounds: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onClick: () -> Unit
@@ -538,58 +544,63 @@ private fun DayCell(
     )
     val description = "${date.monthValue}月${date.dayOfMonth}日" +
         if (scheduleCount > 0) " 予定${scheduleCount}件" else ""
-    with(sharedTransitionScope) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .sharedBounds(
-                    rememberSharedContentState(key = "day-$date"),
-                    animatedVisibilityScope = animatedVisibilityScope
-                )
-                .clip(MaterialTheme.shapes.medium)
-                // 選択中の日はセル全体をprimaryContainerで塗る(枠線は使わない)。
-                .background(selectedFill)
-                .clickable(onClick = onClick)
-                .clearAndSetSemantics {
-                    contentDescription = description
-                    selected = isSelected
-                }
-                .padding(top = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .then(
-                        if (isToday) Modifier.background(MaterialTheme.colorScheme.primary, CircleShape) else Modifier
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = date.dayOfMonth.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
-                    color = when {
-                        isToday -> MaterialTheme.colorScheme.onPrimary
-                        isSelected -> weekendColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onPrimaryContainer }
-                        else -> weekendColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onSurface }
-                    }
-                )
+    val sharedBoundsModifier = if (enableSharedBounds) {
+        with(sharedTransitionScope) {
+            Modifier.sharedBounds(
+                rememberSharedContentState(key = "day-$date"),
+                animatedVisibilityScope = animatedVisibilityScope
+            )
+        }
+    } else {
+        Modifier
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(sharedBoundsModifier)
+            .clip(MaterialTheme.shapes.medium)
+            // 選択中の日はセル全体をprimaryContainerで塗る(枠線は使わない)。
+            .background(selectedFill)
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = description
+                selected = isSelected
             }
-            // 件数の数字は小さいセルに収まらず切れていたため、最大3個の点で表す
-            // (正確な件数は読み上げ用のcontentDescriptionと、下の一覧の見出しで分かる)。
-            if (scheduleCount > 0) {
-                Row(
-                    modifier = Modifier.padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    repeat(minOf(scheduleCount, 3)) {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        )
-                    }
+            .padding(top = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .then(
+                    if (isToday) Modifier.background(MaterialTheme.colorScheme.primary, CircleShape) else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
+                color = when {
+                    isToday -> MaterialTheme.colorScheme.onPrimary
+                    isSelected -> weekendColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onPrimaryContainer }
+                    else -> weekendColor(columnIndex).takeOrElse { MaterialTheme.colorScheme.onSurface }
+                }
+            )
+        }
+        // 件数の数字は小さいセルに収まらず切れていたため、最大3個の点で表す
+        // (正確な件数は読み上げ用のcontentDescriptionと、下の一覧の見出しで分かる)。
+        if (scheduleCount > 0) {
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                repeat(minOf(scheduleCount, 3)) {
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    )
                 }
             }
         }
