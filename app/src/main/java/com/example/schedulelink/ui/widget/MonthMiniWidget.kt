@@ -9,8 +9,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
@@ -47,6 +50,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import com.example.schedulelink.MainActivity
+import com.example.schedulelink.R
 import com.example.schedulelink.ScheduleLinkApplication
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
@@ -66,6 +70,8 @@ private val timeWidgetFormatter = DateTimeFormatter.ofPattern("H:mm")
 private val weekdayLabels = listOf("日", "月", "火", "水", "木", "金", "土")
 
 private val SELECTED_DATE_KEY = stringPreferencesKey("selected_date")
+/** 選択した日(操作した日)。日付が変わったら選択を捨てて今日(=今月)の表示に戻すために使う。 */
+private val SELECTED_ON_KEY = stringPreferencesKey("selected_on")
 /** 「更新」やアプリ側からの再取得要求のたびに書き換え、表示中のセッションにも再取得させるための値。 */
 private val REFRESH_TOKEN_KEY = longPreferencesKey("refresh_token")
 private val DATE_PARAM = ActionParameters.Key<String>("date")
@@ -81,8 +87,24 @@ private data class MonthWidgetData(
     val isSignedIn: Boolean
 )
 
-private fun parseSelectedDate(raw: String?): LocalDate =
-    raw?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
+/**
+ * 表示する月はこの選択日の月。月送りで他の月を見たまま放置しても、翌日には今日に戻す
+ * (以前は常に今月を表示していたので、その振る舞いに近づける)。
+ */
+private fun resolveSelectedDate(rawDate: String?, rawSelectedOn: String?): LocalDate {
+    val today = LocalDate.now()
+    if (rawSelectedOn != today.toString()) return today
+    return rawDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: today
+}
+
+private fun selectDateAction(date: LocalDate): Action =
+    actionRunCallback<SelectDateAction>(actionParametersOf(DATE_PARAM to date.toString()))
+
+/** 月送り先で選ぶ日。今月なら今日、それ以外は1日(アプリ本体の月送りと同じ)。 */
+private fun monthNavigationTarget(month: YearMonth): LocalDate {
+    val today = LocalDate.now()
+    return if (YearMonth.from(today) == month) today else month.atDay(1)
+}
 
 /**
  * Firestoreから月の件数と選択日の予定を単発取得する。キャンセル(タイムアウト・選択日の変更)は
@@ -95,7 +117,7 @@ private suspend fun loadMonthWidgetData(
     refreshToken: Long,
     timeoutMillis: Long
 ): MonthWidgetData {
-    val month = YearMonth.now()
+    val month = YearMonth.from(selectedDate)
     var scheduleCounts: Map<LocalDate, Int> = emptyMap()
     var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
     var fetchError: String? = null
@@ -156,7 +178,7 @@ class MonthMiniWidget : GlanceAppWidget() {
         val prefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
         val initial = loadMonthWidgetData(
             context,
-            parseSelectedDate(prefs[SELECTED_DATE_KEY]),
+            resolveSelectedDate(prefs[SELECTED_DATE_KEY], prefs[SELECTED_ON_KEY]),
             prefs[REFRESH_TOKEN_KEY] ?: 0L,
             timeoutMillis = 8_000
         )
@@ -165,7 +187,7 @@ class MonthMiniWidget : GlanceAppWidget() {
             // Glanceは表示中のセッション(最大45秒)を使い回すため、provideGlanceは再実行されない
             // ことがある。選択日・再取得要求はここで毎回ウィジェットの状態から読み、変わったら
             // その場で取り直す(provideGlanceで取得した値だけに頼ると古い日の予定が残る)。
-            val selectedDate = parseSelectedDate(currentState(SELECTED_DATE_KEY))
+            val selectedDate = resolveSelectedDate(currentState(SELECTED_DATE_KEY), currentState(SELECTED_ON_KEY))
             val refreshToken = currentState(REFRESH_TOKEN_KEY) ?: 0L
             val data by produceState(initial, selectedDate, refreshToken) {
                 if (value.selectedDate != selectedDate || value.refreshToken != refreshToken) {
@@ -207,6 +229,7 @@ class SelectDateAction : ActionCallback {
             }
             updateAppWidgetState(context, glanceId) { prefs ->
                 prefs[SELECTED_DATE_KEY] = date.toString()
+                prefs[SELECTED_ON_KEY] = LocalDate.now().toString()
             }
             WidgetErrorLog.recordInfo(context, "SelectDateAction", "状態書き込み完了: $date")
             MonthMiniWidget().update(context, glanceId)
@@ -236,7 +259,10 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
 // 11個目以降になって常に消えていた。直下の子は3つのまとまりにし、一覧はLazyColumnにする。
 @Composable
 private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDate) {
-    val weeks = buildMonthGrid(data.month)
+    // 表示する月は選択日の月。取得が追いつくまでは、別の月の件数を点として出さない。
+    val displayedMonth = YearMonth.from(selectedDate)
+    val weeks = buildMonthGrid(displayedMonth)
+    val scheduleCounts = if (data.month == displayedMonth) data.scheduleCounts else emptyMap()
     val today = LocalDate.now()
     val context = LocalContext.current
     val openAppAction = actionStartActivity(Intent(context, MainActivity::class.java))
@@ -250,16 +276,46 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
             .cornerRadius(16.dp)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        // 1. ヘッダー
+        // 1. ヘッダー「‹ 2026年9月 › 今日 更新」(子は最大5個)。アプリ本体の月表示と同じく
+        //    矢印で年月を挟む。年月は残りの幅を取って中央寄せにし、文字幅で矢印が動かないようにする。
         Row(
             modifier = GlanceModifier.fillMaxWidth().height(32.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (data.isSignedIn) {
+                MonthNavIcon(
+                    resId = R.drawable.ic_widget_chevron_left,
+                    description = "前の月",
+                    onClick = selectDateAction(monthNavigationTarget(displayedMonth.minusMonths(1)))
+                )
+            }
             Text(
-                text = data.month.format(monthWidgetFormatter),
-                style = TextStyle(color = WidgetOnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp),
+                text = displayedMonth.format(monthWidgetFormatter),
+                style = TextStyle(
+                    color = WidgetOnBackground,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    textAlign = if (data.isSignedIn) TextAlign.Center else TextAlign.Start
+                ),
+                maxLines = 1,
                 modifier = GlanceModifier.defaultWeight().clickable(openAppAction)
             )
+            if (data.isSignedIn) {
+                MonthNavIcon(
+                    resId = R.drawable.ic_widget_chevron_right,
+                    description = "次の月",
+                    onClick = selectDateAction(monthNavigationTarget(displayedMonth.plusMonths(1)))
+                )
+                if (selectedDate != today) {
+                    Text(
+                        text = "今日",
+                        style = TextStyle(color = WidgetAccent, fontWeight = FontWeight.Medium),
+                        modifier = GlanceModifier
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .clickable(selectDateAction(today))
+                    )
+                }
+            }
             Text(
                 text = "更新",
                 style = TextStyle(color = WidgetAccent, fontWeight = FontWeight.Medium),
@@ -303,9 +359,7 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                                     .padding(1.dp)
                                     .cornerRadius(6.dp)
                                     .background(if (date == selectedDate) WidgetSelectedContainer else WidgetBackground)
-                                    .clickable(
-                                        actionRunCallback<SelectDateAction>(actionParametersOf(DATE_PARAM to date.toString()))
-                                    )
+                                    .clickable(selectDateAction(date))
                             } else {
                                 GlanceModifier.defaultWeight().fillMaxHeight()
                             }
@@ -316,7 +370,7 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                                         columnIndex = columnIndex,
                                         isToday = date == today,
                                         isSelected = date == selectedDate,
-                                        hasSchedules = (data.scheduleCounts[date] ?: 0) > 0
+                                        hasSchedules = (scheduleCounts[date] ?: 0) > 0
                                     )
                                 }
                             }
@@ -366,6 +420,17 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
             }
         }
     }
+}
+
+/** ヘッダーの月送り矢印。20dpのアイコンに周囲のpaddingを足して、32dp角をタップ領域にする。 */
+@Composable
+private fun MonthNavIcon(resId: Int, description: String, onClick: Action) {
+    Image(
+        provider = ImageProvider(resId),
+        contentDescription = description,
+        colorFilter = ColorFilter.tint(WidgetOnBackground),
+        modifier = GlanceModifier.size(32.dp).padding(6.dp).clickable(onClick)
+    )
 }
 
 @Composable
