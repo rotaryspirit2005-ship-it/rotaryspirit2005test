@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -26,8 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.FamilyRepository
+import com.example.schedulelink.data.familyErrorMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -84,7 +87,7 @@ fun FamilyGroupScreen(
                         creating = true
                         scope.launch {
                             runCatching { familyRepository.createFamily(uid, displayName, familyName.trim()) }
-                                .onFailure { errorMessage = it.message }
+                                .onFailure { errorMessage = familyErrorMessage(it) }
                             creating = false
                         }
                     }
@@ -105,6 +108,8 @@ fun FamilyGroupScreen(
                 value = inviteCodeInput,
                 onValueChange = { inviteCodeInput = it },
                 label = { Text("招待コード") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                 modifier = Modifier.fillMaxWidth()
             )
             Button(

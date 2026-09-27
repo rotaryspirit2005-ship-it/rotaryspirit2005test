@@ -66,8 +66,14 @@ service cloud.firestore {
       // サブコレクションのルールで、メンバーだけに制限している)。
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null &&
-        request.auth.uid in resource.data.members;
+      allow update: if request.auth != null && (
+        // メンバーは家族の情報を更新できる(自分をmembersから外す「脱退」も含む)。
+        request.auth.uid in resource.data.members ||
+        // 招待コードでの参加: まだメンバーでない人には「自分自身をmembersの末尾に加える」
+        // 更新だけを許可する(他の項目の変更や、他人の追加・削除はできない)。
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']) &&
+         request.resource.data.members == resource.data.members.concat([request.auth.uid]))
+      );
 
       match /{collection}/{docId} {
         allow read, write: if request.auth != null &&
@@ -77,6 +83,12 @@ service cloud.firestore {
   }
 }
 ```
+
+> **重要(招待コードで参加すると落ちる件)**: 以前のルールでは `families` の更新をメンバーにしか
+> 許可していなかったため、招待コードで参加しようとした人(まだメンバーではない)が自分を
+> メンバーに加える書き込みが拒否され、アプリが落ちていました(アプリ側も修正済みで、現在は
+> 落ちずに「サーバーに拒否されました」と表示されます)。**上記の `allow update` を含むルール全体で
+> 上書きして「公開」してください。** 公開しないと招待コードでの参加はできません。
 
 > **重要**: 上記は最初に案内したものから修正しています。もしすでにルールを保存済みの場合は、
 > 上記の内容で上書きして再度「公開」してください。(`users` コレクションのルールが

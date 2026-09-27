@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.schedulelink.data.FamilyRepository
+import com.example.schedulelink.data.familyErrorMessage
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.InfoPanel
 import kotlinx.coroutines.launch
@@ -130,8 +131,10 @@ fun FamilySettingsScreen(
                 DestructiveTextButton("抜ける") {
                     showLeaveConfirm = false
                     scope.launch {
-                        familyRepository.leaveFamily(uid, familyId)
-                        onLeft()
+                        // 通信・権限エラーでアプリが落ちないよう、失敗はメッセージで知らせる。
+                        runCatching { familyRepository.leaveFamily(uid, familyId) }
+                            .onSuccess { onLeft() }
+                            .onFailure { snackbarHostState.showSnackbar(familyErrorMessage(it)) }
                     }
                 }
             },
