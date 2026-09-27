@@ -67,6 +67,7 @@ import kotlin.math.ceil
 private val monthWidgetFormatter = DateTimeFormatter.ofPattern("yyyy年M月", Locale.JAPAN)
 private val selectedDateWidgetFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
 private val timeWidgetFormatter = DateTimeFormatter.ofPattern("H:mm")
+private val linkedDateWidgetFormatter = DateTimeFormatter.ofPattern("M/d(E)", Locale.JAPAN)
 private val weekdayLabels = listOf("日", "月", "火", "水", "木", "金", "土")
 
 private val SELECTED_DATE_KEY = stringPreferencesKey("selected_date")
@@ -480,11 +481,20 @@ private fun ScheduleFlowRowSimple(item: ScheduleWithLinks, onClick: Action) {
                 maxLines = 1
             )
         }
-        item.linkedSchedules.firstOrNull()?.let { linked ->
+        // リンクは双方向に保存されているため、前の予定も含まれる。次につながる予定を「→」で、
+        // 後の予定がなければ直前の予定を「←」で示す。時刻だけではどの日か分からないので日付も出す。
+        val schedule = item.schedule
+        val next = item.linkedSchedules.firstOrNull {
+            it.date > schedule.date || (it.date == schedule.date && it.startTime > schedule.startTime)
+        }
+        val linked = next ?: item.linkedSchedules.lastOrNull()
+        if (linked != null) {
             Row {
                 Spacer(modifier = GlanceModifier.width(44.dp))
                 Text(
-                    text = "→ ${linked.startTime.format(timeWidgetFormatter)} ${linked.title}",
+                    text = (if (next != null) "→ " else "← ") +
+                        "${linked.date.format(linkedDateWidgetFormatter)} " +
+                        "${linked.startTime.format(timeWidgetFormatter)} ${linked.title}",
                     style = TextStyle(color = WidgetSubText, fontSize = 12.sp),
                     maxLines = 1
                 )
