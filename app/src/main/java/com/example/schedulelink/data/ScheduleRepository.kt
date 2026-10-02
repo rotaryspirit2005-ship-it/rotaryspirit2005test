@@ -138,13 +138,19 @@ class ScheduleRepository(
         return id
     }
 
+    /**
+     * 予定を削除する。書き込みはサーバーの応答を待たない(オフラインだと応答待ちで止まり、
+     * 画面が戻らなくなるため。書き込みは端末に保留され、通信が戻れば反映される)。
+     */
     suspend fun deleteSchedule(id: String) {
-        unlinkTodos(id)
-        val current = collection.document(id).get().await().toSchedule()
-        current.linkedIds.forEach { otherId ->
-            runCatching { collection.document(otherId).update("linkedIds", FieldValue.arrayRemove(id)).await() }
+        // 端末のキャッシュからでも読めるので、オフラインでもリンク相手が分かる。
+        val linkedIds = runCatching { collection.document(id).get().await().toSchedule().linkedIds }
+            .getOrDefault(emptyList())
+        linkedIds.forEach { otherId ->
+            collection.document(otherId).update("linkedIds", FieldValue.arrayRemove(id))
         }
-        collection.document(id).delete().await()
+        collection.document(id).delete()
+        unlinkTodos(id)
     }
 
     /**

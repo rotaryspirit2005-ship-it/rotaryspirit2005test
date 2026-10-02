@@ -25,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -203,7 +204,13 @@ fun ScheduleDetailScreen(
                 viewModel.deleteTodo(deleted.id)
                 editingTodoId = null
                 scope.launch {
-                    val result = snackbarHostState.showSnackbar("やることを削除しました", actionLabel = "元に戻す")
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    // 操作ボタン付きのスナックバーは既定では自動で消えないため、表示時間を指定する。
+                    val result = snackbarHostState.showSnackbar(
+                        "やることを削除しました",
+                        actionLabel = "元に戻す",
+                        duration = SnackbarDuration.Long
+                    )
                     if (result == SnackbarResult.ActionPerformed) viewModel.saveTodo(deleted)
                 }
             }

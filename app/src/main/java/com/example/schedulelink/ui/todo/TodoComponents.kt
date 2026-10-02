@@ -195,9 +195,13 @@ fun TodoEditSheet(
     val linkedSchedule = schedules.firstOrNull { it.id == scheduleId }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    // ボタンで閉じるときも、シートが下がるアニメーションを見せてから閉じる。
+    // ボタンで閉じるときも、シートが下がるアニメーションを見せてから閉じる。連打で2回
+    // 保存・削除しないよう1度だけ受け付け、途中で取り消された(画面を離れた等)ときは何もしない。
+    var closing by remember { mutableStateOf(false) }
     fun closeThen(action: () -> Unit) {
-        scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+        if (closing) return
+        closing = true
+        scope.launch { sheetState.hide() }.invokeOnCompletion { cause -> if (cause == null) action() }
     }
 
     ModalBottomSheet(
