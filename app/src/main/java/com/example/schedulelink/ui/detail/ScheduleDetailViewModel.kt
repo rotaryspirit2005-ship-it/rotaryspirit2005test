@@ -31,8 +31,7 @@ class ScheduleDetailViewModel(
 
     fun deleteSchedule(id: String, onDone: () -> Unit) {
         viewModelScope.launch {
-            // やること自体は残し、この予定へのリンクだけ外す。
-            runCatching { todoRepository.unlinkSchedule(id) }
+            // リンクしていたやることは、リンクだけ外れて残る(ScheduleRepository側で処理)。
             repository.deleteSchedule(id)
             onDone()
         }

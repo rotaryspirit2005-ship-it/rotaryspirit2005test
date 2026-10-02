@@ -139,11 +139,29 @@ class ScheduleRepository(
     }
 
     suspend fun deleteSchedule(id: String) {
+        unlinkTodos(id)
         val current = collection.document(id).get().await().toSchedule()
         current.linkedIds.forEach { otherId ->
             runCatching { collection.document(otherId).update("linkedIds", FieldValue.arrayRemove(id)).await() }
         }
         collection.document(id).delete().await()
+    }
+
+    /**
+     * この予定にリンクしていたやることは残し、リンクだけ外す。完了は待たない(オフラインで
+     * サーバーの応答を待つと予定の削除まで止まってしまうため。書き込みは端末に保留され、
+     * 通信が戻れば反映される)。
+     */
+    private fun unlinkTodos(scheduleId: String) {
+        firestore.collection("families").document(familyId).collection("todos")
+            .whereEqualTo("scheduleId", scheduleId)
+            .get()
+            .addOnSuccessListener { linked ->
+                if (linked.isEmpty) return@addOnSuccessListener
+                val batch = firestore.batch()
+                linked.documents.forEach { batch.update(it.reference, "scheduleId", null) }
+                batch.commit()
+            }
     }
 
     private suspend fun updateReciprocalLinks(scheduleId: String, previous: Set<String>, next: Set<String>) {

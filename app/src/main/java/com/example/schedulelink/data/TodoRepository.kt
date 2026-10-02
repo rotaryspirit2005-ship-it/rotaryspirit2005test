@@ -66,13 +66,4 @@ class TodoRepository(
     suspend fun deleteTodo(id: String) {
         collection.document(id).delete().await()
     }
-
-    /** 予定を削除したとき、その予定にリンクしていたやることを「リンクなし」に戻す(やること自体は残す)。 */
-    suspend fun unlinkSchedule(scheduleId: String) {
-        val linked = collection.whereEqualTo("scheduleId", scheduleId).get().await()
-        if (linked.isEmpty) return
-        val batch = firestore.batch()
-        linked.documents.forEach { batch.update(it.reference, "scheduleId", null) }
-        batch.commit().await()
-    }
 }

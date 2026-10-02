@@ -3,6 +3,9 @@ package com.example.schedulelink.ui.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +25,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -31,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,12 +54,13 @@ import com.example.schedulelink.ui.theme.tabularNums
 import com.example.schedulelink.ui.todo.TodoEditSheet
 import com.example.schedulelink.ui.todo.TodoQuickAddField
 import com.example.schedulelink.ui.todo.TodoRow
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Locale.JAPAN)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ScheduleDetailScreen(
     scheduleId: String,
@@ -62,14 +70,20 @@ fun ScheduleDetailScreen(
     onLinkedClick: (String) -> Unit,
     isPhotoFeatureEnabled: Boolean
 ) {
-    val schedule by viewModel.schedule(scheduleId).collectAsState(initial = null)
-    val linked by viewModel.linkedSchedules(scheduleId).collectAsState(initial = emptyList())
+    // 再描画のたびに購読し直さないよう、Flowは予定ごとに1度だけ作る。
+    val scheduleFlow = remember(scheduleId) { viewModel.schedule(scheduleId) }
+    val linkedFlow = remember(scheduleId) { viewModel.linkedSchedules(scheduleId) }
+    val schedule by scheduleFlow.collectAsState(initial = null)
+    val linked by linkedFlow.collectAsState(initial = emptyList())
     val todosFlow = remember(scheduleId) { viewModel.todos(scheduleId) }
     val todos by todosFlow.collectAsState(initial = emptyList())
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var editingTodoId by rememberSaveable { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("予定の詳細") },
@@ -102,6 +116,9 @@ fun ScheduleDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    // やることの追加欄に入力するとき、キーボードで隠れないようにする。
+                    .consumeWindowInsets(padding)
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(Dimens.ScreenPadding),
                 verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
@@ -181,7 +198,15 @@ fun ScheduleDetailScreen(
             schedules = schedules.ifEmpty { listOfNotNull(schedule) },
             onDismiss = { editingTodoId = null },
             onSave = { viewModel.saveTodo(it); editingTodoId = null },
-            onDelete = { viewModel.deleteTodo(editingTodo.id); editingTodoId = null }
+            onDelete = {
+                val deleted = editingTodo
+                viewModel.deleteTodo(deleted.id)
+                editingTodoId = null
+                scope.launch {
+                    val result = snackbarHostState.showSnackbar("やることを削除しました", actionLabel = "元に戻す")
+                    if (result == SnackbarResult.ActionPerformed) viewModel.saveTodo(deleted)
+                }
+            }
         )
     }
 

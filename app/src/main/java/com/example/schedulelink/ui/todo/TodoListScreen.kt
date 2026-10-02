@@ -3,6 +3,7 @@ package com.example.schedulelink.ui.todo
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,17 +17,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +44,7 @@ import com.example.schedulelink.data.TodoEntity
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.Motion
+import kotlinx.coroutines.launch
 
 private val todoAppearSpec = tween<Float>(Motion.DurationMedium)
 private val todoDisappearSpec = tween<Float>(Motion.DurationShort)
@@ -52,8 +60,23 @@ fun TodoListScreen(
     var showDone by rememberSaveable { mutableStateOf(false) }
     // 編集中のやることのID(新規作成はここでは行わない。追加は上の入力欄から)。
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    // 完了・削除は「元に戻す」で取り消せるようにする(完了済みは折りたたまれていて、
+    // 押し間違えても見つけにくいため)。
+    fun offerUndo(message: String, undo: () -> Unit) {
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            if (snackbarHostState.showSnackbar(message, actionLabel = "元に戻す") == SnackbarResult.ActionPerformed) undo()
+        }
+    }
+    val onToggle: (TodoEntity, Boolean) -> Unit = { todo, done ->
+        viewModel.setDone(todo, done)
+        if (done) offerUndo("「${todo.title}」を完了にしました") { viewModel.setDone(todo, false) }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("やること") },
@@ -65,7 +88,13 @@ fun TodoListScreen(
             )
         }
     ) { padding ->
-        val current = state ?: return@Scaffold
+        val current = state
+        if (current == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = Dimens.ScreenPadding)
@@ -86,7 +115,7 @@ fun TodoListScreen(
                 }
             }
             items(current.open, key = { it.id }) { todo ->
-                TodoListRow(todo, current, viewModel, onScheduleClick, onEdit = { editingId = todo.id })
+                TodoListRow(todo, current, onToggle, onScheduleClick, onEdit = { editingId = todo.id })
             }
             if (current.done.isNotEmpty()) {
                 item(key = "doneHeader") {
@@ -103,7 +132,7 @@ fun TodoListScreen(
                 }
                 if (showDone) {
                     items(current.done, key = { it.id }) { todo ->
-                        TodoListRow(todo, current, viewModel, onScheduleClick, onEdit = { editingId = todo.id })
+                        TodoListRow(todo, current, onToggle, onScheduleClick, onEdit = { editingId = todo.id })
                     }
                 }
             }
@@ -116,7 +145,11 @@ fun TodoListScreen(
                 schedules = current.schedulesById.values.toList(),
                 onDismiss = { editingId = null },
                 onSave = { viewModel.save(it); editingId = null },
-                onDelete = { viewModel.delete(editing.id); editingId = null }
+                onDelete = {
+                    viewModel.delete(editing.id)
+                    editingId = null
+                    offerUndo("やることを削除しました") { viewModel.save(editing) }
+                }
             )
         }
     }
@@ -126,7 +159,7 @@ fun TodoListScreen(
 private fun LazyItemScope.TodoListRow(
     todo: TodoEntity,
     state: TodoListState,
-    viewModel: TodoListViewModel,
+    onToggle: (TodoEntity, Boolean) -> Unit,
     onScheduleClick: (String) -> Unit,
     onEdit: () -> Unit
 ) {
@@ -134,7 +167,7 @@ private fun LazyItemScope.TodoListRow(
         todo = todo,
         // リンク先の予定が削除済みなら(別の端末で消された場合など)リンクなしとして表示する。
         linkedSchedule = todo.scheduleId?.let { state.schedulesById[it] },
-        onToggle = { viewModel.setDone(todo, it) },
+        onToggle = { onToggle(todo, it) },
         onClick = onEdit,
         onScheduleClick = onScheduleClick,
         // 完了にすると、取り消し線のまま下の「完了済み」へ滑らかに移る。

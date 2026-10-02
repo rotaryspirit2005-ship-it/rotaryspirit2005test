@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +58,7 @@ import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.tabularNums
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -189,14 +193,22 @@ fun TodoEditSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var showSchedulePicker by remember { mutableStateOf(false) }
     val linkedSchedule = schedules.firstOrNull { it.id == scheduleId }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    // ボタンで閉じるときも、シートが下がるアニメーションを見せてから閉じる。
+    fun closeThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = sheetState
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 小さい端末でキーボードが出ても保存ボタンまで届くよう、スクロールできるようにする。
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Dimens.ScreenPadding)
                 .padding(bottom = Dimens.ScreenPadding),
             verticalArrangement = Arrangement.spacedBy(Dimens.FormGap)
@@ -233,28 +245,33 @@ fun TodoEditSheet(
             }
             PickerField(
                 label = "予定とのリンク",
-                // リンク先の予定が(別の端末で)削除済みなら「なし」と同じ扱いにする。
-                value = linkedSchedule?.let { "${it.date.format(pickerDateFormatter)} ${it.title}" } ?: "なし",
+                value = when {
+                    linkedSchedule != null -> "${linkedSchedule.date.format(pickerDateFormatter)} ${linkedSchedule.title}"
+                    scheduleId != null && schedules.isEmpty() -> "読み込み中…"
+                    // リンク先の予定が(別の端末で)削除済みなら「なし」と同じ表示にする。
+                    else -> "なし"
+                },
                 icon = Icons.Default.Link,
                 onClick = { showSchedulePicker = true }
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onDelete != null) {
-                    DestructiveTextButton("削除", onClick = onDelete)
+                    DestructiveTextButton("削除") { closeThen(onDelete) }
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("キャンセル") }
+                TextButton(onClick = { closeThen(onDismiss) }) { Text("キャンセル") }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        onSave(
-                            initial.copy(
-                                title = title.trim(),
-                                memo = memo.trim(),
-                                dueDate = dueDate,
-                                scheduleId = linkedSchedule?.id
-                            )
+                        // リンクは選ばれたIDをそのまま保存する(予定一覧の読み込み前や、キャッシュだけの
+                        // 不完全な一覧で見つからなかったときに、リンクが勝手に外れないようにする)。
+                        val updated = initial.copy(
+                            title = title.trim(),
+                            memo = memo.trim(),
+                            dueDate = dueDate,
+                            scheduleId = scheduleId
                         )
+                        closeThen { onSave(updated) }
                     },
                     enabled = title.isNotBlank()
                 ) { Text("保存") }
@@ -283,14 +300,14 @@ fun TodoEditSheet(
     if (showSchedulePicker) {
         SchedulePickerDialog(
             schedules = schedules,
-            selectedId = linkedSchedule?.id,
+            selectedId = scheduleId,
             onSelect = { scheduleId = it; showSchedulePicker = false },
             onDismiss = { showSchedulePicker = false }
         )
     }
 }
 
-/** 一週間前〜二か月先の予定を日付ごとに並べ、リンク先を1つ選ぶ(選択中の予定は範囲外でも出す)。 */
+/** 1か月前〜半年先の予定を日付ごとに並べ、リンク先を1つ選ぶ(選択中の予定は範囲外でも出す)。 */
 @Composable
 private fun SchedulePickerDialog(
     schedules: List<ScheduleEntity>,
@@ -301,7 +318,7 @@ private fun SchedulePickerDialog(
     val today = LocalDate.now()
     val candidates = remember(schedules, selectedId) {
         schedules
-            .filter { (!it.date.isBefore(today.minusDays(7)) && !it.date.isAfter(today.plusDays(60))) || it.id == selectedId }
+            .filter { (!it.date.isBefore(today.minusDays(30)) && !it.date.isAfter(today.plusDays(180))) || it.id == selectedId }
             .sortedWith(compareBy({ it.date }, { it.startTime }))
             .groupBy { it.date }
     }
@@ -316,7 +333,7 @@ private fun SchedulePickerDialog(
                 if (candidates.isEmpty()) {
                     item {
                         Text(
-                            "前後の期間に予定がありません",
+                            "1か月前〜半年先に予定がありません",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 8.dp)
