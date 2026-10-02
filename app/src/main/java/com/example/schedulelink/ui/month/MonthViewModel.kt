@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
+import com.example.schedulelink.data.TodoRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,7 +25,15 @@ data class DaySchedules(
     val loaded: Boolean
 )
 
-class MonthViewModel(private val repository: ScheduleRepository) : ViewModel() {
+class MonthViewModel(
+    private val repository: ScheduleRepository,
+    todoRepository: TodoRepository
+) : ViewModel() {
+
+    /** 未完了のやることの件数(月画面から「やること」一覧へ入る入口に出す)。 */
+    val openTodoCount: StateFlow<Int> = todoRepository.allTodos()
+        .map { todos -> todos.count { !it.done } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     private val _currentMonth = MutableStateFlow(YearMonth.now())
     val currentMonth: StateFlow<YearMonth> = _currentMonth.asStateFlow()

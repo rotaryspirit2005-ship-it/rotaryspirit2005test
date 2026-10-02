@@ -28,8 +28,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +44,9 @@ import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.tabularNums
+import com.example.schedulelink.ui.todo.TodoEditSheet
+import com.example.schedulelink.ui.todo.TodoQuickAddField
+import com.example.schedulelink.ui.todo.TodoRow
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -59,7 +64,10 @@ fun ScheduleDetailScreen(
 ) {
     val schedule by viewModel.schedule(scheduleId).collectAsState(initial = null)
     val linked by viewModel.linkedSchedules(scheduleId).collectAsState(initial = emptyList())
+    val todosFlow = remember(scheduleId) { viewModel.todos(scheduleId) }
+    val todos by todosFlow.collectAsState(initial = emptyList())
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var editingTodoId by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -114,6 +122,36 @@ fun ScheduleDetailScreen(
                     }
                 }
 
+                // やること: この予定に向けて準備すること。チェックはその場で切り替えられる。
+                val openCount = todos.count { !it.done }
+                SectionHeader(if (todos.isEmpty()) "やること" else "やること (未完了 $openCount / ${todos.size})")
+                if (todos.isEmpty()) {
+                    Text(
+                        text = "やることはありません",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    Column {
+                        todos.forEach { todo ->
+                            key(todo.id) {
+                                TodoRow(
+                                    todo = todo,
+                                    linkedSchedule = null,
+                                    onToggle = { viewModel.setTodoDone(todo, it) },
+                                    onClick = { editingTodoId = todo.id },
+                                    onScheduleClick = null
+                                )
+                            }
+                        }
+                    }
+                }
+                TodoQuickAddField(
+                    onAdd = { viewModel.addTodo(it, scheduleId) },
+                    placeholder = "この予定のやることを追加"
+                )
+
                 SectionHeader("関連する行動予定 (${linked.size})")
 
                 if (linked.isEmpty()) {
@@ -132,11 +170,26 @@ fun ScheduleDetailScreen(
         }
     }
 
+    val editingTodo = editingTodoId?.let { id -> todos.firstOrNull { it.id == id } }
+    if (editingTodo != null) {
+        // リンク先の候補(予定一覧)は、シートを開いている間だけ購読する。
+        val schedulesFlow = remember { viewModel.allSchedules() }
+        val schedules by schedulesFlow.collectAsState(initial = emptyList())
+        TodoEditSheet(
+            initial = editingTodo,
+            // 読み込み前でも「なし」と表示されないよう、今の予定を候補に含めておく。
+            schedules = schedules.ifEmpty { listOfNotNull(schedule) },
+            onDismiss = { editingTodoId = null },
+            onSave = { viewModel.saveTodo(it); editingTodoId = null },
+            onDelete = { viewModel.deleteTodo(editingTodo.id); editingTodoId = null }
+        )
+    }
+
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("予定を削除しますか?") },
-            text = { Text("この操作は取り消せません。関連するリンクも削除されます。") },
+            text = { Text("この操作は取り消せません。関連するリンクも削除されます(リンクされたやることは残ります)。") },
             confirmButton = {
                 DestructiveTextButton("削除") {
                     showDeleteConfirm = false

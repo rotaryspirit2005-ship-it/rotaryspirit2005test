@@ -6,6 +6,7 @@ import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
+import com.example.schedulelink.data.TodoRepository
 import com.example.schedulelink.ui.detail.ScheduleDetailViewModel
 import com.example.schedulelink.ui.edit.ScheduleEditViewModel
 import com.example.schedulelink.ui.flow.WholeTreeViewModel
@@ -16,13 +17,15 @@ import com.example.schedulelink.ui.list.ScheduleListViewModel
 import com.example.schedulelink.ui.milestone.MilestoneDetailViewModel
 import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
 import com.example.schedulelink.ui.month.MonthViewModel
+import com.example.schedulelink.ui.todo.TodoListViewModel
 import com.example.schedulelink.ui.week.WeekViewModel
 
 class AppViewModelFactory(
     private val repository: ScheduleRepository,
     private val goalRepository: GoalRepository,
     private val milestoneRepository: MilestoneRepository,
-    private val photoStorageRepository: PhotoStorageRepository
+    private val photoStorageRepository: PhotoStorageRepository,
+    private val todoRepository: TodoRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -30,7 +33,7 @@ class AppViewModelFactory(
             modelClass.isAssignableFrom(ScheduleListViewModel::class.java) ->
                 ScheduleListViewModel(repository) as T
             modelClass.isAssignableFrom(ScheduleDetailViewModel::class.java) ->
-                ScheduleDetailViewModel(repository) as T
+                ScheduleDetailViewModel(repository, todoRepository) as T
             modelClass.isAssignableFrom(ScheduleEditViewModel::class.java) ->
                 ScheduleEditViewModel(repository, milestoneRepository, photoStorageRepository) as T
             modelClass.isAssignableFrom(GoalListViewModel::class.java) ->
@@ -44,9 +47,11 @@ class AppViewModelFactory(
             modelClass.isAssignableFrom(MilestoneDetailViewModel::class.java) ->
                 MilestoneDetailViewModel(milestoneRepository, repository) as T
             modelClass.isAssignableFrom(MonthViewModel::class.java) ->
-                MonthViewModel(repository) as T
+                MonthViewModel(repository, todoRepository) as T
             modelClass.isAssignableFrom(WeekViewModel::class.java) ->
                 WeekViewModel(repository) as T
+            modelClass.isAssignableFrom(TodoListViewModel::class.java) ->
+                TodoListViewModel(todoRepository, repository) as T
             modelClass.isAssignableFrom(WholeTreeViewModel::class.java) ->
                 WholeTreeViewModel(goalRepository, milestoneRepository, repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

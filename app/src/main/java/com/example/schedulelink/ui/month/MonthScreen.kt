@@ -30,11 +30,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -121,6 +124,7 @@ fun MonthScreen(
     onScheduleClick: (String) -> Unit,
     onAddScheduleClick: (LocalDate) -> Unit,
     onGoalMapClick: () -> Unit,
+    onTodoListClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
     onImportIcsClick: () -> Unit,
     onImportCalendarClick: () -> Unit,
@@ -132,6 +136,7 @@ fun MonthScreen(
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
+    val openTodoCount by viewModel.openTodoCount.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var showPhotoFeatureWarning by remember { mutableStateOf(false) }
     var showVersionInfo by remember { mutableStateOf(false) }
@@ -202,6 +207,12 @@ fun MonthScreen(
                         Icon(Icons.Default.MoreVert, contentDescription = "その他")
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("やることリスト") },
+                            leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null) },
+                            onClick = { showMenu = false; onTodoListClick() }
+                        )
+                        HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("家族グループの設定") },
                             onClick = { showMenu = false; onFamilySettingsClick() }
@@ -283,7 +294,7 @@ fun MonthScreen(
                 label = "selectedDay"
             ) { day ->
                 Column(modifier = Modifier.fillMaxSize()) {
-                    SelectedDayHeading(day)
+                    SelectedDayHeading(day, openTodoCount = openTodoCount, onTodoClick = onTodoListClick)
                     if (day.items.any { it.linkedSchedules.isNotEmpty() }) {
                         FlowLegend()
                     }
@@ -384,29 +395,42 @@ fun MonthScreen(
 }
 
 @Composable
-private fun SelectedDayHeading(day: DaySchedules) {
+private fun SelectedDayHeading(day: DaySchedules, openTodoCount: Int, onTodoClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "${day.date.format(selectedDateFormatter)}の予定",
-            style = MaterialTheme.typography.titleMedium
-        )
-        if (day.date == LocalDate.now()) {
-            Spacer(modifier = Modifier.width(8.dp))
-            TodayBadge()
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        if (day.loaded && day.items.isNotEmpty()) {
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "${day.items.size}件",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "${day.date.format(selectedDateFormatter)}の予定",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
+            if (day.date == LocalDate.now()) {
+                Spacer(modifier = Modifier.width(8.dp))
+                TodayBadge()
+            }
+            if (day.loaded && day.items.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${day.items.size}件",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+        // やること一覧への入口。上部バーは矢印付きの年月で幅に余裕がないため、ここに置く。
+        AssistChip(
+            onClick = onTodoClick,
+            label = { Text(if (openTodoCount > 0) "やること $openTodoCount" else "やること") },
+            leadingIcon = {
+                Icon(Icons.Default.Checklist, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+            }
+        )
     }
 }
 

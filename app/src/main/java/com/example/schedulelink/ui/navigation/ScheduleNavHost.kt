@@ -23,6 +23,7 @@ import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
+import com.example.schedulelink.data.TodoRepository
 import com.example.schedulelink.ui.AppViewModelFactory
 import com.example.schedulelink.ui.auth.FamilySettingsScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailScreen
@@ -48,6 +49,8 @@ import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
 import com.example.schedulelink.ui.month.MonthScreen
 import com.example.schedulelink.ui.month.MonthViewModel
 import com.example.schedulelink.ui.theme.Motion
+import com.example.schedulelink.ui.todo.TodoListScreen
+import com.example.schedulelink.ui.todo.TodoListViewModel
 import com.example.schedulelink.ui.week.WeekScreen
 import com.example.schedulelink.ui.week.WeekViewModel
 import java.time.LocalDate
@@ -66,6 +69,7 @@ private const val ROUTE_MILESTONE_DETAIL = "milestoneDetail/{id}"
 private const val ROUTE_FAMILY_SETTINGS = "familySettings"
 private const val ROUTE_IMPORT_ICS = "importIcs"
 private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
+private const val ROUTE_TODOS = "todos"
 
 // 画面遷移(Material 3の「Z軸」モーション)。階層を深く進むときは新しい画面が少し小さい所から
 // 手前に出てきて、前の画面は少し拡大しながら消える。戻るときはその逆向きに動かす。
@@ -91,6 +95,7 @@ fun ScheduleNavHost(
     goalRepository: GoalRepository,
     milestoneRepository: MilestoneRepository,
     photoStorageRepository: PhotoStorageRepository,
+    todoRepository: TodoRepository,
     uid: String,
     familyId: String,
     familyRepository: FamilyRepository,
@@ -101,7 +106,7 @@ fun ScheduleNavHost(
     onSignOut: () -> Unit
 ) {
     val navController = rememberNavController()
-    val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository) }
+    val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository, todoRepository) }
 
     SharedTransitionLayout {
         NavHost(
@@ -122,6 +127,7 @@ fun ScheduleNavHost(
                     onScheduleClick = { id -> navController.navigate("detail/$id") },
                     onAddScheduleClick = { date -> navController.navigate("edit?date=$date") },
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
+                    onTodoListClick = { navController.navigate(ROUTE_TODOS) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
                     onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
@@ -206,6 +212,15 @@ fun ScheduleNavHost(
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
                 isPhotoFeatureEnabled = isPhotoFeatureEnabled
+            )
+        }
+
+        composable(ROUTE_TODOS) {
+            val vm: TodoListViewModel = viewModel(factory = factory)
+            TodoListScreen(
+                viewModel = vm,
+                onScheduleClick = { id -> navController.navigate("detail/$id") },
+                onBack = { navController.popBackStack() }
             )
         }
 

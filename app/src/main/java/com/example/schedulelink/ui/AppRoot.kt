@@ -25,6 +25,7 @@ import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
+import com.example.schedulelink.data.TodoRepository
 import com.example.schedulelink.ui.auth.FamilyGroupScreen
 import com.example.schedulelink.ui.auth.SignInScreen
 import com.example.schedulelink.ui.navigation.ScheduleNavHost
@@ -147,6 +148,7 @@ private fun MainApp(
     val goalRepository = remember(familyId) { GoalRepository(app.firestore, familyId) }
     val milestoneRepository = remember(familyId) { MilestoneRepository(app.firestore, familyId) }
     val photoStorageRepository = remember(familyId) { PhotoStorageRepository(FirebaseStorage.getInstance(), familyId) }
+    val todoRepository = remember(familyId) { TodoRepository(app.firestore, familyId) }
 
     LaunchedEffect(familyId) {
         // ウィジェットはCompose外(バックグラウンド)から動くため、
@@ -162,6 +164,7 @@ private fun MainApp(
         goalRepository = goalRepository,
         milestoneRepository = milestoneRepository,
         photoStorageRepository = photoStorageRepository,
+        todoRepository = todoRepository,
         uid = uid,
         familyId = familyId,
         familyRepository = app.familyRepository,
