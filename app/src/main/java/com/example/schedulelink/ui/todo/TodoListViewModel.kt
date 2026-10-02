@@ -6,6 +6,8 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.TodoEntity
 import com.example.schedulelink.data.TodoRepository
+import com.example.schedulelink.data.doneTodoOrder
+import com.example.schedulelink.data.openTodoOrder
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine

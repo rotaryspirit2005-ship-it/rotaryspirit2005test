@@ -69,12 +69,6 @@ private val dueFormatter = DateTimeFormatter.ofPattern("M/d(E)", Locale.JAPAN)
 private val pickerDateFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
 private val chipDateFormatter = DateTimeFormatter.ofPattern("M/d", Locale.JAPAN)
 
-/** 未完了は期限の近い順(期限なしは後ろ)→作成順。 */
-val openTodoOrder: Comparator<TodoEntity> = compareBy({ it.dueDate ?: LocalDate.MAX }, { it.createdAt })
-
-/** 完了済みは新しく完了したものから。 */
-val doneTodoOrder: Comparator<TodoEntity> = compareByDescending { it.completedAt ?: 0L }
-
 /**
  * やること1行。チェックボックスで完了を切り替え、行のそれ以外をタップすると編集を開く。
  * [linkedSchedule]を渡すと、リンク先の予定をチップで示す(タップで予定の詳細へ)。

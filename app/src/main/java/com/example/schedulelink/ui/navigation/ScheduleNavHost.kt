@@ -11,6 +11,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -106,6 +108,14 @@ fun ScheduleNavHost(
     onSignOut: () -> Unit
 ) {
     val navController = rememberNavController()
+    // ウィジェットなどから開く画面の指定があれば、1度だけ遷移する。
+    val pendingDestination by DeepLinks.pending.collectAsState()
+    LaunchedEffect(pendingDestination) {
+        if (pendingDestination == DeepLinks.TODOS) {
+            DeepLinks.pending.value = null
+            navController.navigate(ROUTE_TODOS) { launchSingleTop = true }
+        }
+    }
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository, todoRepository) }
 
     SharedTransitionLayout {

@@ -15,3 +15,9 @@ data class TodoEntity(
     val createdAt: Long = 0L,
     val completedAt: Long? = null
 )
+
+/** 未完了の並び: 期限の近い順(期限なしは後ろ)→作成順。アプリとウィジェットで共通。 */
+val openTodoOrder: Comparator<TodoEntity> = compareBy({ it.dueDate ?: LocalDate.MAX }, { it.createdAt })
+
+/** 完了済みの並び: 新しく完了したものから。 */
+val doneTodoOrder: Comparator<TodoEntity> = compareByDescending { it.completedAt ?: 0L }

@@ -33,7 +33,11 @@ import com.example.schedulelink.ui.widget.refreshAgendaWidgets
 import com.example.schedulelink.ui.widget.refreshMonthMiniWidgets
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 
 private sealed interface FamilyGateState {
@@ -133,6 +137,7 @@ private fun FamilyGateErrorScreen(message: String, onSignOut: () -> Unit) {
     }
 }
 
+@OptIn(FlowPreview::class)
 @Composable
 private fun MainApp(
     app: ScheduleLinkApplication,
@@ -157,6 +162,17 @@ private fun MainApp(
         app.widgetPreferences.familyId = familyId
         refreshAgendaWidgets(app)
         refreshMonthMiniWidgets(app)
+    }
+
+    // アプリでやることを追加・完了したら、ウィジェットの「やること」もすぐ最新にする
+    // (家族の誰かが変えた場合も、アプリを開いている間は反映される)。連続した操作はまとめる。
+    LaunchedEffect(todoRepository) {
+        todoRepository.allTodos()
+            .map { todos -> todos.map { listOf(it.id, it.title, it.done, it.dueDate, it.scheduleId) } }
+            .distinctUntilChanged()
+            .drop(1)
+            .debounce(1_500)
+            .collect { runCatching { refreshMonthMiniWidgets(app) } }
     }
 
     ScheduleNavHost(

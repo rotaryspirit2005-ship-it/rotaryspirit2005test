@@ -24,6 +24,8 @@ val WidgetOutlineVariant = ColorProvider(day = Color(0xFFC2C9BD), night = Color(
 val WidgetSelectedContainer = ColorProvider(day = Color(0xFFBCF0B4), night = Color(0xFF245024))
 /** 選択中のセルの上の文字(onPrimaryContainer) */
 val WidgetOnSelected = ColorProvider(day = Color(0xFF002204), night = Color(0xFFBCF0B4))
+/** 期限切れなどの警告(アプリのerror色) */
+val WidgetError = ColorProvider(day = Color(0xFFBA1A1A), night = Color(0xFFFFB4AB))
 val WidgetSunday = ColorProvider(day = Color(0xFFB3261E), night = Color(0xFFFFB4AB))
 val WidgetSaturday = ColorProvider(day = Color(0xFF1557B0), night = Color(0xFFA8C7FA))
 

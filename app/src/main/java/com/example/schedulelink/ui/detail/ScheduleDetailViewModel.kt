@@ -6,8 +6,8 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.TodoEntity
 import com.example.schedulelink.data.TodoRepository
-import com.example.schedulelink.ui.todo.doneTodoOrder
-import com.example.schedulelink.ui.todo.openTodoOrder
+import com.example.schedulelink.data.doneTodoOrder
+import com.example.schedulelink.data.openTodoOrder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch

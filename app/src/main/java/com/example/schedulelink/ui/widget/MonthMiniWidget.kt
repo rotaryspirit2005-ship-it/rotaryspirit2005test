@@ -52,8 +52,13 @@ import androidx.glance.text.TextStyle
 import com.example.schedulelink.MainActivity
 import com.example.schedulelink.R
 import com.example.schedulelink.ScheduleLinkApplication
+import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
+import com.example.schedulelink.data.TodoEntity
+import com.example.schedulelink.data.TodoRepository
+import com.example.schedulelink.data.openTodoOrder
+import com.example.schedulelink.ui.navigation.DeepLinks
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
 import kotlinx.coroutines.CancellationException
@@ -85,7 +90,13 @@ private data class MonthWidgetData(
     val scheduleCounts: Map<LocalDate, Int>,
     val selectedDaySchedules: List<ScheduleWithLinks>,
     val fetchError: String?,
-    val isSignedIn: Boolean
+    val isSignedIn: Boolean,
+    /** 表示中の月の予定(やることのリンク先を出すため)。 */
+    val monthSchedulesById: Map<String, ScheduleEntity>,
+    /** 未完了のやること(アプリと同じ並び)。 */
+    val openTodos: List<TodoEntity>,
+    /** やることの取得に失敗した場合の理由(予定の取得とは別に扱う)。 */
+    val todoError: String?
 )
 
 /**
@@ -123,6 +134,10 @@ private suspend fun loadMonthWidgetData(
     var selectedDaySchedules: List<ScheduleWithLinks> = emptyList()
     var fetchError: String? = null
     var isSignedIn = false
+    var monthSchedulesById: Map<String, ScheduleEntity> = emptyMap()
+    var openTodos: List<TodoEntity> = emptyList()
+    var todoError: String? = null
+    var todosLoaded = false
     try {
         val app = context.applicationContext as ScheduleLinkApplication
         val familyId = WidgetPreferences(context).familyId
@@ -131,9 +146,9 @@ private suspend fun loadMonthWidgetData(
             val completed = withTimeoutOrNull(timeoutMillis) {
                 try {
                     val repo = ScheduleRepository(app.firestore, familyId)
-                    scheduleCounts = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
-                        .groupingBy { it.date }
-                        .eachCount()
+                    val monthSchedules = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
+                    scheduleCounts = monthSchedules.groupingBy { it.date }.eachCount()
+                    monthSchedulesById = monthSchedules.associateBy { it.id }
                     selectedDaySchedules = repo.schedulesForDateWithLinksOnce(selectedDate)
                 } catch (e: CancellationException) {
                     throw e
@@ -141,17 +156,28 @@ private suspend fun loadMonthWidgetData(
                     fetchError = "${e::class.simpleName}: ${e.message}"
                     WidgetErrorLog.record(context, "MonthMiniWidget.fetch", e)
                 }
+                // やることは予定とは別に取得し、片方の失敗でもう片方まで消えないようにする。
+                try {
+                    openTodos = TodoRepository(app.firestore, familyId).openTodosOnce().sortedWith(openTodoOrder)
+                    todosLoaded = true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    todoError = "${e::class.simpleName}: ${e.message}"
+                    WidgetErrorLog.record(context, "MonthMiniWidget.fetchTodos", e)
+                }
                 true
             }
             if (completed == null) {
                 fetchError = "データ取得がタイムアウトしました(通信状況をご確認ください)"
+                if (!todosLoaded) todoError = fetchError
                 WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "データ取得タイムアウト")
             }
         }
         WidgetErrorLog.recordInfo(
             context,
             "MonthMiniWidget",
-            "データ取得完了: $selectedDate schedules=${selectedDaySchedules.size}件, error=$fetchError"
+            "データ取得完了: $selectedDate schedules=${selectedDaySchedules.size}件, todos=${openTodos.size}件, error=$fetchError"
         )
     } catch (e: CancellationException) {
         throw e
@@ -159,7 +185,10 @@ private suspend fun loadMonthWidgetData(
         WidgetErrorLog.record(context, "MonthMiniWidget.load", e)
         fetchError = "致命的エラー: ${e::class.simpleName}: ${e.message}"
     }
-    return MonthWidgetData(month, selectedDate, refreshToken, scheduleCounts, selectedDaySchedules, fetchError, isSignedIn)
+    return MonthWidgetData(
+        month, selectedDate, refreshToken, scheduleCounts, selectedDaySchedules, fetchError, isSignedIn,
+        monthSchedulesById, openTodos, todoError
+    )
 }
 
 /** 表示中のウィジェットに再取得させる(「更新」ボタン・アプリ側での予定変更時・定期更新)。 */
@@ -402,20 +431,31 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                         count == 0 -> "予定はありません"
                         else -> null
                     }
-                    if (message != null) {
-                        Text(
-                            text = message,
-                            style = TextStyle(color = WidgetSubText, fontSize = 13.sp),
-                            maxLines = 2,
-                            modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(openAppAction)
-                        )
-                    } else {
-                        LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                    // 予定に続けて「やること」も同じ一覧に並べる。予定がない日・読み込み中でも
+                    // やることは見えるよう、予定側のメッセージも一覧の1行として出す。
+                    LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                        if (message != null) {
+                            item {
+                                Text(
+                                    text = message,
+                                    style = TextStyle(color = WidgetSubText, fontSize = 13.sp),
+                                    maxLines = 2,
+                                    modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(openAppAction)
+                                )
+                            }
+                        } else {
                             items(data.selectedDaySchedules, itemId = { it.schedule.id.hashCode().toLong() }) { item ->
                                 ScheduleFlowRowSimple(item = item, onClick = openAppAction)
                             }
-                            item { Spacer(modifier = GlanceModifier.height(4.dp)) }
                         }
+                        todoSection(
+                            data = data,
+                            displayedMonth = displayedMonth,
+                            selectedDate = selectedDate,
+                            today = today,
+                            onClick = actionStartActivity(DeepLinks.todosIntent(context))
+                        )
+                        item { Spacer(modifier = GlanceModifier.height(4.dp)) }
                     }
                 }
             }
@@ -432,6 +472,117 @@ private fun MonthNavIcon(resId: Int, description: String, onClick: Action) {
         colorFilter = ColorFilter.tint(WidgetOnBackground),
         modifier = GlanceModifier.size(32.dp).padding(6.dp).clickable(onClick)
     )
+}
+
+/** ウィジェットに出すやることの最大件数(残りは「ほか N件」の1行にまとめる)。 */
+private const val WIDGET_TODO_LIMIT = 8
+
+private val todoDueWidgetFormatter = DateTimeFormatter.ofPattern("M/d", Locale.JAPAN)
+
+/** 予定の下に続く「やること」欄(見出し・行・「ほか N件」)。どこをタップしてもやること一覧を開く。 */
+private fun androidx.glance.appwidget.lazy.LazyListScope.todoSection(
+    data: MonthWidgetData,
+    displayedMonth: YearMonth,
+    selectedDate: LocalDate,
+    today: LocalDate,
+    onClick: Action
+) {
+    val total = data.openTodos.size
+    item {
+        Column(modifier = GlanceModifier.fillMaxWidth().padding(top = 8.dp).clickable(onClick)) {
+            Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(WidgetOutlineVariant)) {}
+            Text(
+                text = "やること" + if (total > 0) " · ${total}件" else "",
+                style = TextStyle(color = WidgetOnBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                modifier = GlanceModifier.padding(top = 4.dp, bottom = 2.dp)
+            )
+        }
+    }
+    val message = when {
+        data.todoError != null -> "取得エラー: ${data.todoError}"
+        total == 0 -> "やることはありません"
+        else -> null
+    }
+    if (message != null) {
+        item {
+            Text(
+                text = message,
+                style = TextStyle(color = WidgetSubText, fontSize = 13.sp),
+                maxLines = 2,
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick)
+            )
+        }
+        return
+    }
+    // リンク先の予定は、表示中の月の予定から引く(月外の予定ならリンク行は省く)。
+    val schedulesById = if (data.month == displayedMonth) data.monthSchedulesById else emptyMap()
+    items(data.openTodos.take(WIDGET_TODO_LIMIT), itemId = { "todo:${it.id}".hashCode().toLong() }) { todo ->
+        TodoRowSimple(
+            todo = todo,
+            linkedSchedule = todo.scheduleId?.let { schedulesById[it] },
+            selectedDate = selectedDate,
+            today = today,
+            onClick = onClick
+        )
+    }
+    if (total > WIDGET_TODO_LIMIT) {
+        item {
+            Text(
+                text = "ほか ${total - WIDGET_TODO_LIMIT}件 — アプリで見る",
+                style = TextStyle(color = WidgetAccent, fontSize = 12.sp),
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick)
+            )
+        }
+    }
+}
+
+/** やること1件。左の列に期限(期限切れは赤・今日は「今日」)、リンクしていれば下の行に予定。 */
+@Composable
+private fun TodoRowSimple(
+    todo: TodoEntity,
+    linkedSchedule: ScheduleEntity?,
+    selectedDate: LocalDate,
+    today: LocalDate,
+    onClick: Action
+) {
+    val due = todo.dueDate
+    val (dueText, dueColor, dueBold) = when {
+        due == null -> Triple("—", WidgetSubText, false)
+        due.isBefore(today) -> Triple(due.format(todoDueWidgetFormatter), WidgetError, true)
+        due == today -> Triple("今日", WidgetOnBackground, true)
+        else -> Triple(due.format(todoDueWidgetFormatter), WidgetSubText, false)
+    }
+    Column(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp).clickable(onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = dueText,
+                style = TextStyle(
+                    color = dueColor,
+                    fontWeight = if (dueBold) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 12.sp
+                ),
+                modifier = GlanceModifier.width(44.dp)
+            )
+            Text(
+                text = todo.title,
+                style = TextStyle(color = WidgetOnBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                maxLines = 1
+            )
+        }
+        if (linkedSchedule != null) {
+            Row {
+                Spacer(modifier = GlanceModifier.width(44.dp))
+                Text(
+                    text = "↳ ${linkedSchedule.date.format(todoDueWidgetFormatter)} ${linkedSchedule.title}",
+                    style = TextStyle(
+                        color = if (linkedSchedule.date == selectedDate) WidgetAccent else WidgetSubText,
+                        fontSize = 12.sp
+                    ),
+                    maxLines = 1
+                )
+            }
+        }
+    }
 }
 
 @Composable

@@ -47,6 +47,13 @@ class TodoRepository(
         collection.whereEqualTo("scheduleId", scheduleId).observeAsFlow().endOnPermissionDenied()
             .map { snap -> snap.documents.map { it.toTodo() } }
 
+    /**
+     * 未完了のやることを単発で取得する(ウィジェット用)。CLAUDE.mdのとおり、購読+first()だと
+     * サーバー同期前のキャッシュだけの結果を拾うことがあるため、get()で取りに行く。
+     */
+    suspend fun openTodosOnce(): List<TodoEntity> =
+        collection.whereEqualTo("done", false).get().await().documents.map { it.toTodo() }
+
     suspend fun saveTodo(todo: TodoEntity) {
         val docRef = if (todo.id.isBlank()) collection.document() else collection.document(todo.id)
         val toSave = if (todo.createdAt == 0L) todo.copy(createdAt = System.currentTimeMillis()) else todo

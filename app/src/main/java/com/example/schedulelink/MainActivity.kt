@@ -1,5 +1,6 @@
 package com.example.schedulelink
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.example.schedulelink.ui.AppRoot
+import com.example.schedulelink.ui.navigation.DeepLinks
 import com.example.schedulelink.ui.theme.ScheduleLinkTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,6 +24,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val app = application as ScheduleLinkApplication
+        // ウィジェットから特定の画面(やること一覧など)を開く指定。画面回転などの再生成では繰り返さない。
+        if (savedInstanceState == null) {
+            DeepLinks.destinationOf(intent)?.let { DeepLinks.pending.value = it }
+        }
 
         setContent {
             val isDarkTheme by app.themePreferences.isDarkTheme.collectAsState()
@@ -54,5 +60,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        DeepLinks.destinationOf(intent)?.let { DeepLinks.pending.value = it }
     }
 }
