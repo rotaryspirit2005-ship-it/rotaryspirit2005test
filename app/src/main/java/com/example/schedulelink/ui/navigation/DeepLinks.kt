@@ -17,10 +17,13 @@ object DeepLinks {
 
     /**
      * やること一覧を開くIntent。PendingIntentはextraの違いを区別しないため、
-     * 画面ごとにdataのURIを変えて別物として扱わせる。
+     * 画面ごとにdataのURIを変えて別物として扱わせる。アプリが起動済みなら新しく重ねず、
+     * 既存の画面にonNewIntentで届ける(重ねると古い方が先に指定を受け取り、月画面のままになる)。
      */
     fun todosIntent(context: Context): Intent =
-        Intent(context, MainActivity::class.java).setData(Uri.parse("schedulelink://$TODOS"))
+        Intent(context, MainActivity::class.java)
+            .setData(Uri.parse("schedulelink://$TODOS"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     fun destinationOf(intent: Intent?): String? = intent?.data?.takeIf { it.scheme == "schedulelink" }?.host
 }

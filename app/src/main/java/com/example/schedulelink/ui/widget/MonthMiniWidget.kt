@@ -62,6 +62,8 @@ import com.example.schedulelink.ui.navigation.DeepLinks
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.data.WidgetPreferences
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.YearMonth
@@ -137,6 +139,7 @@ private suspend fun loadMonthWidgetData(
     var monthSchedulesById: Map<String, ScheduleEntity> = emptyMap()
     var openTodos: List<TodoEntity> = emptyList()
     var todoError: String? = null
+    var schedulesLoaded = false
     var todosLoaded = false
     try {
         val app = context.applicationContext as ScheduleLinkApplication
@@ -144,33 +147,42 @@ private suspend fun loadMonthWidgetData(
         isSignedIn = familyId != null
         if (familyId != null) {
             val completed = withTimeoutOrNull(timeoutMillis) {
-                try {
-                    val repo = ScheduleRepository(app.firestore, familyId)
-                    val monthSchedules = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
-                    scheduleCounts = monthSchedules.groupingBy { it.date }.eachCount()
-                    monthSchedulesById = monthSchedules.associateBy { it.id }
-                    selectedDaySchedules = repo.schedulesForDateWithLinksOnce(selectedDate)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    fetchError = "${e::class.simpleName}: ${e.message}"
-                    WidgetErrorLog.record(context, "MonthMiniWidget.fetch", e)
-                }
-                // やることは予定とは別に取得し、片方の失敗でもう片方まで消えないようにする。
-                try {
-                    openTodos = TodoRepository(app.firestore, familyId).openTodosOnce().sortedWith(openTodoOrder)
-                    todosLoaded = true
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    todoError = "${e::class.simpleName}: ${e.message}"
-                    WidgetErrorLog.record(context, "MonthMiniWidget.fetchTodos", e)
+                coroutineScope {
+                    // やることは予定と並行して取得し、片方の失敗でもう片方まで消えないようにする
+                    // (順番に取ると、表示中の短い制限時間の中で後の取得ほど打ち切られやすい)。
+                    val todosJob = async {
+                        try {
+                            openTodos = TodoRepository(app.firestore, familyId).openTodosOnce().sortedWith(openTodoOrder)
+                            todosLoaded = true
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            todoError = "${e::class.simpleName}: ${e.message}"
+                            WidgetErrorLog.record(context, "MonthMiniWidget.fetchTodos", e)
+                        }
+                    }
+                    try {
+                        val repo = ScheduleRepository(app.firestore, familyId)
+                        val monthSchedules = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
+                        scheduleCounts = monthSchedules.groupingBy { it.date }.eachCount()
+                        monthSchedulesById = monthSchedules.associateBy { it.id }
+                        selectedDaySchedules = repo.schedulesForDateWithLinksOnce(selectedDate)
+                        schedulesLoaded = true
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        fetchError = "${e::class.simpleName}: ${e.message}"
+                        WidgetErrorLog.record(context, "MonthMiniWidget.fetch", e)
+                    }
+                    todosJob.await()
                 }
                 true
             }
             if (completed == null) {
-                fetchError = "データ取得がタイムアウトしました(通信状況をご確認ください)"
-                if (!todosLoaded) todoError = fetchError
+                // 時間切れでも、取り終えていた方(予定・やること)はそのまま表示する。
+                val timeoutMessage = "データ取得がタイムアウトしました(通信状況をご確認ください)"
+                if (!schedulesLoaded && fetchError == null) fetchError = timeoutMessage
+                if (!todosLoaded && todoError == null) todoError = timeoutMessage
                 WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "データ取得タイムアウト")
             }
         }
