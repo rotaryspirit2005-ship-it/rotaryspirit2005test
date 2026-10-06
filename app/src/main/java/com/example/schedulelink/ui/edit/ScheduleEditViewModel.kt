@@ -42,12 +42,14 @@ class ScheduleEditViewModel(
         linkedIds: Set<String>,
         newPhotoUris: List<Uri>,
         removedPhotoUrls: List<String>,
+        // 0以外なら、リンクした予定([linkedIds])の日付も同じ日数だけずらす。
+        shiftLinkedByDays: Long = 0,
         onSaved: (String) -> Unit
     ) {
         viewModelScope.launch {
             val idForPath = schedule.id.ifBlank { UUID.randomUUID().toString() }
             val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("schedules", idForPath, uri) }
-            val id = repository.saveSchedule(schedule.copy(photoUrls = schedule.photoUrls + uploadedUrls), linkedIds)
+            val id = repository.saveSchedule(schedule.copy(photoUrls = schedule.photoUrls + uploadedUrls), linkedIds, shiftLinkedByDays)
             removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
             onSaved(id)
         }

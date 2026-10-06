@@ -124,9 +124,14 @@ class ScheduleRepository(
 
     fun linkedIds(id: String): Flow<List<String>> = scheduleById(id).map { it?.linkedIds.orEmpty() }
 
-    suspend fun saveSchedule(schedule: ScheduleEntity, linkedIds: Set<String>): String {
+    /**
+     * 予定を保存する。[shiftLinkedByDays]が0以外なら、保存後にリンクしている予定([linkedIds])の
+     * 日付も同じ日数だけずらす(時刻はそのまま)。
+     */
+    suspend fun saveSchedule(schedule: ScheduleEntity, linkedIds: Set<String>, shiftLinkedByDays: Long = 0): String {
         val docRef = if (schedule.id.isBlank()) collection.document() else collection.document(schedule.id)
         val id = docRef.id
+        if (shiftLinkedByDays != 0L) shiftSchedulesByDays(linkedIds - id, shiftLinkedByDays)
         // 上書きしてしまう前に、差分を取るための「変更前のリンク」を読んでおく。
         val previousLinkedIds = if (schedule.id.isBlank()) {
             emptySet()
@@ -136,6 +141,26 @@ class ScheduleRepository(
         docRef.set(schedule.copy(id = id).toMap() + mapOf("linkedIds" to linkedIds.toList())).await()
         updateReciprocalLinks(id, previousLinkedIds, linkedIds)
         return id
+    }
+
+    /**
+     * 指定した予定の日付を[days]日ずらす(負なら前へ)。1つにまとめて書き込み、完了は待たない
+     * (オフラインで応答待ちになり保存まで止まらないようにするため。端末に保留され、通信が
+     * 戻れば反映される)。相手が見つからない・読めない場合は、その予定だけ飛ばす。
+     */
+    private suspend fun shiftSchedulesByDays(ids: Set<String>, days: Long) {
+        if (ids.isEmpty()) return
+        val batch = firestore.batch()
+        var count = 0
+        ids.forEach { otherId ->
+            val ref = collection.document(otherId)
+            val snap = runCatching { ref.get().await() }.getOrNull()
+            if (snap != null && snap.exists()) {
+                batch.update(ref, "date", snap.toSchedule().date.plusDays(days).toString())
+                count++
+            }
+        }
+        if (count > 0) batch.commit()
     }
 
     /**

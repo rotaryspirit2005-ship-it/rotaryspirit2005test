@@ -1,6 +1,7 @@
 package com.example.schedulelink.ui.edit
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,8 +47,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SectionHeader
@@ -56,9 +61,35 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Locale.JAPAN)
+private val shortDateFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
+
+/** 「+2日」「−3日」(マイナスは−(U+2212)で、プラスと同じ幅に見えるようにする)。 */
+private fun signedDays(days: Long): String = if (days > 0) "+${days}日" else "−${-days}日"
+
+/** リンクした予定も同じ日数ずらすかを選ぶ行。行全体をタップで切り替えられる(48dp以上)。 */
+@Composable
+private fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, count: Int, days: Long) {
+    InfoPanel(modifier = Modifier.clickable { onCheckedChange(!checked) }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "リンクした予定 ${count}件も ${signedDays(days)}ずらす",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    "日付だけを同じ日数ずらします(時刻はそのまま)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,11 +107,15 @@ fun ScheduleEditScreen(
     var title by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(initialDate ?: LocalDate.now()) }
+    // 編集を始めた時点の日付。ここからの日数の差を、リンクした予定をずらす日数にする。
+    var originalDate by remember { mutableStateOf<LocalDate?>(null) }
+    var shiftLinked by remember { mutableStateOf(false) }
     var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var linkedIds by remember { mutableStateOf(setOf<String>()) }
     var milestoneId by remember { mutableStateOf(initialMilestoneId) }
     var loaded by remember { mutableStateOf(scheduleId == null) }
+    val context = LocalContext.current
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -97,6 +132,7 @@ fun ScheduleEditScreen(
                 title = schedule.title
                 memo = schedule.memo
                 date = schedule.date
+                originalDate = schedule.date
                 startTime = schedule.startTime
                 endTime = schedule.endTime
                 linkedIds = links
@@ -110,6 +146,14 @@ fun ScheduleEditScreen(
     val allSchedules by viewModel.allSchedules.collectAsState()
     val candidateLinks = allSchedules.filter { it.id != scheduleId }
     val allMilestones by viewModel.allMilestones.collectAsState()
+
+    // リンクした予定も一緒にずらすオプション。編集時に日付を変え、ずらす対象(いま
+    // チェックが入っている予定)が1件以上あるときだけ出す。日付を元に戻したら選択も戻す。
+    val dayShift = originalDate?.let { ChronoUnit.DAYS.between(it, date) } ?: 0L
+    val shiftTargets = candidateLinks.filter { it.id in linkedIds }
+    val canShiftLinked = scheduleId != null && dayShift != 0L && shiftTargets.isNotEmpty()
+    LaunchedEffect(canShiftLinked) { if (!canShiftLinked) shiftLinked = false }
+    val shiftActive = shiftLinked && canShiftLinked
     val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
     Scaffold(
@@ -208,6 +252,15 @@ fun ScheduleEditScreen(
 
                 SectionHeader("関連する行動予定")
 
+                if (canShiftLinked) {
+                    ShiftLinkedRow(
+                        checked = shiftLinked,
+                        onCheckedChange = { shiftLinked = it },
+                        count = shiftTargets.size,
+                        days = dayShift
+                    )
+                }
+
                 if (candidateLinks.isEmpty()) {
                     Text(
                         text = "リンクできる予定がありません",
@@ -234,11 +287,19 @@ fun ScheduleEditScreen(
                                 )
                                 Column {
                                     Text(candidate.title, style = MaterialTheme.typography.bodyLarge)
+                                    val willShift = shiftActive && checked
                                     Text(
-                                        text = "${candidate.date.format(dateFormatter)} " +
-                                            "${candidate.startTime.format(commonTimeFormatter)}〜${candidate.endTime.format(commonTimeFormatter)}",
+                                        text = if (willShift) {
+                                            // 保存するとどの日になるかを先に見せる。
+                                            "${candidate.date.format(shortDateFormatter)} → " +
+                                                candidate.date.plusDays(dayShift).format(shortDateFormatter)
+                                        } else {
+                                            "${candidate.date.format(dateFormatter)} " +
+                                                "${candidate.startTime.format(commonTimeFormatter)}〜${candidate.endTime.format(commonTimeFormatter)}"
+                                        },
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontWeight = if (willShift) FontWeight.Bold else null,
+                                        color = if (willShift) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -267,7 +328,18 @@ fun ScheduleEditScreen(
                                     milestoneId = milestoneId,
                                     photoUrls = existingPhotoUrls
                                 )
-                                viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls) { onSaved() }
+                                val shiftDays = if (shiftActive) dayShift else 0L
+                                val shiftedCount = shiftTargets.size
+                                viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftDays) {
+                                    if (shiftDays != 0L) {
+                                        Toast.makeText(
+                                            context,
+                                            "リンクした予定 ${shiftedCount}件を${signedDays(shiftDays)}ずらしました",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                    onSaved()
+                                }
                             }
                         }
                     },
