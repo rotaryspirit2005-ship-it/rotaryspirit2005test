@@ -16,8 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
@@ -71,17 +69,8 @@ fun periodShiftHint(
  */
 @Composable
 fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, hint: String? = null) {
-    val supporting = when {
-        hint == null -> "日付だけを同じ日数ずらします(時刻はそのまま)"
-        checked -> "$hint(オンにしています)"
-        else -> hint
-    }
-    val stateText = if (hint != null && checked) "オン、条件がそろうと適用されます" else null
-    InfoPanel(
-        modifier = Modifier
-            .semantics(mergeDescendants = true) { stateText?.let { stateDescription = it } }
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-    ) {
+    val supporting = hint ?: "日付だけを同じ日数ずらします(時刻はそのまま)"
+    InfoPanel(modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.bodyLarge)
