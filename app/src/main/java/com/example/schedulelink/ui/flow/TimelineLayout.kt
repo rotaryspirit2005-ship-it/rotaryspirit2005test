@@ -27,9 +27,9 @@ private const val CARD_MARGIN_CELLS = 1
 private const val TOP_GAP = 60f
 
 /** 格子が大きすぎる(期間がとても長い)ときは、探索せず簡易な線にする。 */
-private const val MAX_SEARCH_STATES = 5_000_000
+private const val MAX_SEARCH_STATES = 2_500_000
 /** 1本の線の探索で調べるマスの上限。超えたら簡易な線にする。 */
-private const val MAX_EXPANSIONS = 400_000
+private const val MAX_EXPANSIONS = 150_000
 
 fun timelineX(minDate: LocalDate, date: LocalDate): Float =
     MARGIN + ChronoUnit.DAYS.between(minDate, date) * PX_PER_DAY
@@ -232,6 +232,19 @@ private class GridRouter(width: Float, height: Float, boxes: Map<String, NodeBox
         }
     }
 
+    /**
+     * 線の端をカードの中心まで延ばす点。カードは拡大すると縮小表示される(縁が内側へ動く)ので、
+     * 縁で止めると線が離れてしまう。カードは不透明で上に重なるので、延ばした分は隠れる。
+     */
+    private fun innerOf(id: String, port: Port): Offset {
+        val box = boxesById.getValue(id)
+        val center = centerOf(port.col, port.row)
+        return when (port.side) {
+            Side.BOTTOM, Side.TOP -> Offset(center.x, box.centerY)
+            Side.LEFT, Side.RIGHT -> Offset(box.centerX, center.y)
+        }
+    }
+
     fun route(
         fromId: String,
         toId: String,
@@ -272,7 +285,7 @@ private class GridRouter(width: Float, height: Float, boxes: Map<String, NodeBox
             val col = cell % cols
             val row = cell / cols
             val g = best[st]
-            if (f - heuristic(col, row) > g + 1e-3f) continue // 後からもっと安い道が見つかった古い項目
+            if (f - heuristic(col, row) > g * 1.00002f + 1e-3f) continue // 後からもっと安い道が見つかった古い項目
             if (goals.any { it.col == col && it.row == row }) {
                 foundState = st
                 break
@@ -328,9 +341,11 @@ private class GridRouter(width: Float, height: Float, boxes: Map<String, NodeBox
         val startPort = starts.first { it.row * cols + it.col == cells.first() }
         val goalPort = goals.first { it.row * cols + it.col == cells.last() }
         val points = ArrayList<Offset>(cells.size + 2)
+        points.add(innerOf(fromId, startPort))
         points.add(anchorOf(fromId, startPort))
         for (cell in cells) points.add(centerOf(cell % cols, cell / cols))
         points.add(anchorOf(toId, goalPort))
+        points.add(innerOf(toId, goalPort))
         return simplify(points)
     }
 

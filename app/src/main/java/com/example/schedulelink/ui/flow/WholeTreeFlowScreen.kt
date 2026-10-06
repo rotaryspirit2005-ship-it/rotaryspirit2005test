@@ -152,7 +152,6 @@ fun WholeTreeFlowScreen(
     onGoalListClick: () -> Unit,
     onBack: () -> Unit
 ) {
-    val timeline by viewModel.timeline.collectAsState()
     val outline by viewModel.outline.collectAsState()
     // 0 = ツリー(既定)、1 = タイムライン。
     var viewMode by rememberSaveable { mutableStateOf(0) }
@@ -212,16 +211,18 @@ fun WholeTreeFlowScreen(
                             )
                         } ?: Box(modifier = Modifier.fillMaxSize())
                     } else {
-                        val state = timeline
+                        // 配線の計算は重いので、タイムライン表示のときだけ購読する。
+        val state by viewModel.timeline.collectAsState()
                         Column(modifier = Modifier.fillMaxSize()) {
-                            if (state != null && state.tree.nodes.isNotEmpty()) {
+                            val current = state
+                            if (current != null && current.tree.nodes.isNotEmpty()) {
                                 TreeLegend()
                             }
                             Box(modifier = Modifier.weight(1f)) {
-                                if (state == null) {
+                                if (current == null) {
                                     // 配線を計算している間(バックグラウンド)。
                                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                                } else if (state.tree.nodes.isEmpty()) {
+                                } else if (current.tree.nodes.isEmpty()) {
                                     EmptyState(
                                         icon = Icons.Outlined.Flag,
                                         message = "まだ大目的がありません",
@@ -231,7 +232,7 @@ fun WholeTreeFlowScreen(
                                     )
                                 } else {
                                     WholeTreeCanvas(
-                                        state = state,
+                                        state = current,
                                         onNodeClick = { node ->
                                             when (node.tier) {
                                                 TreeTier.GOAL -> onGoalClick(node.id)
@@ -380,24 +381,35 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
 
                 // 接続線。配置のときに、カードを避けて別の線と重ならない道を計算してある。
                 // 木の線は親の階層色、予定どうしのリンクは破線で描く。
-                layout.routes.forEach { route ->
-                    if (route.points.size < 2) return@forEach
-                    val isPeer = route.kind == RouteKind.PEER
-                    val baseColor = if (isPeer) peerLinkColor else route.parentTier.color(isDark)
+                // 同じ親から出る線は途中で重なる。1本ずつ半透明で塗ると重なりが濃くなるので、
+                // 親ごと(強調する/しないごと)に1つの経路にまとめて塗る。強調する線は最後に描く。
+                val groups = layout.routes.filter { it.points.size >= 2 }.groupBy { route ->
                     val highlighted = selectedNodeId == null ||
                         selectedNodeId == route.fromId ||
                         selectedNodeId == route.toId
+                    Triple(
+                        if (route.kind == RouteKind.PEER) "peer:${route.fromId}|${route.toId}" else "tree:${route.fromId}",
+                        route.kind,
+                        highlighted
+                    )
+                }
+                groups.entries.sortedBy { it.key.third }.forEach { (key, routes) ->
+                    val isPeer = key.second == RouteKind.PEER
+                    val highlighted = key.third
+                    val baseColor = if (isPeer) peerLinkColor else routes.first().parentTier.color(isDark)
                     val color = when {
                         !highlighted -> baseColor.copy(alpha = DIMMED_LINE_ALPHA)
                         selectedNodeId != null || isPeer -> baseColor
                         else -> baseColor.copy(alpha = CONNECTOR_ALPHA)
                     }
                     val path = Path().apply {
-                        val first = route.points.first()
-                        moveTo(first.x.dp.toPx(), first.y.dp.toPx())
-                        for (i in 1 until route.points.size) {
-                            val p = route.points[i]
-                            lineTo(p.x.dp.toPx(), p.y.dp.toPx())
+                        routes.forEach { route ->
+                            val first = route.points.first()
+                            moveTo(first.x.dp.toPx(), first.y.dp.toPx())
+                            for (i in 1 until route.points.size) {
+                                val p = route.points[i]
+                                lineTo(p.x.dp.toPx(), p.y.dp.toPx())
+                            }
                         }
                     }
                     drawPath(
@@ -409,30 +421,6 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                             join = StrokeJoin.Round,
                             pathEffect = if (isPeer) PathEffect.dashPathEffect(floatArrayOf(10f, 8f)) else null
                         )
-                    )
-                }
-            }
-
-            marks.forEach { (date, label) ->
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .offset(x = dateToX(date) + 4.dp, y = 6.dp)
-                        .counterScale(scale)
-                )
-            }
-
-            if (labelProgress > 0f) {
-                dayMarksList.forEach { date ->
-                    Text(
-                        text = date.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = dayLabelColor,
-                        modifier = Modifier
-                            .offset(x = dateToX(date) + 2.dp, y = 26.dp)
-                            .counterScale(scale)
                     )
                 }
             }
@@ -481,6 +469,7 @@ private fun TreeNodeCard(
     Column(
         modifier = modifier
             .width(NODE_WIDTH.dp)
+            .height(NODE_HEIGHT.dp)
             .counterScale(scale)
             .clip(shape)
             .background(fillColor)
@@ -488,7 +477,9 @@ private fun TreeNodeCard(
             // 選択中であることが分かるよう枠を太くする。
             .border(if (isSelected) 3.dp else 1.5.dp, borderColor, shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        // 配線は高さNODE_HEIGHTのカードとして計算しているので、副題がなくても高さは変えない。
+        verticalArrangement = Arrangement.Center
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (isDone) {
