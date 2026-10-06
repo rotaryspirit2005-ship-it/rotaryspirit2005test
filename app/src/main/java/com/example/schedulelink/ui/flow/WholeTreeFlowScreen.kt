@@ -267,7 +267,6 @@ fun WholeTreeFlowScreen(
 @Composable
 private fun TreeLegend() {
     val isDark = LocalIsDarkTheme.current
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -277,7 +276,7 @@ private fun TreeLegend() {
         TreeLegendItem("中日程") { LegendDot(TreeTier.MILESTONE.color(isDark)) }
         TreeLegendItem("小日程") { LegendDot(TreeTier.SCHEDULE.color(isDark)) }
         // 線の色は階層ではなく「どの親か」を表す。
-        TreeLegendItem("同じ色の線=同じ親の子") {
+        TreeLegendItem("同じ色の線=同じ親") {
             LegendLine(listOf(connectorColor(2, isDark), connectorColor(5, isDark)), dashed = false)
         }
         TreeLegendItem("予定どうしのリンク") {
@@ -501,11 +500,19 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                     // 線の両端に丸をつけ、どのカードのどこから出てどこへ入るのかを分かりやすくする。
                     if (!isPeer) {
                         val radius = (if (selectedNodeId != null && highlighted) 4.dp else 2.5.dp).toPx() * strokeFactor
-                        routes.map { it.startAnchor }.distinct().forEach { p ->
-                            drawCircle(color, radius, Offset(p.x.dp.toPx(), p.y.dp.toPx()))
+                        // 拡大するとカードは中心に向かって縮むので、丸もカードの縁に合わせて中心へ寄せる。
+                        fun edgeOf(anchor: Offset, id: String): Offset {
+                            val box = layout.boxes[id] ?: return Offset(anchor.x.dp.toPx(), anchor.y.dp.toPx())
+                            return Offset(
+                                (box.centerX + (anchor.x - box.centerX) * strokeFactor).dp.toPx(),
+                                (box.centerY + (anchor.y - box.centerY) * strokeFactor).dp.toPx()
+                            )
+                        }
+                        routes.distinctBy { it.startAnchor }.forEach { route ->
+                            drawCircle(color, radius, edgeOf(route.startAnchor, route.fromId))
                         }
                         routes.forEach { route ->
-                            drawCircle(color, radius, Offset(route.endAnchor.x.dp.toPx(), route.endAnchor.y.dp.toPx()))
+                            drawCircle(color, radius, edgeOf(route.endAnchor, route.toId))
                         }
                     }
                 }

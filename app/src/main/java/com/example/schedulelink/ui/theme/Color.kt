@@ -96,11 +96,11 @@ val PeerLinkColorDark = Color(0xFFF8ADFB)
 // ライトは背景に対して十分なコントラストが出る濃さ、ダークはパステル寄り。
 private val ConnectorPaletteLight = listOf(
     Color(0xFF8A7A00), Color(0xFF1F7A3A), Color(0xFF0B6AA0), Color(0xFF5B4BC4),
-    Color(0xFFB8431F), Color(0xFF7A6240), Color(0xFF00798A), Color(0xFF546E7A)
+    Color(0xFFB8431F), Color(0xFFAD2E6B), Color(0xFF00798A), Color(0xFF7A6240)
 )
 private val ConnectorPaletteDark = listOf(
     Color(0xFFE6D84A), Color(0xFF6FD98B), Color(0xFF5CC8FF), Color(0xFFA59CFF),
-    Color(0xFFFF9B7A), Color(0xFFD8BE8F), Color(0xFF4FD1D9), Color(0xFFB0BEC5)
+    Color(0xFFFF9B7A), Color(0xFFF28BB8), Color(0xFF4FD1D9), Color(0xFFD8BE8F)
 )
 
 /** 親ごとの線の色。[slot]が色の数を超えたら循環する。 */
