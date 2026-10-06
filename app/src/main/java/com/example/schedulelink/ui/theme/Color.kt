@@ -91,6 +91,24 @@ val TodayLineColorDark = Color(0xFFFF897D)
 val PeerLinkColorLight = Color(0xFF9C1AAD)
 val PeerLinkColorDark = Color(0xFFF8ADFB)
 
+// 全体マップのタイムラインで、同じ親から出る線をひとまとまりに見せるための色。階層色(橙・ティール・青)
+// や今日の線(赤)、予定どうしのリンク(赤紫)と間違えにくい色相を、明度も交互にして並べている。
+// ライトは背景に対して十分なコントラストが出る濃さ、ダークはパステル寄り。
+private val ConnectorPaletteLight = listOf(
+    Color(0xFF8A7A00), Color(0xFF1F7A3A), Color(0xFF0B6AA0), Color(0xFF5B4BC4),
+    Color(0xFFB8431F), Color(0xFF7A6240), Color(0xFF00798A), Color(0xFF546E7A)
+)
+private val ConnectorPaletteDark = listOf(
+    Color(0xFFE6D84A), Color(0xFF6FD98B), Color(0xFF5CC8FF), Color(0xFFA59CFF),
+    Color(0xFFFF9B7A), Color(0xFFD8BE8F), Color(0xFF4FD1D9), Color(0xFFB0BEC5)
+)
+
+/** 親ごとの線の色。[slot]が色の数を超えたら循環する。 */
+fun connectorColor(slot: Int, isDark: Boolean): Color {
+    val palette = if (isDark) ConnectorPaletteDark else ConnectorPaletteLight
+    return palette[Math.floorMod(slot, palette.size)]
+}
+
 // 曜日色。ダークでは選択セル(primaryContainer)の上でも読める明るさにしている。
 val SundayColorLight = Color(0xFFB3261E)
 val SundayColorDark = Color(0xFFFFB4AB)

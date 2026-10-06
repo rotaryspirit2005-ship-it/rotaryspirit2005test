@@ -25,6 +25,8 @@ private const val CELL = 6f
 /** カードのまわりに、線が近づけない余白(マス数)。 */
 private const val CARD_MARGIN_CELLS = 1
 private const val TOP_GAP = 60f
+/** 線の色の数(ui/theme/Color.ktのパレットと同じ)。 */
+private const val COLOR_SLOTS = 8
 
 /** 格子が大きすぎる(期間がとても長い)ときは、探索せず簡易な線にする。 */
 private const val MAX_SEARCH_STATES = 2_500_000
@@ -49,7 +51,12 @@ class TimelineRoute(
     val kind: RouteKind,
     /** 木の線のとき、親の階層(線の色の決定に使う)。 */
     val parentTier: TreeTier,
-    val points: List<Offset>
+    val points: List<Offset>,
+    /** 線の色の番号。同じ親から出る線は同じ番号。色を付けない線(子が1つだけの親など)は-1。 */
+    val colorSlot: Int,
+    /** 親のカードから線が出る点と、子のカードに線が入る点(カードの縁)。 */
+    val startAnchor: Offset,
+    val endAnchor: Offset
 )
 
 class TimelineLayout(
@@ -140,25 +147,41 @@ fun layoutTimeline(tree: WholeTree): TimelineLayout {
     val searchStates = (ceil(width / CELL).toLong() + 2) * (ceil(height / CELL).toLong() + 2) * 5
     val router = if (searchStates <= MAX_SEARCH_STATES) GridRouter(width, height, boxes) else null
     val netIds = HashMap<String, Int>()
+    // 子が2つ以上ある親だけ線に色を付ける(1つだけなら、どの線か迷わないので無彩色にして色を節約する)。
+    // 色の番号は親のカードの位置順に3ずつ進め、隣り合う親の色が離れるようにする。
+    val childCount = specs.filter { it.kind == RouteKind.TREE }.groupingBy { it.fromId }.eachCount()
+    val colorSlots = childCount.filterValues { it >= 2 }.keys
+        .sortedWith(compareBy({ boxes.getValue(it).centerX }, { boxes.getValue(it).centerY }))
+        .withIndex()
+        .associate { (index, id) -> id to (index * 3) % COLOR_SLOTS }
     val routes = specs.map { spec ->
         val net = netIds.getOrPut(spec.net) { netIds.size }
-        val points = router?.route(spec.fromId, spec.toId, spec.sources, spec.targets, net)
-            ?: fallbackRoute(boxes.getValue(spec.fromId), boxes.getValue(spec.toId))
-        TimelineRoute(spec.fromId, spec.toId, spec.kind, spec.parentTier, points)
+        val from = boxes.getValue(spec.fromId)
+        val to = boxes.getValue(spec.toId)
+        val routed = router?.route(spec.fromId, spec.toId, spec.sources, spec.targets, net) ?: fallbackRoute(from, to)
+        val slot = if (spec.kind == RouteKind.TREE) colorSlots[spec.fromId] ?: -1 else -1
+        TimelineRoute(
+            spec.fromId, spec.toId, spec.kind, spec.parentTier,
+            routed.points, slot, routed.start, routed.end
+        )
     }
     return TimelineLayout(boxes, routes, width, height)
 }
 
 /** 配線を探索できなかったときの簡易な線(カードを避けないが、必ず結ぶ)。 */
-private fun fallbackRoute(from: NodeBox, to: NodeBox): List<Offset> {
+private fun fallbackRoute(from: NodeBox, to: NodeBox): Routed {
     val midY = (from.bottom + to.top) / 2
-    return listOf(
-        Offset(from.centerX, from.bottom),
-        Offset(from.centerX, midY),
-        Offset(to.centerX, midY),
-        Offset(to.centerX, to.top)
+    val start = Offset(from.centerX, from.bottom)
+    val end = Offset(to.centerX, to.top)
+    return Routed(
+        listOf(Offset(from.centerX, from.centerY), start, Offset(from.centerX, midY), Offset(to.centerX, midY), end, Offset(to.centerX, to.centerY)),
+        start,
+        end
     )
 }
+
+/** 探索した線の折れ線と、両端のカードの縁の点。 */
+private class Routed(val points: List<Offset>, val start: Offset, val end: Offset)
 
 private enum class Side { TOP, BOTTOM, LEFT, RIGHT }
 
@@ -251,7 +274,7 @@ private class GridRouter(width: Float, height: Float, boxes: Map<String, NodeBox
         sources: List<Pair<Side, Float>>,
         targets: List<Pair<Side, Float>>,
         net: Int
-    ): List<Offset>? {
+    ): Routed? {
         val starts = sources.mapNotNull { (side, cost) -> portOf(fromId, side, cost) }
         val goals = targets.mapNotNull { (side, cost) -> portOf(toId, side, cost) }
         if (starts.isEmpty() || goals.isEmpty()) return null
@@ -341,12 +364,14 @@ private class GridRouter(width: Float, height: Float, boxes: Map<String, NodeBox
         val startPort = starts.first { it.row * cols + it.col == cells.first() }
         val goalPort = goals.first { it.row * cols + it.col == cells.last() }
         val points = ArrayList<Offset>(cells.size + 2)
+        val startAnchor = anchorOf(fromId, startPort)
+        val endAnchor = anchorOf(toId, goalPort)
         points.add(innerOf(fromId, startPort))
-        points.add(anchorOf(fromId, startPort))
+        points.add(startAnchor)
         for (cell in cells) points.add(centerOf(cell % cols, cell / cols))
-        points.add(anchorOf(toId, goalPort))
+        points.add(endAnchor)
         points.add(innerOf(toId, goalPort))
-        return simplify(points)
+        return Routed(simplify(points), startAnchor, endAnchor)
     }
 
     private fun pack(f: Float, state: Int): Long = (f.toRawBits().toLong() shl 32) or state.toLong()

@@ -9,6 +9,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +48,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -72,6 +76,7 @@ import com.example.schedulelink.ui.theme.ScheduleColorDark
 import com.example.schedulelink.ui.theme.ScheduleColorLight
 import com.example.schedulelink.ui.theme.TodayLineColorDark
 import com.example.schedulelink.ui.theme.TodayLineColorLight
+import com.example.schedulelink.ui.theme.connectorColor
 import com.example.schedulelink.ui.theme.fadeThrough
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -99,13 +104,19 @@ private const val CARD_TINT_RATIO = 0.12f
 /** 日の目盛りの最低限の透明度(0 = 拡大するまでは出さない)。 */
 private const val DAY_TICK_MIN_ALPHA = 0f
 
-/** 接続線の色の濃さ(親の階層色をこの透明度で使う)。 */
-private const val CONNECTOR_ALPHA = 0.55f
-/** 今日の線の濃さ。接続線より下に描き、カードや線を邪魔しない程度にする。 */
-private const val TODAY_LINE_ALPHA = 0.7f
+/** 接続線の色の濃さ(親ごとの色をこの透明度で使う。暗い背景でも濁らないよう高めにする)。 */
+private const val CONNECTOR_ALPHA = 0.9f
+/** 色を付けない線(子が1つだけの親から出る線)の濃さ。 */
+private const val NEUTRAL_CONNECTOR_ALPHA = 0.7f
+/** 今日の線の濃さ。細い線にして、接続線と見分けられるようにする。 */
+private const val TODAY_LINE_ALPHA = 0.9f
+/** 今日の線の下に敷く帯の濃さ。 */
+private const val TODAY_BAND_ALPHA = 0.1f
+/** 子カードの左端につける、親の線と同じ色の帯の幅。 */
+private val BRANCH_STRIPE_WIDTH = 5.dp
 
 /** 選択中のノードと無関係な線を薄くする際の透明度。 */
-private const val DIMMED_LINE_ALPHA = 0.15f
+private const val DIMMED_LINE_ALPHA = 0.22f
 
 /**
  * 階層ごとのアクセント色。白背景では明るい色は文字として読みにくくなるため、
@@ -252,28 +263,69 @@ fun WholeTreeFlowScreen(
 }
 
 /** 色の意味(階層)が初見でも分かるよう、目的マップ上部に出す簡易凡例。 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TreeLegend() {
     val isDark = LocalIsDarkTheme.current
-    Row(
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        TreeLegendItem(color = TreeTier.GOAL.color(isDark), label = "大目的")
-        TreeLegendItem(color = TreeTier.MILESTONE.color(isDark), label = "中日程")
-        TreeLegendItem(color = TreeTier.SCHEDULE.color(isDark), label = "小日程")
+        TreeLegendItem("大目的") { LegendDot(TreeTier.GOAL.color(isDark)) }
+        TreeLegendItem("中日程") { LegendDot(TreeTier.MILESTONE.color(isDark)) }
+        TreeLegendItem("小日程") { LegendDot(TreeTier.SCHEDULE.color(isDark)) }
+        // 線の色は階層ではなく「どの親か」を表す。
+        TreeLegendItem("同じ色の線=同じ親の子") {
+            LegendLine(listOf(connectorColor(2, isDark), connectorColor(5, isDark)), dashed = false)
+        }
+        TreeLegendItem("予定どうしのリンク") {
+            LegendLine(listOf(if (isDark) PeerLinkColorDark else PeerLinkColorLight), dashed = true)
+        }
+        TreeLegendItem("今日") {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(12.dp)
+                    .background(if (isDark) TodayLineColorDark else TodayLineColorLight)
+            )
+        }
     }
 }
 
 @Composable
-private fun TreeLegendItem(color: Color, label: String) {
+private fun TreeLegendItem(label: String, swatch: @Composable () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+        swatch()
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color) {
+    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+}
+
+/** 凡例の線の見本。色が複数のときは、同じ長さで色を並べる。 */
+@Composable
+private fun LegendLine(colors: List<Color>, dashed: Boolean) {
+    Canvas(modifier = Modifier.width(24.dp).height(8.dp)) {
+        val stroke = 1.5.dp.toPx()
+        val segment = size.width / colors.size
+        colors.forEachIndexed { index, color ->
+            drawLine(
+                color = color,
+                start = Offset(segment * index, size.height / 2),
+                end = Offset(segment * (index + 1), size.height / 2),
+                strokeWidth = stroke,
+                pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())) else null
+            )
+        }
     }
 }
 
@@ -322,6 +374,26 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
 
     fun dateToX(date: LocalDate): Dp = timelineX(tree.minDate, date).dp
 
+    // 同じ親から出る線は途中で重なる。1本ずつ半透明で塗ると重なりが濃くなるので、
+    // 親ごと(強調する/しないごと)に1つの経路にまとめて塗る。強調する線は最後に描く。
+    val routeGroups = remember(layout, selectedNodeId) {
+        layout.routes.filter { it.points.size >= 2 }.groupBy { route ->
+            val highlighted = selectedNodeId == null ||
+                selectedNodeId == route.fromId ||
+                selectedNodeId == route.toId
+            Triple(
+                if (route.kind == RouteKind.PEER) "peer:${route.fromId}|${route.toId}" else "tree:${route.fromId}",
+                route.kind,
+                highlighted
+            )
+        }.entries.sortedBy { it.key.third }
+    }
+    // 子カードの左端につける帯の色(色を付けた線の子だけ)。
+    val branchSlotByChild = remember(layout) {
+        layout.routes.filter { it.kind == RouteKind.TREE && it.colorSlot >= 0 }.associate { it.toId to it.colorSlot }
+    }
+    val neutralLineColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     val contentWidth = layout.width.dp
     val contentHeight = layout.height.dp
     val rulerHeight = RULER_HEIGHT.dp
@@ -346,7 +418,7 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                 // 線の太さも、拡大しすぎたときだけ際限なく太くならないよう抑える。
                 val strokeFactor = capScale(scale)
                 val hairline = (1.dp * strokeFactor).toPx()
-                val edgeStroke = (1.dp * strokeFactor).toPx()
+                val edgeStroke = (1.5.dp * strokeFactor).toPx()
 
                 marks.forEach { (date, _) ->
                     val x = dateToX(date).toPx()
@@ -372,35 +444,35 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                 if (todayInRange) {
                     val todayX = dateToX(today).toPx()
                     drawLine(
+                        color = todayLineColor.copy(alpha = TODAY_BAND_ALPHA),
+                        start = Offset(todayX, 0f),
+                        end = Offset(todayX, contentHeight.toPx()),
+                        strokeWidth = (8.dp * strokeFactor).toPx()
+                    )
+                    drawLine(
                         color = todayLineColor.copy(alpha = TODAY_LINE_ALPHA),
                         start = Offset(todayX, 0f),
                         end = Offset(todayX, contentHeight.toPx()),
-                        strokeWidth = edgeStroke * 1.6f
+                        strokeWidth = hairline
                     )
                 }
 
                 // 接続線。配置のときに、カードを避けて別の線と重ならない道を計算してある。
-                // 木の線は親の階層色、予定どうしのリンクは破線で描く。
-                // 同じ親から出る線は途中で重なる。1本ずつ半透明で塗ると重なりが濃くなるので、
-                // 親ごと(強調する/しないごと)に1つの経路にまとめて塗る。強調する線は最後に描く。
-                val groups = layout.routes.filter { it.points.size >= 2 }.groupBy { route ->
-                    val highlighted = selectedNodeId == null ||
-                        selectedNodeId == route.fromId ||
-                        selectedNodeId == route.toId
-                    Triple(
-                        if (route.kind == RouteKind.PEER) "peer:${route.fromId}|${route.toId}" else "tree:${route.fromId}",
-                        route.kind,
-                        highlighted
-                    )
-                }
-                groups.entries.sortedBy { it.key.third }.forEach { (key, routes) ->
+                // 木の線は親ごとの色(子が1つだけの親は無彩色)、予定どうしのリンクは破線で描く。
+                routeGroups.forEach { (key, routes) ->
                     val isPeer = key.second == RouteKind.PEER
                     val highlighted = key.third
-                    val baseColor = if (isPeer) peerLinkColor else routes.first().parentTier.color(isDark)
+                    val slot = routes.first().colorSlot
+                    val baseColor = when {
+                        isPeer -> peerLinkColor
+                        slot >= 0 -> connectorColor(slot, isDark)
+                        else -> neutralLineColor
+                    }
                     val color = when {
                         !highlighted -> baseColor.copy(alpha = DIMMED_LINE_ALPHA)
                         selectedNodeId != null || isPeer -> baseColor
-                        else -> baseColor.copy(alpha = CONNECTOR_ALPHA)
+                        slot >= 0 -> baseColor.copy(alpha = CONNECTOR_ALPHA)
+                        else -> baseColor.copy(alpha = NEUTRAL_CONNECTOR_ALPHA)
                     }
                     val path = Path().apply {
                         routes.forEach { route ->
@@ -419,9 +491,23 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                             width = if (selectedNodeId != null && highlighted) edgeStroke * 1.6f else edgeStroke,
                             cap = StrokeCap.Round,
                             join = StrokeJoin.Round,
-                            pathEffect = if (isPeer) PathEffect.dashPathEffect(floatArrayOf(10f, 8f)) else null
+                            pathEffect = if (isPeer) {
+                                PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx() * strokeFactor, 5.dp.toPx() * strokeFactor))
+                            } else {
+                                null
+                            }
                         )
                     )
+                    // 線の両端に丸をつけ、どのカードのどこから出てどこへ入るのかを分かりやすくする。
+                    if (!isPeer) {
+                        val radius = (if (selectedNodeId != null && highlighted) 4.dp else 2.5.dp).toPx() * strokeFactor
+                        routes.map { it.startAnchor }.distinct().forEach { p ->
+                            drawCircle(color, radius, Offset(p.x.dp.toPx(), p.y.dp.toPx()))
+                        }
+                        routes.forEach { route ->
+                            drawCircle(color, radius, Offset(route.endAnchor.x.dp.toPx(), route.endAnchor.y.dp.toPx()))
+                        }
+                    }
                 }
             }
 
@@ -431,6 +517,7 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                     node = node,
                     scale = scale,
                     isSelected = selectedNodeId == node.id,
+                    branchColor = branchSlotByChild[node.id]?.let { connectorColor(it, isDark) },
                     modifier = Modifier.offset(x = box.left.dp, y = box.top.dp),
                     onClick = { onNodeClick(node) },
                     onLongClick = {
@@ -448,6 +535,8 @@ private fun TreeNodeCard(
     node: TreeNode,
     scale: Float,
     isSelected: Boolean,
+    /** 親から来る線の色。左端に同じ色の帯をつけて、どの線につながるカードかを分かりやすくする。 */
+    branchColor: Color?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit
@@ -473,11 +562,20 @@ private fun TreeNodeCard(
             .counterScale(scale)
             .clip(shape)
             .background(fillColor)
+            .then(
+                if (branchColor == null) {
+                    Modifier
+                } else {
+                    Modifier.drawBehind {
+                        drawRect(color = branchColor, size = Size(BRANCH_STRIPE_WIDTH.toPx(), size.height))
+                    }
+                }
+            )
             // 長押しで選ぶと、そのノードに関わる線だけが強調されるので、
             // 選択中であることが分かるよう枠を太くする。
             .border(if (isSelected) 3.dp else 1.5.dp, borderColor, shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(start = 14.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
         // 配線は高さNODE_HEIGHTのカードとして計算しているので、副題がなくても高さは変えない。
         verticalArrangement = Arrangement.Center
     ) {
