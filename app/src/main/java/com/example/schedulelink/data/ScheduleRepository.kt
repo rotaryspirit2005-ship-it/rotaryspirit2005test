@@ -3,6 +3,7 @@ package com.example.schedulelink.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -131,6 +132,8 @@ class ScheduleRepository(
     suspend fun saveSchedule(schedule: ScheduleEntity, linkedIds: Set<String>, shiftLinkedByDays: Long = 0): String {
         val docRef = if (schedule.id.isBlank()) collection.document() else collection.document(schedule.id)
         val id = docRef.id
+        // 本体の保存より先にずらす: 本体の保存はオフラインだと応答待ちになり、その間に画面を
+        // 離れると後のずらし処理が実行されず、リンク先だけ元の日付に残ってしまうため。
         if (shiftLinkedByDays != 0L) shiftSchedulesByDays(linkedIds - id, shiftLinkedByDays)
         // 上書きしてしまう前に、差分を取るための「変更前のリンク」を読んでおく。
         val previousLinkedIds = if (schedule.id.isBlank()) {
@@ -144,23 +147,25 @@ class ScheduleRepository(
     }
 
     /**
-     * 指定した予定の日付を[days]日ずらす(負なら前へ)。1つにまとめて書き込み、完了は待たない
-     * (オフラインで応答待ちになり保存まで止まらないようにするため。端末に保留され、通信が
-     * 戻れば反映される)。相手が見つからない・読めない場合は、その予定だけ飛ばす。
+     * 指定した予定の日付を[days]日ずらす(負なら前へ)。書き込みは完了を待たない(オフラインで
+     * 応答待ちになり保存まで止まらないようにするため。端末に保留され、通信が戻れば反映される)。
+     * 相手が見つからない・読めない場合は、その予定だけ飛ばす。予定ごとに独立して書くので、
+     * 途中で1件が削除されても他の予定のずらしは失われない。
      */
     private suspend fun shiftSchedulesByDays(ids: Set<String>, days: Long) {
-        if (ids.isEmpty()) return
-        val batch = firestore.batch()
-        var count = 0
         ids.forEach { otherId ->
             val ref = collection.document(otherId)
-            val snap = runCatching { ref.get().await() }.getOrNull()
+            val snap = try {
+                ref.get().await()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
             if (snap != null && snap.exists()) {
-                batch.update(ref, "date", snap.toSchedule().date.plusDays(days).toString())
-                count++
+                ref.update("date", snap.toSchedule().date.plusDays(days).toString())
             }
         }
-        if (count > 0) batch.commit()
     }
 
     /**

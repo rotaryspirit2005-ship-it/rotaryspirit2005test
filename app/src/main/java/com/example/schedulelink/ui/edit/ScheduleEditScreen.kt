@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -48,6 +49,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
@@ -73,7 +75,8 @@ private fun signedDays(days: Long): String = if (days > 0) "+${days}日" else "�
 /** リンクした予定も同じ日数ずらすかを選ぶ行。行全体をタップで切り替えられる(48dp以上)。 */
 @Composable
 private fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, count: Int, days: Long) {
-    InfoPanel(modifier = Modifier.clickable { onCheckedChange(!checked) }) {
+    // 行全体を1つのスイッチとして操作できるようにする(読み上げでも対象が重ならない)。
+    InfoPanel(modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -86,7 +89,7 @@ private fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Switch(checked = checked, onCheckedChange = null)
         }
     }
 }
@@ -329,12 +332,11 @@ fun ScheduleEditScreen(
                                     photoUrls = existingPhotoUrls
                                 )
                                 val shiftDays = if (shiftActive) dayShift else 0L
-                                val shiftedCount = shiftTargets.size
                                 viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftDays) {
                                     if (shiftDays != 0L) {
                                         Toast.makeText(
                                             context,
-                                            "リンクした予定 ${shiftedCount}件を${signedDays(shiftDays)}ずらしました",
+                                            "リンクした予定の日付を${signedDays(shiftDays)}ずらしました",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
