@@ -39,11 +39,11 @@ class AppViewModelFactory(
             modelClass.isAssignableFrom(GoalListViewModel::class.java) ->
                 GoalListViewModel(goalRepository, milestoneRepository) as T
             modelClass.isAssignableFrom(GoalEditViewModel::class.java) ->
-                GoalEditViewModel(goalRepository, photoStorageRepository) as T
+                GoalEditViewModel(goalRepository, milestoneRepository, repository, photoStorageRepository) as T
             modelClass.isAssignableFrom(GoalDetailViewModel::class.java) ->
                 GoalDetailViewModel(goalRepository, milestoneRepository) as T
             modelClass.isAssignableFrom(MilestoneEditViewModel::class.java) ->
-                MilestoneEditViewModel(milestoneRepository, photoStorageRepository) as T
+                MilestoneEditViewModel(milestoneRepository, repository, photoStorageRepository) as T
             modelClass.isAssignableFrom(MilestoneDetailViewModel::class.java) ->
                 MilestoneDetailViewModel(milestoneRepository, repository) as T
             modelClass.isAssignableFrom(MonthViewModel::class.java) ->

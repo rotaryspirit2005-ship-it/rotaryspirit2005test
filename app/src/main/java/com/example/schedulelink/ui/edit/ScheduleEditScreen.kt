@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -33,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,14 +47,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
-import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SectionHeader
+import com.example.schedulelink.ui.common.ShiftLinkedRow
+import com.example.schedulelink.ui.common.shortDateFormatter
+import com.example.schedulelink.ui.common.signedDays
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import java.time.Instant
 import java.time.LocalDate
@@ -67,32 +66,6 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Locale.JAPAN)
-private val shortDateFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
-
-/** 「+2日」「−3日」(マイナスは−(U+2212)で、プラスと同じ幅に見えるようにする)。 */
-private fun signedDays(days: Long): String = if (days > 0) "+${days}日" else "−${-days}日"
-
-/** リンクした予定も同じ日数ずらすかを選ぶ行。行全体をタップで切り替えられる(48dp以上)。 */
-@Composable
-private fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, count: Int, days: Long) {
-    // 行全体を1つのスイッチとして操作できるようにする(読み上げでも対象が重ならない)。
-    InfoPanel(modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "リンクした予定 ${count}件も ${signedDays(days)}ずらす",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    "日付だけを同じ日数ずらします(時刻はそのまま)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(checked = checked, onCheckedChange = null)
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -259,8 +232,7 @@ fun ScheduleEditScreen(
                     ShiftLinkedRow(
                         checked = shiftLinked,
                         onCheckedChange = { shiftLinked = it },
-                        count = shiftTargets.size,
-                        days = dayShift
+                        label = "リンクした予定 ${shiftTargets.size}件も ${signedDays(dayShift)}ずらす"
                     )
                 }
 

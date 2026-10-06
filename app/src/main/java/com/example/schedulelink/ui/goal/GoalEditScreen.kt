@@ -1,6 +1,7 @@
 package com.example.schedulelink.ui.goal
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,11 +31,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalType
@@ -42,6 +45,12 @@ import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SelectableChip
+import com.example.schedulelink.ui.common.ShiftLinkedRow
+import com.example.schedulelink.ui.common.ShiftMilestoneChecklist
+import com.example.schedulelink.ui.common.ShiftScheduleChecklist
+import com.example.schedulelink.ui.common.rangeShiftDays
+import com.example.schedulelink.ui.common.signedDays
+import kotlinx.coroutines.flow.flowOf
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -70,6 +79,39 @@ fun GoalEditScreen(
     var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    val context = LocalContext.current
+
+    // 期間を平行移動したときに、この大目的の中日程・予定も同じ日数ずらすオプション。
+    // 元の日付は「もともと日付がなかった(習慣型)」かどうかも区別するため別に持つ。
+    var originalStart by remember { mutableStateOf<LocalDate?>(null) }
+    var originalEnd by remember { mutableStateOf<LocalDate?>(null) }
+    var shiftLinked by remember { mutableStateOf(false) }
+    var excludedMilestoneIds by remember { mutableStateOf(setOf<String>()) }
+    var excludedScheduleIds by remember { mutableStateOf(setOf<String>()) }
+    val milestonesFlow = remember(goalId) {
+        if (goalId != null) viewModel.milestonesOfGoal(goalId) else flowOf(emptyList())
+    }
+    val schedulesFlow = remember(goalId) {
+        if (goalId != null) viewModel.schedulesOfGoal(goalId) else flowOf(emptyList())
+    }
+    val goalMilestones by milestonesFlow.collectAsState(initial = emptyList())
+    val goalSchedules by schedulesFlow.collectAsState(initial = emptyList())
+    // 期間(開始・終了)が両方ある中日程だけをずらす対象にする。
+    val shiftableMilestones = goalMilestones.filter { it.startDate != null && it.endDate != null }
+    val milestoneTitleById = goalMilestones.associate { it.id to it.title }
+    val dayShift = rangeShiftDays(
+        originalStart,
+        originalEnd,
+        if (type == GoalType.PHASED) startDate else null,
+        if (type == GoalType.PHASED) endDate else null
+    )
+    val canShiftLinked = goalId != null && dayShift != null &&
+        (shiftableMilestones.isNotEmpty() || goalSchedules.isNotEmpty())
+    LaunchedEffect(canShiftLinked) { if (!canShiftLinked) shiftLinked = false }
+    val activeShift = if (shiftLinked && canShiftLinked) dayShift ?: 0L else 0L
+    // 最初は全件チェック済み。外したものだけ除く(あとから増えた項目も自動でチェック済みになる)。
+    val selectedMilestones = shiftableMilestones.filter { it.id !in excludedMilestoneIds }
+    val selectedSchedules = goalSchedules.filter { it.id !in excludedScheduleIds }
 
     LaunchedEffect(goalId) {
         if (goalId != null) {
@@ -77,6 +119,8 @@ fun GoalEditScreen(
                 title = goal.title
                 memo = goal.memo
                 type = goal.type
+                originalStart = goal.startDate
+                originalEnd = goal.endDate
                 goal.startDate?.let { startDate = it }
                 goal.endDate?.let { endDate = it }
                 existingPhotoUrls = goal.photoUrls
@@ -171,6 +215,40 @@ fun GoalEditScreen(
                 )
             }
 
+            if (canShiftLinked && dayShift != null) {
+                val parts = listOfNotNull(
+                    if (selectedMilestones.isNotEmpty()) "中日程 ${selectedMilestones.size}件" else null,
+                    if (selectedSchedules.isNotEmpty()) "予定 ${selectedSchedules.size}件" else null
+                )
+                ShiftLinkedRow(
+                    checked = shiftLinked,
+                    onCheckedChange = { shiftLinked = it },
+                    label = (if (parts.isEmpty()) "リンクした項目" else parts.joinToString("・")) +
+                        "も ${signedDays(dayShift)}ずらす"
+                )
+                if (shiftLinked) {
+                    if (shiftableMilestones.isNotEmpty()) {
+                        ShiftMilestoneChecklist(
+                            header = "ずらす中日程",
+                            milestones = shiftableMilestones,
+                            excludedIds = excludedMilestoneIds,
+                            onExcludedChange = { excludedMilestoneIds = it },
+                            days = dayShift
+                        )
+                    }
+                    if (goalSchedules.isNotEmpty()) {
+                        ShiftScheduleChecklist(
+                            header = "ずらす予定",
+                            schedules = goalSchedules,
+                            excludedIds = excludedScheduleIds,
+                            onExcludedChange = { excludedScheduleIds = it },
+                            days = dayShift,
+                            prefixOf = { schedule -> schedule.milestoneId?.let { milestoneTitleById[it] } }
+                        )
+                    }
+                }
+            }
+
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
@@ -192,7 +270,21 @@ fun GoalEditScreen(
                             endDate = if (type == GoalType.PHASED) endDate else null,
                             photoUrls = existingPhotoUrls
                         )
-                        viewModel.save(goal, pendingPhotoUris, removedPhotoUrls) { onSaved() }
+                        val shiftsAnything = activeShift != 0L &&
+                            (selectedMilestones.isNotEmpty() || selectedSchedules.isNotEmpty())
+                        val toastText = (if (selectedMilestones.isNotEmpty()) "リンクした中日程・予定" else "リンクした予定") +
+                            "の日付を${signedDays(activeShift)}ずらしました"
+                        viewModel.save(
+                            goal,
+                            pendingPhotoUris,
+                            removedPhotoUrls,
+                            shiftMilestoneIds = if (activeShift != 0L) selectedMilestones.map { it.id }.toSet() else emptySet(),
+                            shiftScheduleIds = if (activeShift != 0L) selectedSchedules.map { it.id }.toSet() else emptySet(),
+                            shiftDays = activeShift
+                        ) {
+                            if (shiftsAnything) Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+                            onSaved()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

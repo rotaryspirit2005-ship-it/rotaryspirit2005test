@@ -1,6 +1,7 @@
 package com.example.schedulelink.ui.milestone
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,11 +31,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
@@ -42,6 +45,11 @@ import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SelectableChip
+import com.example.schedulelink.ui.common.ShiftLinkedRow
+import com.example.schedulelink.ui.common.ShiftScheduleChecklist
+import com.example.schedulelink.ui.common.rangeShiftDays
+import com.example.schedulelink.ui.common.signedDays
+import kotlinx.coroutines.flow.flowOf
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -71,6 +79,24 @@ fun MilestoneEditScreen(
     var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    val context = LocalContext.current
+
+    // 期間を平行移動したときに、この中日程の予定も同じ日数ずらすオプション。元の日付は
+    // 「もともと日付がなかった」かどうかも区別するため、画面の初期値とは別に持つ。
+    var originalStart by remember { mutableStateOf<LocalDate?>(null) }
+    var originalEnd by remember { mutableStateOf<LocalDate?>(null) }
+    var shiftLinked by remember { mutableStateOf(false) }
+    var excludedScheduleIds by remember { mutableStateOf(setOf<String>()) }
+    val schedulesFlow = remember(milestoneId) {
+        if (milestoneId != null) viewModel.schedulesOfMilestone(milestoneId) else flowOf(emptyList())
+    }
+    val milestoneSchedules by schedulesFlow.collectAsState(initial = emptyList())
+    val dayShift = rangeShiftDays(originalStart, originalEnd, startDate, endDate)
+    val canShiftLinked = milestoneId != null && dayShift != null && milestoneSchedules.isNotEmpty()
+    LaunchedEffect(canShiftLinked) { if (!canShiftLinked) shiftLinked = false }
+    val activeShift = if (shiftLinked && canShiftLinked) dayShift ?: 0L else 0L
+    // 最初は全件チェック済み。外したものだけ除く(あとから増えた予定も自動でチェック済みになる)。
+    val selectedSchedules = milestoneSchedules.filter { it.id !in excludedScheduleIds }
 
     LaunchedEffect(milestoneId) {
         if (milestoneId != null) {
@@ -78,6 +104,8 @@ fun MilestoneEditScreen(
                 title = milestone.title
                 memo = milestone.memo
                 status = milestone.status
+                originalStart = milestone.startDate
+                originalEnd = milestone.endDate
                 milestone.startDate?.let { startDate = it }
                 milestone.endDate?.let { endDate = it }
                 existingPhotoUrls = milestone.photoUrls
@@ -175,6 +203,23 @@ fun MilestoneEditScreen(
                 )
             }
 
+            if (canShiftLinked && dayShift != null) {
+                ShiftLinkedRow(
+                    checked = shiftLinked,
+                    onCheckedChange = { shiftLinked = it },
+                    label = "この中日程の予定 ${selectedSchedules.size}件も ${signedDays(dayShift)}ずらす"
+                )
+                if (shiftLinked) {
+                    ShiftScheduleChecklist(
+                        header = "ずらす予定",
+                        schedules = milestoneSchedules,
+                        excludedIds = excludedScheduleIds,
+                        onExcludedChange = { excludedScheduleIds = it },
+                        days = dayShift
+                    )
+                }
+            }
+
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
@@ -197,7 +242,22 @@ fun MilestoneEditScreen(
                             status = status,
                             photoUrls = existingPhotoUrls
                         )
-                        viewModel.save(milestone, pendingPhotoUris, removedPhotoUrls) { onSaved() }
+                        viewModel.save(
+                            milestone,
+                            pendingPhotoUris,
+                            removedPhotoUrls,
+                            shiftScheduleIds = if (activeShift != 0L) selectedSchedules.map { it.id }.toSet() else emptySet(),
+                            shiftDays = activeShift
+                        ) {
+                            if (activeShift != 0L && selectedSchedules.isNotEmpty()) {
+                                Toast.makeText(
+                                    context,
+                                    "リンクした予定の日付を${signedDays(activeShift)}ずらしました",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            onSaved()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

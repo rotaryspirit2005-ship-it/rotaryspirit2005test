@@ -152,7 +152,7 @@ class ScheduleRepository(
      * 相手が見つからない・読めない場合は、その予定だけ飛ばす。予定ごとに独立して書くので、
      * 途中で1件が削除されても他の予定のずらしは失われない。
      */
-    private suspend fun shiftSchedulesByDays(ids: Set<String>, days: Long) {
+    suspend fun shiftSchedulesByDays(ids: Set<String>, days: Long) {
         ids.forEach { otherId ->
             val ref = collection.document(otherId)
             val snap = try {
