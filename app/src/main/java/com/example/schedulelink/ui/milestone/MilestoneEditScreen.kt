@@ -46,6 +46,7 @@ import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SelectableChip
 import com.example.schedulelink.ui.common.ShiftLinkedRow
+import com.example.schedulelink.ui.common.periodShiftHint
 import com.example.schedulelink.ui.common.ShiftScheduleChecklist
 import com.example.schedulelink.ui.common.rangeShiftDays
 import com.example.schedulelink.ui.common.signedDays
@@ -93,7 +94,6 @@ fun MilestoneEditScreen(
     val milestoneSchedules by schedulesFlow.collectAsState(initial = emptyList())
     val dayShift = rangeShiftDays(originalStart, originalEnd, startDate, endDate)
     val canShiftLinked = milestoneId != null && dayShift != null && milestoneSchedules.isNotEmpty()
-    LaunchedEffect(canShiftLinked) { if (!canShiftLinked) shiftLinked = false }
     val activeShift = if (shiftLinked && canShiftLinked) dayShift ?: 0L else 0L
     // 最初は全件チェック済み。外したものだけ除く(あとから増えた予定も自動でチェック済みになる)。
     val selectedSchedules = milestoneSchedules.filter { it.id !in excludedScheduleIds }
@@ -190,6 +190,32 @@ fun MilestoneEditScreen(
                 )
             }
 
+            // スイッチは常に出して操作できる(選んだ状態は保たれ、期間を平行移動した時点で効く)。
+            ShiftLinkedRow(
+                checked = shiftLinked,
+                onCheckedChange = { shiftLinked = it },
+                label = if (canShiftLinked && dayShift != null) {
+                    "この中日程の予定 ${selectedSchedules.size}件も ${signedDays(dayShift)}ずらす"
+                } else {
+                    "この中日程の予定も同じ日数ずらす"
+                },
+                hint = when {
+                    canShiftLinked -> null
+                    milestoneId == null -> "新しい中日程には、ずらす予定がまだありません"
+                    milestoneSchedules.isEmpty() -> "この中日程にはずらす予定がありません"
+                    else -> periodShiftHint(originalStart, originalEnd, startDate, endDate, "この中日程の予定")
+                }
+            )
+            if (shiftLinked && canShiftLinked && dayShift != null) {
+                ShiftScheduleChecklist(
+                    header = "ずらす予定",
+                    schedules = milestoneSchedules,
+                    excludedIds = excludedScheduleIds,
+                    onExcludedChange = { excludedScheduleIds = it },
+                    days = dayShift
+                )
+            }
+
             if (isPhotoFeatureEnabled) {
                 PhotoAttachmentSection(
                     existingUrls = existingPhotoUrls,
@@ -201,23 +227,6 @@ fun MilestoneEditScreen(
                     },
                     onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
                 )
-            }
-
-            if (canShiftLinked && dayShift != null) {
-                ShiftLinkedRow(
-                    checked = shiftLinked,
-                    onCheckedChange = { shiftLinked = it },
-                    label = "この中日程の予定 ${selectedSchedules.size}件も ${signedDays(dayShift)}ずらす"
-                )
-                if (shiftLinked) {
-                    ShiftScheduleChecklist(
-                        header = "ずらす予定",
-                        schedules = milestoneSchedules,
-                        excludedIds = excludedScheduleIds,
-                        onExcludedChange = { excludedScheduleIds = it },
-                        days = dayShift
-                    )
-                }
             }
 
             errorMessage?.let {

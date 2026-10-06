@@ -123,12 +123,12 @@ fun ScheduleEditScreen(
     val candidateLinks = allSchedules.filter { it.id != scheduleId }
     val allMilestones by viewModel.allMilestones.collectAsState()
 
-    // リンクした予定も一緒にずらすオプション。編集時に日付を変え、ずらす対象(いま
-    // チェックが入っている予定)が1件以上あるときだけ出す。日付を元に戻したら選択も戻す。
+    // リンクした予定も一緒にずらすオプション。スイッチは常に出して操作できる。編集時に日付を変え、
+    // ずらす対象(いまチェックが入っている予定)が1件以上あるときだけ実際に効く
+    // (先にスイッチを入れてから日付を変えてもよい)。
     val dayShift = originalDate?.let { ChronoUnit.DAYS.between(it, date) } ?: 0L
     val shiftTargets = candidateLinks.filter { it.id in linkedIds }
     val canShiftLinked = scheduleId != null && dayShift != 0L && shiftTargets.isNotEmpty()
-    LaunchedEffect(canShiftLinked) { if (!canShiftLinked) shiftLinked = false }
     val shiftActive = shiftLinked && canShiftLinked
     val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
@@ -228,13 +228,22 @@ fun ScheduleEditScreen(
 
                 SectionHeader("関連する行動予定")
 
-                if (canShiftLinked) {
-                    ShiftLinkedRow(
-                        checked = shiftLinked,
-                        onCheckedChange = { shiftLinked = it },
-                        label = "リンクした予定 ${shiftTargets.size}件も ${signedDays(dayShift)}ずらす"
-                    )
-                }
+                ShiftLinkedRow(
+                    checked = shiftLinked,
+                    onCheckedChange = { shiftLinked = it },
+                    label = if (canShiftLinked) {
+                        "リンクした予定 ${shiftTargets.size}件も ${signedDays(dayShift)}ずらす"
+                    } else {
+                        "リンクした予定も同じ日数ずらす"
+                    },
+                    hint = when {
+                        canShiftLinked -> null
+                        scheduleId == null -> "保存したあとの編集で、リンクした予定を一緒にずらせます"
+                        candidateLinks.isEmpty() -> "リンクできる予定がありません"
+                        dayShift == 0L -> "日付を変えると、リンクした予定も同じ日数ずらせます"
+                        else -> "下の一覧でリンクする予定を選ぶと対象になります"
+                    }
+                )
 
                 if (candidateLinks.isEmpty()) {
                     Text(

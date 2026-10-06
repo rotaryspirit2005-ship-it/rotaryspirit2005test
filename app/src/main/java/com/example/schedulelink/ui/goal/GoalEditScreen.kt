@@ -46,6 +46,7 @@ import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SelectableChip
 import com.example.schedulelink.ui.common.ShiftLinkedRow
+import com.example.schedulelink.ui.common.periodShiftHint
 import com.example.schedulelink.ui.common.ShiftMilestoneChecklist
 import com.example.schedulelink.ui.common.ShiftScheduleChecklist
 import com.example.schedulelink.ui.common.rangeShiftDays
@@ -107,7 +108,6 @@ fun GoalEditScreen(
     )
     val canShiftLinked = goalId != null && dayShift != null &&
         (shiftableMilestones.isNotEmpty() || goalSchedules.isNotEmpty())
-    LaunchedEffect(canShiftLinked) { if (!canShiftLinked) shiftLinked = false }
     val activeShift = if (shiftLinked && canShiftLinked) dayShift ?: 0L else 0L
     // 最初は全件チェック済み。外したものだけ除く(あとから増えた項目も自動でチェック済みになる)。
     val selectedMilestones = shiftableMilestones.filter { it.id !in excludedMilestoneIds }
@@ -202,6 +202,55 @@ fun GoalEditScreen(
                 }
             }
 
+            // スイッチは常に出して操作できる(選んだ状態は保たれ、期間を平行移動した時点で効く)。
+            val shiftParts = listOfNotNull(
+                if (selectedMilestones.isNotEmpty()) "中日程 ${selectedMilestones.size}件" else null,
+                if (selectedSchedules.isNotEmpty()) "予定 ${selectedSchedules.size}件" else null
+            )
+            ShiftLinkedRow(
+                checked = shiftLinked,
+                onCheckedChange = { shiftLinked = it },
+                label = if (canShiftLinked && dayShift != null) {
+                    (if (shiftParts.isEmpty()) "リンクした項目" else shiftParts.joinToString("・")) +
+                        "も ${signedDays(dayShift)}ずらす"
+                } else {
+                    "中日程・予定も同じ日数ずらす"
+                },
+                hint = when {
+                    canShiftLinked -> null
+                    goalId == null -> "新しい目的には、ずらす中日程・予定がまだありません"
+                    shiftableMilestones.isEmpty() && goalSchedules.isEmpty() -> "ずらす中日程・予定がありません"
+                    else -> periodShiftHint(
+                        originalStart,
+                        originalEnd,
+                        if (type == GoalType.PHASED) startDate else null,
+                        if (type == GoalType.PHASED) endDate else null,
+                        "中日程・予定"
+                    )
+                }
+            )
+            if (shiftLinked && canShiftLinked && dayShift != null) {
+                if (shiftableMilestones.isNotEmpty()) {
+                    ShiftMilestoneChecklist(
+                        header = "ずらす中日程",
+                        milestones = shiftableMilestones,
+                        excludedIds = excludedMilestoneIds,
+                        onExcludedChange = { excludedMilestoneIds = it },
+                        days = dayShift
+                    )
+                }
+                if (goalSchedules.isNotEmpty()) {
+                    ShiftScheduleChecklist(
+                        header = "ずらす予定",
+                        schedules = goalSchedules,
+                        excludedIds = excludedScheduleIds,
+                        onExcludedChange = { excludedScheduleIds = it },
+                        days = dayShift,
+                        prefixOf = { schedule -> schedule.milestoneId?.let { milestoneTitleById[it] } }
+                    )
+                }
+            }
+
             if (isPhotoFeatureEnabled) {
                 PhotoAttachmentSection(
                     existingUrls = existingPhotoUrls,
@@ -213,40 +262,6 @@ fun GoalEditScreen(
                     },
                     onRemovePending = { uri -> pendingPhotoUris = pendingPhotoUris - uri }
                 )
-            }
-
-            if (canShiftLinked && dayShift != null) {
-                val parts = listOfNotNull(
-                    if (selectedMilestones.isNotEmpty()) "中日程 ${selectedMilestones.size}件" else null,
-                    if (selectedSchedules.isNotEmpty()) "予定 ${selectedSchedules.size}件" else null
-                )
-                ShiftLinkedRow(
-                    checked = shiftLinked,
-                    onCheckedChange = { shiftLinked = it },
-                    label = (if (parts.isEmpty()) "リンクした項目" else parts.joinToString("・")) +
-                        "も ${signedDays(dayShift)}ずらす"
-                )
-                if (shiftLinked) {
-                    if (shiftableMilestones.isNotEmpty()) {
-                        ShiftMilestoneChecklist(
-                            header = "ずらす中日程",
-                            milestones = shiftableMilestones,
-                            excludedIds = excludedMilestoneIds,
-                            onExcludedChange = { excludedMilestoneIds = it },
-                            days = dayShift
-                        )
-                    }
-                    if (goalSchedules.isNotEmpty()) {
-                        ShiftScheduleChecklist(
-                            header = "ずらす予定",
-                            schedules = goalSchedules,
-                            excludedIds = excludedScheduleIds,
-                            onExcludedChange = { excludedScheduleIds = it },
-                            days = dayShift,
-                            prefixOf = { schedule -> schedule.milestoneId?.let { milestoneTitleById[it] } }
-                        )
-                    }
-                }
             }
 
             errorMessage?.let {

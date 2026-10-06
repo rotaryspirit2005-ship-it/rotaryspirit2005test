@@ -16,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
@@ -45,15 +47,46 @@ fun rangeShiftDays(oldStart: LocalDate?, oldEnd: LocalDate?, newStart: LocalDate
     return if (startShift == endShift && startShift != 0L) startShift else null
 }
 
-/** ずらすかどうかを選ぶ行。行全体を1つのスイッチとして操作できる(読み上げでも対象が重ならない)。 */
+/**
+ * 「期間をずらしても使えない」ときの案内文。期間(開始・終了)が元から無い・習慣型になった・
+ * まだ動かしていない・長さが変わった、のどれなのかを書き分ける。[targets]は「中日程・予定」など。
+ */
+fun periodShiftHint(
+    oldStart: LocalDate?,
+    oldEnd: LocalDate?,
+    newStart: LocalDate?,
+    newEnd: LocalDate?,
+    targets: String
+): String = when {
+    oldStart == null || oldEnd == null -> "もともと期間が未設定のため、ずらせません"
+    newStart == null || newEnd == null -> "継続する習慣には期間がないため、ずらせません"
+    newStart == oldStart && newEnd == oldEnd -> "日付を変えると、${targets}も同じ日数ずらせます"
+    else -> "開始日と終了日を同じ日数だけ動かすと使えます(いまは期間の長さが変わっています)"
+}
+
+/**
+ * ずらすかどうかを選ぶ行。行全体を1つのスイッチとして操作できる(読み上げでも対象が重ならない)。
+ * スイッチは常に操作できる。ずらせる状態でない間は、[hint]で理由を見せる(選んだ状態は保たれ、
+ * 条件がそろった時点で効く)。[hint]がnullならずらせる状態。
+ */
 @Composable
-fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
-    InfoPanel(modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)) {
+fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, hint: String? = null) {
+    val supporting = when {
+        hint == null -> "日付だけを同じ日数ずらします(時刻はそのまま)"
+        checked -> "$hint(オンにしています)"
+        else -> hint
+    }
+    val stateText = if (hint != null && checked) "オン、条件がそろうと適用されます" else null
+    InfoPanel(
+        modifier = Modifier
+            .semantics(mergeDescendants = true) { stateText?.let { stateDescription = it } }
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "日付だけを同じ日数ずらします(時刻はそのまま)",
+                    supporting,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
