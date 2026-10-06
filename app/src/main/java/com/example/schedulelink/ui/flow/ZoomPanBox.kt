@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +20,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.exp
@@ -31,6 +33,18 @@ private const val DOUBLE_TAP_TIMEOUT_MILLIS = 300L
 private const val DOUBLE_TAP_SLOP_DP = 32f
 /** ドラッグ何dp分で拡大率がおよそe倍(≒2.7倍)変わるか。小さいほど指の動きに敏感になる。 */
 private const val ONE_FINGER_ZOOM_SENSITIVITY_DP = 250f
+
+/**
+ * [ZoomPanBox]の現在の拡大率・移動量・大きさ。コンテンツの外側(画面の座標)に背景やルーラーを
+ * 描きたいとき([ZoomPanBox]の`backdrop`/`overlay`)に使う。再コンポーズを避けるため、
+ * 描画のラムダの中で読むこと。
+ */
+@Stable
+class ZoomPanState {
+    var scale by mutableFloatStateOf(1f)
+    var offset by mutableStateOf(Offset.Zero)
+    var size by mutableStateOf(IntSize.Zero)
+}
 
 /**
  * ピンチで拡大・縮小、ドラッグでパンできるコンテナ。
@@ -48,26 +62,28 @@ private const val ONE_FINGER_ZOOM_SENSITIVITY_DP = 250f
 fun ZoomPanBox(
     modifier: Modifier = Modifier,
     initialFocusX: Dp? = null,
+    backdrop: @Composable (ZoomPanState) -> Unit = {},
+    overlay: @Composable (ZoomPanState) -> Unit = {},
     content: @Composable (scale: Float) -> Unit
 ) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    val state = remember { ZoomPanState() }
     var hasAppliedInitialFocus by remember { mutableStateOf(false) }
     val density = LocalDensity.current
 
     Box(
         modifier = modifier
             .onSizeChanged { size ->
+                state.size = size
                 if (!hasAppliedInitialFocus && initialFocusX != null) {
                     hasAppliedInitialFocus = true
                     val focusPx = with(density) { initialFocusX.toPx() }
-                    offset = Offset(size.width / 2f - focusPx, offset.y)
+                    state.offset = Offset(size.width / 2f - focusPx, state.offset.y)
                 }
             }
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(MIN_SCALE, MAX_SCALE)
-                    offset += pan
+                    state.scale = (state.scale * zoom).coerceIn(MIN_SCALE, MAX_SCALE)
+                    state.offset += pan
                 }
             }
             .pointerInput(Unit) {
@@ -84,12 +100,12 @@ fun ZoomPanBox(
 
                     if (isSecondTapOfDoubleTap) {
                         val referenceY = down.position.y
-                        val referenceScale = scale
+                        val referenceScale = state.scale
                         // 2回目にタップした場所を拡大縮小の中心にする。その場所が
                         // 指す「コンテンツ上の点」を先に求めておき、スケールが変わる
                         // たびにその点が同じ画面位置に留まるようoffsetを補正し続ける。
                         val focalScreen = down.position
-                        val focalContent = (focalScreen - offset) / referenceScale
+                        val focalContent = (focalScreen - state.offset) / referenceScale
                         while (true) {
                             val event = awaitPointerEvent(pass = PointerEventPass.Initial)
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -98,8 +114,8 @@ fun ZoomPanBox(
                             // 上にドラッグ(deltaYが負)ほど縮小、下にドラッグほど拡大する。
                             val factor = exp(deltaY / sensitivityPx)
                             val newScale = (referenceScale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
-                            scale = newScale
-                            offset = focalScreen - focalContent * newScale
+                            state.scale = newScale
+                            state.offset = focalScreen - focalContent * newScale
                             change.consume()
                         }
                         lastUpTimeMillis = 0L
@@ -115,16 +131,19 @@ fun ZoomPanBox(
                 }
             }
     ) {
+        // 背景は画面の座標のまま描く(線の太さが拡大縮小で変わらず、見えている範囲だけ描ける)。
+        backdrop(state)
         Box(
             modifier = Modifier.graphicsLayer(
-                scaleX = scale,
-                scaleY = scale,
-                translationX = offset.x,
-                translationY = offset.y,
+                scaleX = state.scale,
+                scaleY = state.scale,
+                translationX = state.offset.x,
+                translationY = state.offset.y,
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
             )
         ) {
-            content(scale)
+            content(state.scale)
         }
+        overlay(state)
     }
 }

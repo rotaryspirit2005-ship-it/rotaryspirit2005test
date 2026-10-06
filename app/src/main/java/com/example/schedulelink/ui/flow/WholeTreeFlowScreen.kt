@@ -60,11 +60,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.theme.DarkOnError
 import com.example.schedulelink.ui.theme.GoalColorDark
 import com.example.schedulelink.ui.theme.GoalColorLight
 import com.example.schedulelink.ui.theme.LocalIsDarkTheme
@@ -72,46 +74,25 @@ import com.example.schedulelink.ui.theme.MilestoneColorDark
 import com.example.schedulelink.ui.theme.MilestoneColorLight
 import com.example.schedulelink.ui.theme.PeerLinkColorDark
 import com.example.schedulelink.ui.theme.PeerLinkColorLight
+import com.example.schedulelink.ui.theme.SaturdayColorDark
+import com.example.schedulelink.ui.theme.SaturdayColorLight
 import com.example.schedulelink.ui.theme.ScheduleColorDark
 import com.example.schedulelink.ui.theme.ScheduleColorLight
+import com.example.schedulelink.ui.theme.SundayColorDark
+import com.example.schedulelink.ui.theme.SundayColorLight
 import com.example.schedulelink.ui.theme.TodayLineColorDark
 import com.example.schedulelink.ui.theme.TodayLineColorLight
 import com.example.schedulelink.ui.theme.connectorColor
 import com.example.schedulelink.ui.theme.fadeThrough
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
-/** 日の目盛り(線)は、この拡大率まで拡大したときだけ見え始める(通常の大きさでは線が多すぎて見づらい)。 */
-private const val DAY_TICK_FADE_START = 1.5f
-/** 日の数字は線より少し遅れて、この拡大率あたりから見え始める。 */
-private const val DAY_LABEL_FADE_START = 1.5f
-/** ここまで拡大すると、線・数字とも前景色(完全に見える状態)になる。 */
-private const val DAY_DETAIL_FADE_END = 4f
-/** 期間が長すぎる場合、日の目盛りは大量になりすぎるので出さない。 */
-private const val MAX_DAY_MARKS = 1000
-
-// ツリーの接続線・月の目盛りは、MaterialThemeのonSurfaceを基準に組み立てる。
-// 固定の色にすると片方のモードで背景に埋もれたり逆に浮きすぎたりするが、
-// onSurfaceは「今の背景に対してよく見える色」を常に指すため、ライト/ダーク
-// どちらに切り替えても同じ見え方(接続線ははっきり、目盛りはうっすら)を保てる。
-private const val RULER_LINE_ALPHA = 0.12f
-
-/** 日の目盛りのフェード開始色(薄い状態)。中間的な明るさなので、どちらの背景でも視認できる。 */
-private val DAY_DETAIL_GRAY = Color(0xFF808080)
 /** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
 private const val CARD_TINT_RATIO = 0.12f
-
-/** 日の目盛りの最低限の透明度(0 = 拡大するまでは出さない)。 */
-private const val DAY_TICK_MIN_ALPHA = 0f
 
 /** 接続線の色の濃さ(親ごとの色をこの透明度で使う。暗い背景でも濁らないよう高めにする)。 */
 private const val CONNECTOR_ALPHA = 0.9f
 /** 色を付けない線(子が1つだけの親から出る線)の濃さ。 */
 private const val NEUTRAL_CONNECTOR_ALPHA = 0.7f
-/** 今日の線の濃さ。細い線にして、接続線と見分けられるようにする。 */
-private const val TODAY_LINE_ALPHA = 0.9f
-/** 今日の線の下に敷く帯の濃さ。 */
-private const val TODAY_BAND_ALPHA = 0.1f
 /** 子カードの左端につける、親の線と同じ色の帯の幅。 */
 private val BRANCH_STRIPE_WIDTH = 5.dp
 
@@ -341,35 +322,41 @@ private fun monthMarks(minDate: LocalDate, maxDate: LocalDate): List<Pair<LocalD
     return marks
 }
 
-/** ズームインしたときに月の目盛りの間へ差し込む、日ごとの目盛り。 */
-private fun dayMarks(minDate: LocalDate, maxDate: LocalDate): List<LocalDate> {
-    if (ChronoUnit.DAYS.between(minDate, maxDate) > MAX_DAY_MARKS) return emptyList()
-    val marks = mutableListOf<LocalDate>()
-    var cursor = minDate
-    while (!cursor.isAfter(maxDate)) {
-        marks += cursor
-        cursor = cursor.plusDays(1)
-    }
-    return marks
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Unit) {
     val tree = state.tree
     val layout = state.layout
-    val marks = remember(tree) { monthMarks(tree.minDate, tree.maxDate) }
-    val dayMarksList = remember(tree) { dayMarks(tree.minDate, tree.maxDate) }
+    val gridModel = remember(tree) { GridModel(tree.minDate, tree.maxDate, monthMarks(tree.minDate, tree.maxDate)) }
     // 長押しで選んだノードに関わる線だけをくっきり見せ、他は薄くして見やすくする。
     var selectedNodeId by remember(tree) { mutableStateOf<String?>(null) }
 
     val isDark = LocalIsDarkTheme.current
-    // 目盛りはonSurfaceをうっすら(低いalpha)使い、ライト/ダークどちらでも背景に馴染ませる。
-    // 接続線は親の階層色で描く(描画部分を参照)。
-    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val rulerLineColor = onSurfaceColor.copy(alpha = RULER_LINE_ALPHA)
     val peerLinkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight
-    val todayLineColor = if (isDark) TodayLineColorDark else TodayLineColorLight
+    // 背景の月日の線と上端のルーラーは、画面の座標で描く(TimelineGrid.kt)。
+    val colorScheme = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val gridColors = remember(isDark, colorScheme) {
+        GridColors(
+            isDark = isDark,
+            onSurface = colorScheme.onSurface,
+            onSurfaceVariant = colorScheme.onSurfaceVariant,
+            surface = colorScheme.surface,
+            outlineVariant = colorScheme.outlineVariant,
+            today = if (isDark) TodayLineColorDark else TodayLineColorLight,
+            onToday = if (isDark) DarkOnError else Color.White,
+            saturday = if (isDark) SaturdayColorDark else SaturdayColorLight,
+            sunday = if (isDark) SundayColorDark else SundayColorLight
+        )
+    }
+    val rulerStyles = remember(typography) {
+        RulerStyles(
+            month = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            day = typography.labelSmall,
+            pill = typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+        )
+    }
+    val textMeasurer = rememberTextMeasurer(cacheSize = 64)
 
     fun dateToX(date: LocalDate): Dp = timelineX(tree.minDate, date).dp
 
@@ -395,66 +382,28 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
 
     val contentWidth = layout.width.dp
     val contentHeight = layout.height.dp
-    val rulerHeight = RULER_HEIGHT.dp
     val today = remember { LocalDate.now() }
     val todayInRange = !today.isBefore(tree.minDate) && !today.isAfter(tree.maxDate)
 
     ZoomPanBox(
         modifier = Modifier.fillMaxSize(),
-        initialFocusX = if (todayInRange) dateToX(today) else null
+        initialFocusX = if (todayInRange) dateToX(today) else null,
+        backdrop = { zoomPan ->
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawGridBackdrop(zoomPan, gridModel, gridColors, if (todayInRange) today else null)
+            }
+        },
+        overlay = { zoomPan ->
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawGridRuler(zoomPan, gridModel, gridColors, if (todayInRange) today else null, textMeasurer, rulerStyles)
+            }
+        }
     ) { scale ->
-        // 拡大率に応じて0〜1で滑らかに変化する進捗値。日の目盛りは拡大するほど
-        // グレーから前景色(onSurface)へ、じわじわ濃くなっていく
-        // (数字は線より少し遅れて追いつく。onSurfaceを使うためライト/ダーク両方で成立する)。
-        val tickProgress = ((scale - DAY_TICK_FADE_START) / (DAY_DETAIL_FADE_END - DAY_TICK_FADE_START)).coerceIn(0f, 1f)
-        val labelProgress = ((scale - DAY_LABEL_FADE_START) / (DAY_DETAIL_FADE_END - DAY_LABEL_FADE_START)).coerceIn(0f, 1f)
-        val dayTickColor = lerp(DAY_DETAIL_GRAY, onSurfaceColor, tickProgress)
-            .copy(alpha = DAY_TICK_MIN_ALPHA + (1f - DAY_TICK_MIN_ALPHA) * tickProgress)
-        val dayLabelColor = lerp(DAY_DETAIL_GRAY, onSurfaceColor, labelProgress).copy(alpha = labelProgress)
-
         Box(modifier = Modifier.width(contentWidth).height(contentHeight)) {
             Canvas(modifier = Modifier.width(contentWidth).height(contentHeight)) {
                 // 線の太さも、拡大しすぎたときだけ際限なく太くならないよう抑える。
                 val strokeFactor = capScale(scale)
-                val hairline = (1.dp * strokeFactor).toPx()
                 val edgeStroke = (1.5.dp * strokeFactor).toPx()
-
-                marks.forEach { (date, _) ->
-                    val x = dateToX(date).toPx()
-                    drawLine(
-                        color = rulerLineColor,
-                        start = Offset(x, rulerHeight.toPx()),
-                        end = Offset(x, contentHeight.toPx()),
-                        strokeWidth = hairline
-                    )
-                }
-
-                if (tickProgress > 0f) dayMarksList.forEach { date ->
-                    val x = dateToX(date).toPx()
-                    drawLine(
-                        color = dayTickColor,
-                        start = Offset(x, rulerHeight.toPx()),
-                        end = Offset(x, contentHeight.toPx()),
-                        strokeWidth = hairline
-                    )
-                }
-
-                // 今日の線は接続線より先(下)に描き、線の交差を増やさないようにする。
-                if (todayInRange) {
-                    val todayX = dateToX(today).toPx()
-                    drawLine(
-                        color = todayLineColor.copy(alpha = TODAY_BAND_ALPHA),
-                        start = Offset(todayX, 0f),
-                        end = Offset(todayX, contentHeight.toPx()),
-                        strokeWidth = (8.dp * strokeFactor).toPx()
-                    )
-                    drawLine(
-                        color = todayLineColor.copy(alpha = TODAY_LINE_ALPHA),
-                        start = Offset(todayX, 0f),
-                        end = Offset(todayX, contentHeight.toPx()),
-                        strokeWidth = hairline
-                    )
-                }
 
                 // 接続線。配置のときに、カードを避けて別の線と重ならない道を計算してある。
                 // 木の線は親ごとの色(子が1つだけの親は無彩色)、予定どうしのリンクは破線で描く。
