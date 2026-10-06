@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -71,7 +72,9 @@ fun ZoomPanBox(
     val density = LocalDensity.current
 
     Box(
+        // 拡大・パンしたコンテンツが、この領域の外(凡例や上のバー)にはみ出さないように切り取る。
         modifier = modifier
+            .clipToBounds()
             .onSizeChanged { size ->
                 state.size = size
                 if (!hasAppliedInitialFocus && initialFocusX != null) {

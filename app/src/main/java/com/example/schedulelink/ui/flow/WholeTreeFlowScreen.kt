@@ -264,12 +264,16 @@ private fun TreeLegend() {
             LegendLine(listOf(if (isDark) PeerLinkColorDark else PeerLinkColorLight), dashed = true)
         }
         TreeLegendItem("今日") {
-            Box(
-                modifier = Modifier
-                    .width(2.dp)
-                    .height(12.dp)
-                    .background(if (isDark) TodayLineColorDark else TodayLineColorLight)
-            )
+            val todayColor = if (isDark) TodayLineColorDark else TodayLineColorLight
+            Canvas(modifier = Modifier.width(2.dp).height(12.dp)) {
+                drawLine(
+                    color = todayColor,
+                    start = Offset(size.width / 2f, 0f),
+                    end = Offset(size.width / 2f, size.height),
+                    strokeWidth = size.width,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 2.5.dp.toPx()))
+                )
+            }
         }
     }
 }

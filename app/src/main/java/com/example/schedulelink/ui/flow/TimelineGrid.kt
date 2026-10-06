@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -175,7 +176,14 @@ fun DrawScope.drawGridBackdrop(zp: ZoomPanState, model: GridModel, colors: GridC
             val bandWidth = max(axis.dayPx, 16.dp.toPx())
             val bandLeft = x + axis.dayPx / 2f - bandWidth / 2f
             drawRect(colors.today.copy(alpha = alphas.todayBand), Offset(bandLeft, 0f), Size(bandWidth, h))
-            drawLine(colors.today, Offset(x, 0f), Offset(x, h), strokeWidth = 2.dp.toPx())
+            // 点線にして、実線の接続線や月日の線と見分けやすくする。
+            drawLine(
+                color = colors.today,
+                start = Offset(x, 0f),
+                end = Offset(x, h),
+                strokeWidth = 2.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx()))
+            )
         }
     }
 }
