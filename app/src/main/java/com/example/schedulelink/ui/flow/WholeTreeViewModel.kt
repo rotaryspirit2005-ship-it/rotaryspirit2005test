@@ -5,13 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.ScheduleRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
-import java.time.LocalDate
 
 class WholeTreeViewModel(
     goalRepository: GoalRepository,
@@ -27,13 +28,17 @@ class WholeTreeViewModel(
     ) { goals, milestones, schedules -> Triple(goals, milestones, schedules) }
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
-    val tree: StateFlow<WholeTree> = source
-        .map { (goals, milestones, schedules) -> buildWholeTree(goals, milestones, schedules) }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            WholeTree(emptyList(), emptyList(), emptyList(), LocalDate.now(), LocalDate.now())
-        )
+    /**
+     * タイムライン表示の内容(配置と、カードを避ける配線を含む)。配線の探索は重いので、
+     * バックグラウンドで計算する。計算が終わる前はnull。
+     */
+    val timeline: StateFlow<TimelineState?> = source
+        .map { (goals, milestones, schedules) ->
+            val tree = buildWholeTree(goals, milestones, schedules)
+            TimelineState(tree, layoutTimeline(tree))
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** 読み込み前はnull(「まだ大目的がありません」が一瞬見えるのを避けるため)。 */
     val outline: StateFlow<TreeOutline?> = source
