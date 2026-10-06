@@ -171,12 +171,10 @@ fun DrawScope.drawGridBackdrop(zp: ZoomPanState, model: GridModel, colors: GridC
         val d = axis.daysOf(today)
         if (d in 0..axis.totalDays) {
             val x = axis.x(d)
+            // 帯は今日の1日分の枠(線は枠の左端)。1日が細いときは16dpまで広げる。
             val bandWidth = max(axis.dayPx, 16.dp.toPx())
-            drawRect(
-                colors.today.copy(alpha = alphas.todayBand),
-                Offset(x - bandWidth / 2f, 0f),
-                Size(bandWidth, h)
-            )
+            val bandLeft = x + axis.dayPx / 2f - bandWidth / 2f
+            drawRect(colors.today.copy(alpha = alphas.todayBand), Offset(bandLeft, 0f), Size(bandWidth, h))
             drawLine(colors.today, Offset(x, 0f), Offset(x, h), strokeWidth = 2.dp.toPx())
         }
     }
@@ -194,7 +192,9 @@ fun DrawScope.drawGridRuler(
     val axis = axisOf(zp, model)
     val alphas = if (colors.isDark) DarkAlphas else LightAlphas
     val w = size.width
-    val rulerH = RULER_HEIGHT_DP.dp.toPx()
+    // 文字を大きくする設定のときは、ルーラーの縦の寸法も同じ割合で広げる(文字がはみ出さないように)。
+    val vs = fontScale.coerceIn(1f, 1.5f)
+    val rulerH = RULER_HEIGHT_DP.dp.toPx() * vs
 
     fun measure(text: String, style: TextStyle) = measurer.measure(text, style, softWrap = false, maxLines = 1)
 
@@ -219,7 +219,7 @@ fun DrawScope.drawGridRuler(
         drawText(
             layout,
             color = colors.onSurface.copy(alpha = 0.87f),
-            topLeft = Offset(x, RULER_ROW1_Y_DP.dp.toPx())
+            topLeft = Offset(x, RULER_ROW1_Y_DP.dp.toPx() * vs)
         )
     }
 
@@ -239,7 +239,7 @@ fun DrawScope.drawGridRuler(
             drawText(
                 measure(date.dayOfMonth.toString(), styles.day),
                 color = base.copy(alpha = labelProgress),
-                topLeft = Offset(axis.x(d) + 3.dp.toPx(), RULER_ROW2_Y_DP.dp.toPx())
+                topLeft = Offset(axis.x(d) + 3.dp.toPx(), RULER_ROW2_Y_DP.dp.toPx() * vs)
             )
         }
     }
@@ -248,18 +248,18 @@ fun DrawScope.drawGridRuler(
     if (today != null) {
         val d = axis.daysOf(today)
         if (d in 0..axis.totalDays) {
-            val todayX = axis.x(d)
+            val todayX = axis.x(d) + axis.dayPx / 2f
             val text = when {
-                todayX < 0f -> "◀ 今日"
-                todayX > w -> "今日 ▶"
+                todayX < 0f -> "‹ 今日"
+                todayX > w -> "今日 ›"
                 axis.dayDp >= EVERY_DAY_LABEL_DP -> "今日 ${today.monthValue}/${today.dayOfMonth}"
                 else -> "今日"
             }
             val layout = measure(text, styles.pill)
             val pillW = layout.size.width + 12.dp.toPx()
-            val pillH = PILL_HEIGHT_DP.dp.toPx()
+            val pillH = PILL_HEIGHT_DP.dp.toPx() * vs
             val pillX = (todayX - pillW / 2f).coerceIn(4.dp.toPx(), max(4.dp.toPx(), w - pillW - 4.dp.toPx()))
-            val pillY = PILL_Y_DP.dp.toPx()
+            val pillY = PILL_Y_DP.dp.toPx() * vs
             drawRoundRect(colors.today, Offset(pillX, pillY), Size(pillW, pillH), CornerRadius(pillH / 2f))
             drawText(
                 layout,
