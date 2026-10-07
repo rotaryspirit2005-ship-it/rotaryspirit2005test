@@ -59,7 +59,7 @@ fun SignInScreen(authRepository: AuthRepository) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("予定リンク", style = MaterialTheme.typography.headlineMedium)
+                Text("Slatch", style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "Googleサインインの設定が完了していません。\n" +
@@ -108,7 +108,7 @@ fun SignInScreen(authRepository: AuthRepository) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("予定リンク", style = MaterialTheme.typography.headlineMedium)
+            Text("Slatch", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
                 "家族と予定を共有するには、Googleアカウントでサインインしてください",

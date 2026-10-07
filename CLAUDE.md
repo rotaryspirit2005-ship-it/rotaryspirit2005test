@@ -1,4 +1,4 @@
-# 予定リンク(ScheduleLink)
+# Slatch(Schedule + Latch。旧称: 予定リンク / ScheduleLink)
 
 Kotlin / Jetpack Compose製のAndroidアプリ。Goal(目的)→Milestone(中日程)→Schedule(小日程)の階層で予定を管理し、Firestoreで家族間共有、Jetpack Glanceでホーム画面ウィジェット(月ミニカレンダー・直近の予定)を提供する。
 
