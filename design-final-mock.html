@@ -1201,7 +1201,7 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
     { k: "al", dir: 135, span: 9, col: C.flow, v: 85, name: "左→加速" },
     { k: "ar", dir: 45, span: 9, col: C.flow, v: 70, name: "右→加速" },
   ];
-  let mode = "moving", introT0 = 0, carPhase = 0;
+  let mode = "moving", introT0 = 0, carPhase = 0, dashK = 0;
   const rad = (x) => x * Math.PI / 180;
   const p = (r, a) => `${(r * Math.cos(rad(a))).toFixed(1)},${(r * Math.sin(rad(a))).toFixed(1)}`;
   const sec = (dir, span, r1, r2) => `M${p(r2, dir - span)} A${r2},${r2} 0 0 1 ${p(r2, dir + span)} L${p(r1, dir + span)} A${r1},${r1} 0 0 0 ${p(r1, dir - span)} Z`;
@@ -1221,6 +1221,8 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
     svg.replaceChildren();
     const t = (now - introT0) / 1000;
     const ph0 = (now / 1000) % 8; const axT = mode !== "moving" ? 0 : ph0 < 2 ? 0.25 : ph0 < 3.5 ? -0.5 : ph0 < 5.5 ? -0.05 : ph0 < 6.5 ? 0.3 : 0; const tilt = mode === "moving" ? `matrix(1,0,0,${(0.92 + axT * 0.1).toFixed(3)},0,${(axT * -6).toFixed(1)})` : "";
+    const ayT = mode !== "moving" ? 0 : ph0 < 3.5 ? 0 : ph0 < 5.5 ? 0.5 : ph0 < 6.5 ? 0.15 : -0.45;
+    const litK = axT > 0.12 ? "accel" : axT < -0.2 ? "brake" : ayT > 0.3 ? "left" : ayT < -0.3 ? "right" : "accel";
     const disc = el("g", { transform: tilt }, svg);
     // 車のシルエット（上から、前が上）
     const showCar = mode !== "now";
@@ -1230,7 +1232,10 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
       const ax = mode !== "moving" ? 0 : ph < 2 ? 0.25 : ph < 3.5 ? -0.5 : ph < 5.5 ? -0.05 : ph < 6.5 ? 0.3 : 0;
       const ay = mode !== "moving" ? 0 : ph < 3.5 ? 0 : ph < 5.5 ? 0.5 : ph < 6.5 ? 0.15 : -0.45;
       const speed = mode !== "moving" ? 0 : 70 + 25 * Math.sin(ph / 8 * 2 * Math.PI);
-      carPhase = (carPhase || 0) + speed * 0.016 * 1.4;
+      // 加速中の「ダッシュ感」（0→1 を素早く立ち上げ、ゆっくり戻す）
+      const dashT = Math.max(0, Math.min(1, (ax - 0.12) / 0.15));
+      dashK += (dashT - dashK) * (dashT > dashK ? 0.25 : 0.08);
+      carPhase = (carPhase || 0) + speed * 0.016 * 1.4 * (1 + 1.6 * dashK);
       // 道路（車の下を流れる線）: 円盤の内側だけに見せる
       const cid = "lgclip";
       const defs = el("defs", {}, disc);
@@ -1241,13 +1246,20 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
         el("path", { d: `M${lx + curve} -70 Q${lx + curve * 0.3} 0 ${lx} 70`, fill: "none", stroke: C.muted, "stroke-opacity": 0.35, "stroke-width": 2, "stroke-dasharray": "10 12", "stroke-dashoffset": (-carPhase).toFixed(1) }, road);
       }
       // 速さの筋（スピードが出ているほど長く・多く）
-      if (speed > 0) for (let k = 0; k < 4; k++) {
-        const x = [-36, -32, 32, 36][k], y0 = ((carPhase * 1.3 + k * 37) % 140) - 70;
-        el("line", { x1: x, y1: y0, x2: x, y2: y0 + speed * 0.25, stroke: "#eff6fb", "stroke-opacity": 0.18, "stroke-width": 1.4, "stroke-linecap": "round" }, road);
+      const nStreak = 4 + Math.round(6 * dashK);
+      if (speed > 0) for (let k = 0; k < nStreak; k++) {
+        const x = [-36, -32, 32, 36, -40, 40, -29, 29, -50, 50][k], y0 = ((carPhase * 1.3 + k * 37) % 140) - 70;
+        el("line", { x1: x, y1: y0, x2: x, y2: y0 + speed * (0.25 + 0.35 * dashK), stroke: dashK > 0.3 && k % 3 === 0 ? C.long : "#eff6fb", "stroke-opacity": 0.18 + 0.32 * dashK, "stroke-width": 1.4 + 0.6 * dashK, "stroke-linecap": "round" }, road);
       }
       // 車（向きは横 G で少しヨー、前輪は切れる、ブレーキでテールランプ）
       const yaw = -ay * 10;
-      const car = el("g", { fill: "none", stroke: C.muted, "stroke-opacity": 0.75, "stroke-width": 2.2, transform: `rotate(${yaw.toFixed(1)}) translate(0,${(ax * -6).toFixed(1)})` }, disc);
+      const surge = ax > 0 ? -6 * ax - 10 * dashK : -6 * ax;   // 加速で前へ飛び出す
+      // 残像（ダッシュ中だけ、後ろに 2 枚）
+      if (dashK > 0.05) [1, 2].forEach((n) => {
+        const gh = el("g", { transform: `rotate(${yaw.toFixed(1)}) translate(0,${(surge + n * 13 * dashK).toFixed(1)})`, opacity: (0.32 / n) * dashK }, disc);
+        el("rect", { x: -24, y: -42, width: 48, height: 84, rx: 18, fill: "none", stroke: C.long, "stroke-width": 2 }, gh);
+      });
+      const car = el("g", { fill: "none", stroke: C.muted, "stroke-opacity": 0.75, "stroke-width": 2.2, transform: `rotate(${yaw.toFixed(1)}) translate(0,${surge.toFixed(1)}) scale(${(1 - 0.03 * dashK).toFixed(3)},${(1 + 0.05 * dashK).toFixed(3)})` }, disc);
       el("rect", { x: -24, y: -42, width: 48, height: 84, rx: 18, fill: "#0a131d", "fill-opacity": 0.85 }, car);
       el("path", { d: "M-18 -20 Q0 -27 18 -20 L15 -9 Q0 -13 -15 -9 Z" }, car);
       el("path", { d: "M-16 20 Q0 24 16 20 L14 29 Q0 31 -14 29 Z" }, car);
@@ -1259,6 +1271,12 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
       // テールランプ（ブレーキで明るく）
       const br = ax < -0.2 ? 0.95 : 0.25;
       [-15, 15].forEach((x) => el("rect", { x: x - 6, y: 39, width: 12, height: 3.5, rx: 1.5, fill: "#ff6b4a", "fill-opacity": br, stroke: "none" }, car));
+      // ダッシュ：後ろへ噴き出す光（ちらつき）
+      if (dashK > 0.05) [-15, 15].forEach((x, i) => {
+        const fl = 10 + 14 * dashK * (0.75 + 0.25 * Math.sin(now / 45 + i * 2));
+        el("path", { d: `M${x - 5} 42 Q${x} ${42 + fl * 1.4} ${x + 5} 42 Z`, fill: C.long, "fill-opacity": 0.55 * dashK, stroke: "none" }, car);
+        el("path", { d: `M${x - 2.5} 42 Q${x} ${42 + fl * 0.8} ${x + 2.5} 42 Z`, fill: "#fff4d6", "fill-opacity": 0.8 * dashK, stroke: "none" }, car);
+      });
       if (ax < -0.2) el("ellipse", { cx: 0, cy: 46, rx: 26, ry: 7, fill: "#ff6b4a", "fill-opacity": 0.18, stroke: "none" }, car);
       const fr = el("text", { x: 0, y: -52, fill: C.muted, "fill-opacity": 0.7, "font-size": 10, "text-anchor": "middle" }, disc); fr.textContent = "前";
     }
@@ -1266,7 +1284,7 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
     const introIdx = mode === "intro" ? Math.floor(t / 0.55) % 9 : -1;
     D.forEach((d, i) => {
       const r2 = 66 + 46 * d.v / 100;
-      const lit = mode === "intro" ? introIdx === i : (mode === "moving" ? d.k === "brake" : false);
+      const lit = mode === "intro" ? introIdx === i : (mode === "moving" ? d.k === litK : false);
       const dim = (mode === "moving" && !lit) || (mode === "intro" && !lit);
       const g = el("g", { opacity: dim ? (mode === "intro" ? 0.3 : 0.55) : 1 }, disc);
       el("path", { d: sec(d.dir, d.span, 66, 112), fill: d.col, "fill-opacity": 0.1 }, g);
@@ -1276,7 +1294,7 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
     // 名前・絵・数字（傾けない層）
     D.forEach((d, i) => {
       const isWide = d.span > 10;
-      const lit = mode === "intro" ? introIdx === i : mode === "moving" && d.k === "brake";
+      const lit = mode === "intro" ? introIdx === i : mode === "moving" && d.k === litK;
       if (mode === "moving" && !isWide && !lit) return;              // 走行中は斜めの数字を出さない
       const rr = isWide ? 146 : 136;
       const x = rr * Math.cos(rad(d.dir)) + (d.dir === 180 ? 14 : d.dir === 0 ? -4 : 0), y = rr * Math.sin(rad(d.dir)) * (mode === "moving" ? 0.9 : 1) + (mode === "moving" ? 6 : 0);
