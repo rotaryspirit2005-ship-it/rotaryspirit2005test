@@ -1286,73 +1286,110 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
         el("line", { x1: (VP[0] + cx * r0).toFixed(1), y1: (VP[1] + cy * r0).toFixed(1), x2: (VP[0] + cx * (r0 + len)).toFixed(1), y2: (VP[1] + cy * (r0 + len)).toFixed(1),
           stroke: dashK > 0.3 && k % 3 === 0 ? C.long : "#eff6fb", "stroke-opacity": (0.14 + 0.3 * dashK) * tt, "stroke-width": 1 + tt * (1 + dashK), "stroke-linecap": "round" }, bank);
       }
-      // ===== 3D の車（後ろ姿・追いかけ視点）=====
-      const DC = 1.38;                                  // 車がいる奥行き
-      const [cx0, cy0] = P(DC, 0);                      // 路面上の接地中心
-      const yawS = curvS * 14;                          // 曲がる向きへ鼻先が向く → 側面が見える量
-      const roll = -curvS * 7;                          // 外側へロール（度）
-      const pitch = ax < 0 ? -ax * 7 : -ax * 6;         // +: 後ろが持ち上がる（ブレーキ） / -: 沈む（加速）
-      const lift = (ax < 0 ? -ax * 5 : -ax * 4) - dashK * 2;
+      // ===== 3D の車（ローポリ、追いかけ視点で投影）=====
+      // 車の座標: x 右 / y 上 / z 前（m）。ボディはピッチ・ロール、全体はヨー。タイヤはばね下（傾かない）。
+      const DC = 1.4;
+      const [cx0, cy0] = P(DC, 0);
+      const yaw = curvS * 0.46;                               // 曲がる向きへ鼻先 → 外側の側面が見える
+      const rollA = curvS * 0.2;                              // 外側へロール
+      const pitchA = -ax * 0.2 - dashK * 0.05;               // + : ノーズダイブ / - : リヤが沈む
+      const sink = ax < 0 ? 0.03 : 0.02 + dashK * 0.04;       // 荷重で車高が少し下がる
+      const steerA = curvS * 0.45;
+      const rotX = (v, a) => [v[0], v[1] * Math.cos(a) - v[2] * Math.sin(a), v[1] * Math.sin(a) + v[2] * Math.cos(a)];
+      const rotZ = (v, a) => [v[0] * Math.cos(a) - v[1] * Math.sin(a), v[0] * Math.sin(a) + v[1] * Math.cos(a), v[2]];
+      const rotY = (v, a) => [v[0] * Math.cos(a) + v[2] * Math.sin(a), v[1], -v[0] * Math.sin(a) + v[2] * Math.cos(a)];
+      const bodyT = (v) => { let w = [v[0], v[1] - 0.55, v[2]]; w = rotX(w, pitchA); w = rotZ(w, rollA); return rotY([w[0], w[1] + 0.55 - sink, w[2]], yaw); };
+      const bodyN = (n) => rotY(rotZ(rotX(n, pitchA), rollA), yaw);
+      const CAM = [Math.max(-1.6, Math.min(2.2, 1.4 + curvS * 4.6)), 2.1, -6.6], CA = 0.2, FOC = 92;
+      const toCam = (p) => { const d = [p[0] - CAM[0], p[1] - CAM[1], p[2] - CAM[2]]; return [d[0], d[1] * Math.cos(CA) + d[2] * Math.sin(CA), -d[1] * Math.sin(CA) + d[2] * Math.cos(CA)]; };
+      const o0 = toCam([0, 0, 0]); const ox = FOC * o0[0] / o0[2], oy = -FOC * o0[1] / o0[2];
+      const proj = (p) => { const c = toCam(p); return [FOC * c[0] / c[2] - ox, -FOC * c[1] / c[2] - oy, c[2]]; };
+      const LIGHT = (() => { const l = [0.35, 0.85, -0.4], m = Math.hypot(...l); return l.map((x) => x / m); })();
+      const faces = [];   // { pts(3D world), n(world), fill, extra }
+      const shade = (rgb, n, lo = 0.32, hi = 0.85) => { const k = lo + hi * Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]); return `rgb(${rgb.map((c) => Math.min(255, Math.round(c * k))).join(",")})`; };
+      const PAINT = [150, 182, 206], GLASS = [26, 44, 62];
+      const addBody = (vs, n, rgb, extra = {}) => faces.push({ pts: vs.map(bodyT), n: bodyN(n), rgb, extra });
+      // 下半身（後ろ z=-2.2 → 前 z=2.2、前が低いボンネット）
+      const W = 0.9, Wf = 0.84;
+      const RB = [[-W, 0.3, -2.2], [W, 0.3, -2.2], [W, 0.88, -2.15], [-W, 0.88, -2.15]];
+      const FB = [[-Wf, 0.3, 2.2], [Wf, 0.3, 2.2], [Wf, 0.72, 2.1], [-Wf, 0.72, 2.1]];
+      addBody(RB, [0, 0, -1], PAINT, { rear: true });
+      addBody([FB[1], FB[0], FB[3], FB[2]], [0, 0, 1], PAINT);
+      addBody([RB[0], FB[0], FB[3], RB[3]], [-1, 0, 0], PAINT, { side: -1 });
+      addBody([FB[1], RB[1], RB[2], FB[2]], [1, 0, 0], PAINT, { side: 1 });
+      addBody([RB[3], FB[3], FB[2], RB[2]], [0, 1, 0.06], PAINT);
+      // キャビン（ガラス）
+      const CB = [[-0.84, 0.88, -1.45], [0.84, 0.88, -1.45], [0.8, 0.8, 1.0], [-0.8, 0.8, 1.0]];
+      const CR = [[-0.64, 1.38, -0.75], [0.64, 1.38, -0.75], [0.62, 1.4, 0.35], [-0.62, 1.4, 0.35]];
+      addBody([CB[0], CB[1], CR[1], CR[0]], [0, 0.6, -0.8], GLASS, { glass: "rear" });
+      addBody([CB[2], CB[3], CR[3], CR[2]], [0, 0.55, 0.83], GLASS);
+      addBody([CB[3], CB[0], CR[0], CR[3]], [-0.93, 0.36, 0], GLASS, { glass: "side" });
+      addBody([CB[1], CB[2], CR[2], CR[1]], [0.93, 0.36, 0], GLASS, { glass: "side" });
+      addBody([CR[0], CR[1], CR[2], CR[3]], [0, 1, 0], PAINT);
+      // タイヤ（ばね下：ヨーだけ、前輪は舵角）
+      const wheel = (x, z, front) => {
+        const pts = []; const sgn = Math.sign(x);
+        for (let k = 0; k < 10; k++) { const a = k / 10 * 2 * Math.PI; let v = [0, 0.33 + 0.33 * Math.sin(a), 0.33 * Math.cos(a)]; if (front) v = rotY(v, steerA); pts.push(rotY([x + v[0], v[1], z + v[2]], yaw)); }
+        faces.push({ pts, n: rotY(front ? rotY([sgn, 0, 0], steerA) : [sgn, 0, 0], yaw), rgb: [12, 18, 26], extra: { tyre: true, sgn }, flat: "#070b10" });
+      };
+      [[-0.93, -1.4, false], [0.93, -1.4, false], [-0.93, 1.42, true], [0.93, 1.42, true]].forEach(([x, z, fr]) => wheel(x, z, fr));
       const carG = el("g", { transform: `translate(${cx0.toFixed(1)},${cy0.toFixed(1)})` }, bank);
-      // 影（路面に落ちる、ロールで外へずれる）
-      el("ellipse", { cx: (-roll * 0.6).toFixed(1), cy: 14, rx: 30, ry: 6, fill: "#000", "fill-opacity": 0.55 }, carG);
-      // ヘッドライトが路面を照らす（奥へ、道に沿って）
+      const poly2 = (pp) => pp.map(([x, y], n) => `${n ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ") + " Z";
+      // 影
+      const shp = [[-1.05, 0, -2.35], [1.05, 0, -2.35], [1.05, 0, 2.35], [-1.05, 0, 2.35]].map((v) => proj(rotY([v[0] - rollA * 0.8, 0, v[2] + pitchA * 1.6], yaw)));
+      el("path", { d: poly2(shp), fill: "#000", "fill-opacity": 0.55, filter: "url(#lgblur)" }, carG);
+      if (!defs.querySelector("#lgblur")) { const fb = el("filter", { id: "lgblur", x: "-30%", y: "-30%", width: "160%", height: "160%" }, defs); el("feGaussianBlur", { stdDeviation: 2.2 }, fb); }
+      // ヘッドライトが路面を照らす
       if (speed > 0) {
-        const hl = [P(DC + 0.4, -0.35), P(4.5, -0.55), P(4.5, 0.55), P(DC + 0.4, 0.35)].map(([x, y]) => [x - cx0, y - cy0]);
+        const hl = [P(DC + 0.45, -0.35), P(4.5, -0.55), P(4.5, 0.55), P(DC + 0.45, 0.35)].map(([x, y]) => [x - cx0, y - cy0]);
         el("path", { d: poly(hl) + " Z", fill: "#eff6fb", "fill-opacity": 0.07 }, carG);
       }
-      // 残像（ダッシュ：手前＝カメラ側へ大きく残る）
-      if (dashK > 0.05) [1, 2].forEach((n) => {
-        const sc = 1 + n * 0.16 * dashK;
-        el("path", { d: "M-22 14 L-24 0 Q-23 -6 -18 -8 L-12 -20 Q0 -23 12 -20 L18 -8 Q23 -6 24 0 L22 14 Z", fill: "none", stroke: C.long, "stroke-width": 1.6,
-          "stroke-opacity": (0.4 / n) * dashK, transform: `translate(0,${(n * 7 * dashK).toFixed(1)}) scale(${sc.toFixed(3)})` }, carG);
-      });
-      // タイヤ（ボディと別：ロールしない）
-      const tyre = (x, y, w, h, o) => el("rect", { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 2.5, fill: "#05090e", stroke: "#2b3d4f", "stroke-width": 1, opacity: o }, carG);
-      tyre(-12 + yawS * 0.9, -4, 6, 7, 0.9); tyre(12 + yawS * 0.9, -4, 6, 7, 0.9);   // 前輪（奥、少し見える）
-      tyre(-21, 9, 8, 11, 1); tyre(21, 9, 8, 11, 1);                                   // 後輪
-      // ボディ（ロール＋ピッチ）
-      const body = el("g", { transform: `rotate(${roll.toFixed(1)} 0 12) translate(0,${(-lift).toFixed(1)})` }, carG);
-      const side = yawS;                                // + なら右側面、- なら左側面が見える
-      // 側面（曲がっている時に見える）
-      if (Math.abs(side) > 0.4) {
-        const sx = side > 0 ? 23 : -23, fx = sx * 0.62 + side * 1.6;
-        el("path", { d: `M${sx} 10 L${sx} -3 L${fx} ${-12 - pitch} L${fx} 0 Z`, fill: "#0e1a26", stroke: "#3d5468", "stroke-width": 1 }, body);
-        el("path", { d: `M${sx * 0.8} -9 L${fx * 0.85} ${-19 - pitch} L${fx * 0.85} ${-13 - pitch} L${sx * 0.92} -4 Z`, fill: "#1d3446", "fill-opacity": 0.9 }, body);  // 横窓
-      }
-      // ルーフ上面（ピッチで見える量が変わる）
-      const rt = -20 - Math.max(0, pitch) * 0.8;
-      el("path", { d: `M-12 -19 Q0 -21 12 -19 L${(8 + side * 1.5).toFixed(1)} ${(rt - 5).toFixed(1)} L${(-8 + side * 1.5).toFixed(1)} ${(rt - 5).toFixed(1)} Z`, fill: "#2f4659" }, body);
-      // 後ろ姿（バンパー〜トランク〜リアガラス）
-      const bg = "lgbody";
-      if (!svg.querySelector("#" + bg)) {}
-      const grad = el("linearGradient", { id: bg, x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-      el("stop", { offset: "0", "stop-color": "#4a6378" }, grad); el("stop", { offset: "0.55", "stop-color": "#22374a" }, grad); el("stop", { offset: "1", "stop-color": "#0c1722" }, grad);
-      el("path", { d: "M-22 12 L-24 0 Q-23 -6 -18 -8 L-12 -19 Q0 -21.5 12 -19 L18 -8 Q23 -6 24 0 L22 12 Q0 14 -22 12 Z", fill: `url(#${bg})`, stroke: "#6f889c", "stroke-width": 1.1 }, body);
-      // リアガラス（映り込み）
-      el("path", { d: "M-10.5 -17 Q0 -19 10.5 -17 L15 -9 Q0 -10.5 -15 -9 Z", fill: "#0b1520", stroke: "#5c7488", "stroke-width": 0.8 }, body);
-      el("path", { d: "M-6 -16.5 L-2 -16.8 L-6 -10 L-10 -9.8 Z", fill: C.accent, "fill-opacity": 0.22 }, body);
-      // テールランプ（横一文字、ブレーキで明るく）
+      // 描画：カメラから見える面だけ、遠い順
+      const camDist = (f) => { const c = f.pts.reduce((a, p) => [a[0] + p[0], a[1] + p[1], a[2] + p[2]], [0, 0, 0]).map((x) => x / f.pts.length); const d = [c[0] - CAM[0], c[1] - CAM[1], c[2] - CAM[2]]; return { c, d, dist: Math.hypot(...d) }; };
+      faces.forEach((f) => Object.assign(f, camDist(f)));
+      faces.sort((a, b) => b.dist - a.dist);
+      // タイヤは常に先に描く（ボディが上に重なる）
+      const order = [...faces.filter((f) => f.extra.tyre), ...faces.filter((f) => !f.extra.tyre)];
       const brk = ax < -0.2;
-      el("path", { d: "M-21 -4 L-8 -4.5 L-8 -1.5 L-21 -1 Z M21 -4 L8 -4.5 L8 -1.5 L21 -1 Z", fill: "#ff6b4a", "fill-opacity": brk ? 1 : 0.4 }, body);
-      el("rect", { x: -8, y: -3.6, width: 16, height: 1.4, fill: "#ff6b4a", "fill-opacity": brk ? 0.8 : 0.2 }, body);
-      if (brk) {
-        el("ellipse", { cx: -14, cy: -2.5, rx: 11, ry: 5, fill: "#ff6b4a", "fill-opacity": 0.28 }, body);
-        el("ellipse", { cx: 14, cy: -2.5, rx: 11, ry: 5, fill: "#ff6b4a", "fill-opacity": 0.28 }, body);
-        el("ellipse", { cx: 0, cy: 17, rx: 30, ry: 5, fill: "#ff6b4a", "fill-opacity": 0.14 }, carG);   // 路面への反射
-      }
-      // ナンバー・ディフューザー
-      el("rect", { x: -5, y: 3, width: 10, height: 4, rx: 1, fill: "#c9d6e0", "fill-opacity": 0.5 }, body);
-      el("path", { d: "M-16 11 L-12 8 L12 8 L16 11", fill: "none", stroke: "#05090e", "stroke-width": 1.4 }, body);
-      // マフラーからの光（ダッシュ）
-      [-9, 9].forEach((x, k) => {
-        el("circle", { cx: x, cy: 10.5, r: 1.8, fill: "#05090e", stroke: "#6f889c", "stroke-width": 0.6 }, body);
-        if (dashK > 0.05) {
-          const fl = 5 + 9 * dashK * (0.75 + 0.25 * Math.sin(now / 45 + k * 2));
-          el("ellipse", { cx: x, cy: 10.5 + fl * 0.4, rx: 2.8 + dashK * 1.5, ry: fl * 0.55, fill: C.long, "fill-opacity": 0.6 * dashK }, body);
-          el("ellipse", { cx: x, cy: 10.5 + fl * 0.25, rx: 1.4, ry: fl * 0.3, fill: "#fff4d6", "fill-opacity": 0.85 * dashK }, body);
+      for (const f of order) {
+        const vis = f.n[0] * f.d[0] + f.n[1] * f.d[1] + f.n[2] * f.d[2] < 0;
+        if (!vis && !f.extra.tyre) continue;
+        const pp = f.pts.map(proj);
+        if (f.extra.tyre) {
+          el("path", { d: poly2(pp), fill: "#070b10", stroke: "#2b3d4f", "stroke-width": 0.8 }, carG);
+          if (vis) { const cpt = pp.reduce((a, p) => [a[0] + p[0] / pp.length, a[1] + p[1] / pp.length], [0, 0]); el("path", { d: poly2(pp.map(([x, y]) => [cpt[0] + (x - cpt[0]) * 0.55, cpt[1] + (y - cpt[1]) * 0.55])), fill: "#4d6377" }, carG); }
+          continue;
         }
-      });
+        el("path", { d: poly2(pp), fill: shade(f.rgb, f.n), stroke: f.extra.glass ? "#6f889c" : "#8fa6b8", "stroke-width": 0.7, "stroke-opacity": 0.6, "stroke-linejoin": "round" }, carG);
+        if (f.extra.glass === "rear") {   // 空の映り込み
+          const [a, b, c2, d2] = pp, L2 = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+          el("path", { d: poly2([L2(a, b, 0.2), L2(a, b, 0.34), L2(d2, c2, 0.3), L2(d2, c2, 0.16)]), fill: C.accent, "fill-opacity": 0.25 }, carG);
+        }
+        if (f.extra.glass === "side") {
+          const [a, b, c2, d2] = pp; el("path", { d: `M${a[0].toFixed(1)} ${a[1].toFixed(1)} L${b[0].toFixed(1)} ${b[1].toFixed(1)}`, stroke: C.accent, "stroke-opacity": 0.35, "stroke-width": 0.8 }, carG);
+        }
+        if (f.extra.side) {               // サイドのキャラクターライン
+          const xs = f.extra.side * 0.905, ln = [[xs, 0.62, -2.1], [xs, 0.58, 2.0]].map(bodyT).map(proj);
+          el("line", { x1: ln[0][0].toFixed(1), y1: ln[0][1].toFixed(1), x2: ln[1][0].toFixed(1), y2: ln[1][1].toFixed(1), stroke: "#dfe9f1", "stroke-opacity": 0.35, "stroke-width": 0.9 }, carG);
+        }
+        if (f.extra.rear) {               // テールランプ・ナンバー・マフラー
+          const q = (x0, x1, y0, y1) => poly2([[x0, y0, -2.17], [x1, y0, -2.17], [x1, y1, -2.17], [x0, y1, -2.17]].map(bodyT).map(proj));
+          el("path", { d: q(-0.88, -0.38, 0.64, 0.76) + " " + q(0.38, 0.88, 0.64, 0.76), fill: "#ff6b4a", "fill-opacity": brk ? 1 : 0.45 }, carG);
+          el("path", { d: q(-0.38, 0.38, 0.68, 0.72), fill: "#ff6b4a", "fill-opacity": brk ? 0.85 : 0.2 }, carG);
+          el("path", { d: q(-0.22, 0.22, 0.42, 0.54), fill: "#c9d6e0", "fill-opacity": 0.55 }, carG);
+          if (brk) [-0.63, 0.63].forEach((x) => { const g2 = proj(bodyT([x, 0.7, -2.2])); el("ellipse", { cx: g2[0].toFixed(1), cy: g2[1].toFixed(1), rx: 7, ry: 3.5, fill: "#ff6b4a", "fill-opacity": 0.35 }, carG); });
+          [-0.45, 0.45].forEach((x, k) => {
+            const e = proj(bodyT([x, 0.36, -2.2]));
+            el("circle", { cx: e[0].toFixed(1), cy: e[1].toFixed(1), r: 1.8, fill: "#05090e", stroke: "#6f889c", "stroke-width": 0.6 }, carG);
+            if (dashK > 0.05) {
+              const fl = 5 + 9 * dashK * (0.75 + 0.25 * Math.sin(now / 45 + k * 2));
+              el("ellipse", { cx: e[0].toFixed(1), cy: (e[1] + fl * 0.55).toFixed(1), rx: 1.5 + dashK * 0.6, ry: fl * 0.6, fill: C.long, "fill-opacity": 0.5 * dashK, filter: "url(#lgblur)" }, carG);
+              el("ellipse", { cx: e[0].toFixed(1), cy: (e[1] + fl * 0.3).toFixed(1), rx: 0.9, ry: fl * 0.32, fill: "#fff4d6", "fill-opacity": 0.85 * dashK }, carG);
+            }
+          });
+        }
+      }
+      if (brk) el("ellipse", { cx: 0, cy: 10, rx: 22, ry: 4, fill: "#ff6b4a", "fill-opacity": 0.12 }, carG);
     }
     el("circle", { r: 122, fill: "none", stroke: C.outline, "stroke-width": 1.2 }, disc);
     const introIdx = mode === "intro" ? Math.floor(t / 0.55) % 9 : -1;
@@ -1371,7 +1408,7 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
       const lit = mode === "intro" ? introIdx === i : mode === "moving" && d.k === litK;
       if (mode === "moving" && !isWide && !lit) return;              // 走行中は斜めの数字を出さない
       const rr = isWide ? 146 : 136;
-      const x = rr * Math.cos(rad(d.dir)) + (d.dir === 180 ? 14 : d.dir === 0 ? -4 : 0), y = rr * Math.sin(rad(d.dir)) * (mode === "moving" ? 0.9 : 1) + (mode === "moving" ? 6 : 0);
+      const x = rr * Math.cos(rad(d.dir)) + (d.dir === 180 ? 22 : d.dir === 0 ? -4 : 0), y = rr * Math.sin(rad(d.dir)) * (mode === "moving" ? 0.9 : 1) + (mode === "moving" ? 6 : 0);
       const g = el("g", { transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`, opacity: mode === "intro" && !lit ? 0.35 : 1 }, svg);
       const showName = mode === "stopped" || mode === "now" || lit;
       const col = (mode === "moving" && !lit) ? C.muted : d.col;
@@ -1381,7 +1418,7 @@ const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "
       }
       const sidePill = lit && mode === "moving" && (d.dir === 0 || d.dir === 180);
       if (sidePill) {
-        const sg = el("g", { transform: `translate(${d.dir === 180 ? -8 : -8},-6)` }, g);
+        const sg = el("g", { transform: `translate(${d.dir === 180 ? -16 : -8},-6)` }, g);
         el("rect", { x: -32, y: -34, width: 64, height: 68, rx: 18, fill: C.bg, "fill-opacity": 0.94, stroke: d.col, "stroke-width": 2.5 }, sg);
         const ig = el("g", { transform: "translate(0,-15)" }, sg); icon(ig, d.icon, d.col, 0.9);
         const tx = el("text", { x: 0, y: 24, fill: d.col, "font-size": 18, "font-weight": 800, "text-anchor": "middle", "font-family": "Chakra Petch, Noto Sans JP, sans-serif" }, sg);
