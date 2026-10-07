@@ -1,22 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Slatch: two chain links (latch) interlocked on a rising diagonal.
+  All coordinates are absolute (no group rotation). 108x108 viewport; links stay inside the 66dp safe zone (radius 33 from 54,54).
+  Weave: link A is drawn, then link B over it (with a thin "gap" stroke), then link A is redrawn over B on the lower-right side.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Calendar body -->
+    <!-- link A (base) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,38 L78,38 L78,80 A4,4 0 0 1 74,84 L34,84 A4,4 0 0 1 30,80 Z" />
-    <!-- Calendar header -->
+        android:pathData="M33.67,59.13 L41.8,50.99 A10.75,10.75 0 0 1 57.01,66.2 L48.87,74.33 A10.75,10.75 0 0 1 33.67,59.13 Z"
+        android:strokeColor="#EAF8E6"
+        android:strokeWidth="6.5" />
+    <group>
+        <clip-path android:pathData="M-2.57,110.57 L110.57,-2.57 L54,-59.14 L-59.14,54 Z" />
+        <group>
+            <clip-path android:pathData="M31.37,56.83 L39.5,48.7 A14,14 0 0 1 59.3,68.5 L51.17,76.63 A14,14 0 0 1 31.37,56.83 Z" />
+            <!-- gap around B on A (upper-left side) -->
+            <path
+                android:pathData="M50.99,41.8 L59.13,33.67 A10.75,10.75 0 0 1 74.33,48.87 L66.2,57.01 A10.75,10.75 0 0 1 50.99,41.8 Z"
+                android:strokeColor="#12461A"
+                android:strokeWidth="10.1" />
+        </group>
+    </group>
+    <!-- link B -->
     <path
-        android:fillColor="#A5D6A7"
-        android:pathData="M30,38 L78,38 L78,48 L30,48 Z" />
-    <!-- Link icon: two overlapping rounded rectangles representing linked plans -->
-    <path
-        android:fillColor="#2E7D32"
-        android:pathData="M40,58 h14 a7,7 0 0 1 0,14 h-4 v-6 h4 a1,1 0 0 0 0,-2 h-14 a1,1 0 0 0 0,2 h4 v6 h-4 a7,7 0 0 1 0,-14 Z" />
-    <path
-        android:fillColor="#2E7D32"
-        android:pathData="M54,66 h14 a7,7 0 0 1 0,14 h-14 a7,7 0 0 1 0,-14 Z M54,70 a3,3 0 0 0 0,6 h14 a3,3 0 0 0 0,-6 Z" />
+        android:pathData="M50.99,41.8 L59.13,33.67 A10.75,10.75 0 0 1 74.33,48.87 L66.2,57.01 A10.75,10.75 0 0 1 50.99,41.8 Z"
+        android:strokeColor="#88D982"
+        android:strokeWidth="6.5" />
+    <group>
+        <clip-path android:pathData="M-2.57,110.57 L110.57,-2.57 L167.14,54 L54,167.14 Z" />
+        <group>
+            <clip-path android:pathData="M48.7,39.5 L56.83,31.37 A14,14 0 0 1 76.63,51.17 L68.5,59.3 A14,14 0 0 1 48.7,39.5 Z" />
+            <!-- gap around A on B (lower-right side) -->
+            <path
+                android:pathData="M33.67,59.13 L41.8,50.99 A10.75,10.75 0 0 1 57.01,66.2 L48.87,74.33 A10.75,10.75 0 0 1 33.67,59.13 Z"
+                android:strokeColor="#12461A"
+                android:strokeWidth="10.1" />
+        </group>
+    </group>
+    <group>
+        <clip-path android:pathData="M-2.92,110.21 L110.21,-2.92 L167.14,54 L54,167.14 Z" />
+        <!-- link A over B (lower-right side) -->
+        <path
+            android:pathData="M33.67,59.13 L41.8,50.99 A10.75,10.75 0 0 1 57.01,66.2 L48.87,74.33 A10.75,10.75 0 0 1 33.67,59.13 Z"
+            android:strokeColor="#EAF8E6"
+            android:strokeWidth="6.5" />
+    </group>
 </vector>

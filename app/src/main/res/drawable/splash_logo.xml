@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Slatch splash logo (light). 288dp icon area of the Android 12 splash screen (windowSplashScreenAnimatedIcon).
+  Links span about 171dp, inside the 192dp circle that is not masked. The halo colour equals the splash background (#F9FAF3).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <!-- link A (base) -->
+    <path
+        android:pathData="M89.79,157.67 L111.47,135.99 A28.67,28.67 0 0 1 152.01,176.53 L130.33,198.21 A28.67,28.67 0 0 1 89.79,157.67 Z"
+        android:strokeColor="#12461A"
+        android:strokeWidth="17.33" />
+    <group>
+        <clip-path android:pathData="M-6.85,294.85 L294.85,-6.85 L144,-157.7 L-157.7,144 Z" />
+        <group>
+            <clip-path android:pathData="M83.66,151.54 L105.34,129.86 A37.33,37.33 0 0 1 158.14,182.66 L136.46,204.34 A37.33,37.33 0 0 1 83.66,151.54 Z" />
+            <!-- gap around B on A (upper-left side) -->
+            <path
+                android:pathData="M135.99,111.47 L157.67,89.79 A28.67,28.67 0 0 1 198.21,130.33 L176.53,152.01 A28.67,28.67 0 0 1 135.99,111.47 Z"
+                android:strokeColor="#F9FAF3"
+                android:strokeWidth="26.93" />
+        </group>
+    </group>
+    <!-- link B -->
+    <path
+        android:pathData="M135.99,111.47 L157.67,89.79 A28.67,28.67 0 0 1 198.21,130.33 L176.53,152.01 A28.67,28.67 0 0 1 135.99,111.47 Z"
+        android:strokeColor="#34A043"
+        android:strokeWidth="17.33" />
+    <group>
+        <clip-path android:pathData="M-6.85,294.85 L294.85,-6.85 L445.7,144 L144,445.7 Z" />
+        <group>
+            <clip-path android:pathData="M129.86,105.34 L151.54,83.66 A37.33,37.33 0 0 1 204.34,136.46 L182.66,158.14 A37.33,37.33 0 0 1 129.86,105.34 Z" />
+            <!-- gap around A on B (lower-right side) -->
+            <path
+                android:pathData="M89.79,157.67 L111.47,135.99 A28.67,28.67 0 0 1 152.01,176.53 L130.33,198.21 A28.67,28.67 0 0 1 89.79,157.67 Z"
+                android:strokeColor="#F9FAF3"
+                android:strokeWidth="26.93" />
+        </group>
+    </group>
+    <group>
+        <clip-path android:pathData="M-7.79,293.91 L293.91,-7.79 L445.7,144 L144,445.7 Z" />
+        <!-- link A over B (lower-right side) -->
+        <path
+            android:pathData="M89.79,157.67 L111.47,135.99 A28.67,28.67 0 0 1 152.01,176.53 L130.33,198.21 A28.67,28.67 0 0 1 89.79,157.67 Z"
+            android:strokeColor="#12461A"
+            android:strokeWidth="17.33" />
+    </group>
+</vector>

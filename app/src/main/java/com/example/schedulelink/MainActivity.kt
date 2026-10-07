@@ -7,19 +7,27 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.schedulelink.ui.AppRoot
 import com.example.schedulelink.ui.navigation.DeepLinks
+import com.example.schedulelink.ui.splash.SlatchSplash
 import com.example.schedulelink.ui.theme.ScheduleLinkTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // システムのスプラッシュ画面(Theme.Slatch.Starting)を使う。super.onCreateより前に呼ぶ。
+        installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
@@ -50,13 +58,19 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppRoot(
-                        app = app,
-                        isDarkTheme = isDarkTheme,
-                        onToggleTheme = { app.themePreferences.setDarkTheme(!isDarkTheme) },
-                        isPhotoFeatureEnabled = isPhotoFeatureEnabled,
-                        onTogglePhotoFeature = { app.photoFeaturePreferences.setEnabled(it) }
-                    )
+                    // 起動のたびに1度だけ、ロゴとサブタイトルの起動画面を重ねて出す(画面回転では繰り返さない)。
+                    // 下の本編は先に読み込みを始める。ウィジェットなどから開いたときは出さない。
+                    var showSplash by rememberSaveable { mutableStateOf(DeepLinks.pending.value == null) }
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AppRoot(
+                            app = app,
+                            isDarkTheme = isDarkTheme,
+                            onToggleTheme = { app.themePreferences.setDarkTheme(!isDarkTheme) },
+                            isPhotoFeatureEnabled = isPhotoFeatureEnabled,
+                            onTogglePhotoFeature = { app.photoFeaturePreferences.setEnabled(it) }
+                        )
+                        if (showSplash) SlatchSplash(onFinished = { showSplash = false })
+                    }
                 }
             }
         }
