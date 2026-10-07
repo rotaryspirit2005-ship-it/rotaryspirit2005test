@@ -48,6 +48,7 @@ fun FamilySettingsScreen(
     familyId: String,
     familyRepository: FamilyRepository,
     onBack: () -> Unit,
+    onTagManageClick: () -> Unit,
     onLeft: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -112,6 +113,10 @@ fun FamilySettingsScreen(
                         Text("コピー")
                     }
                 }
+            }
+
+            FilledTonalButton(onClick = onTagManageClick) {
+                Text("タグの管理(誰の予定かを色で分ける)")
             }
 
             HorizontalDivider()

@@ -14,7 +14,9 @@ data class ScheduleEntity(
     val milestoneId: String? = null,
     /** 双方向にリンクされた他の小日程のID一覧。 */
     val linkedIds: List<String> = emptyList(),
-    val photoUrls: List<String> = emptyList()
+    val photoUrls: List<String> = emptyList(),
+    /** 付けたタグ(誰の予定か)のID。タグ自体は families/{id}/tags にある。未設定は空。 */
+    val tagIds: List<String> = emptyList()
 )
 
 /** 一覧画面での表示用。リンク数はlinkedIdsの件数からその場で求められる。 */

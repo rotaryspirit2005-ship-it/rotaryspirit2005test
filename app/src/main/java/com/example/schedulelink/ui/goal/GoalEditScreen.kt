@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalType
+import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
@@ -79,6 +80,7 @@ fun GoalEditScreen(
     var showEndDatePicker by remember { mutableStateOf(false) }
     var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val context = LocalContext.current
 
@@ -124,6 +126,7 @@ fun GoalEditScreen(
                 goal.startDate?.let { startDate = it }
                 goal.endDate?.let { endDate = it }
                 existingPhotoUrls = goal.photoUrls
+                tagIds = goal.tagIds
             }
         }
     }
@@ -178,6 +181,8 @@ fun GoalEditScreen(
                     label = "継続する習慣"
                 )
             }
+
+            TagPickerSection(selectedIds = tagIds, onChange = { tagIds = it })
 
             if (type == GoalType.PHASED) {
                 // 「yyyy年M月d日」は半分の幅に収まらず折り返すため、縦に並べる。
@@ -283,7 +288,8 @@ fun GoalEditScreen(
                             type = type,
                             startDate = if (type == GoalType.PHASED) startDate else null,
                             endDate = if (type == GoalType.PHASED) endDate else null,
-                            photoUrls = existingPhotoUrls
+                            photoUrls = existingPhotoUrls,
+                            tagIds = tagIds
                         )
                         val shiftsAnything = activeShift != 0L &&
                             (selectedMilestones.isNotEmpty() || selectedSchedules.isNotEmpty())

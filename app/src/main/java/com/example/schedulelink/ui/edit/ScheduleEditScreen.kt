@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SectionHeader
@@ -100,6 +101,7 @@ fun ScheduleEditScreen(
     var showMilestonePicker by remember { mutableStateOf(false) }
     var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     LaunchedEffect(scheduleId) {
@@ -114,6 +116,7 @@ fun ScheduleEditScreen(
                 linkedIds = links
                 milestoneId = schedule.milestoneId
                 existingPhotoUrls = schedule.photoUrls
+                tagIds = schedule.tagIds
                 loaded = true
             }
         }
@@ -171,6 +174,8 @@ fun ScheduleEditScreen(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
+
+                TagPickerSection(selectedIds = tagIds, onChange = { tagIds = it })
 
                 PickerField(
                     label = "日付",
@@ -310,7 +315,8 @@ fun ScheduleEditScreen(
                                     startTime = startTime,
                                     endTime = endTime,
                                     milestoneId = milestoneId,
-                                    photoUrls = existingPhotoUrls
+                                    photoUrls = existingPhotoUrls,
+                                    tagIds = tagIds
                                 )
                                 val shiftDays = if (shiftActive) dayShift else 0L
                                 viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftDays) {

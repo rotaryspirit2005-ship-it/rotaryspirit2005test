@@ -126,6 +126,7 @@ fun MonthScreen(
     onGoalMapClick: () -> Unit,
     onTodoListClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
+    onTagManageClick: () -> Unit,
     onImportIcsClick: () -> Unit,
     onImportCalendarClick: () -> Unit,
     isDarkTheme: Boolean,
@@ -216,6 +217,10 @@ fun MonthScreen(
                         DropdownMenuItem(
                             text = { Text("家族グループの設定") },
                             onClick = { showMenu = false; onFamilySettingsClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("タグの管理") },
+                            onClick = { showMenu = false; onTagManageClick() }
                         )
                         DropdownMenuItem(
                             text = { Text(".icsファイルから読み込む") },

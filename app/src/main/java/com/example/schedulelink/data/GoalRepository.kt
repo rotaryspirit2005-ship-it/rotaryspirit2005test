@@ -14,7 +14,8 @@ private fun DocumentSnapshot.toGoal(): GoalEntity = GoalEntity(
     type = getString("type")?.let { runCatching { GoalType.valueOf(it) }.getOrNull() } ?: GoalType.PHASED,
     startDate = getString("startDate")?.let { LocalDate.parse(it) },
     endDate = getString("endDate")?.let { LocalDate.parse(it) },
-    photoUrls = (get("photoUrls") as? List<*>)?.filterIsInstance<String>().orEmpty()
+    photoUrls = (get("photoUrls") as? List<*>)?.filterIsInstance<String>().orEmpty(),
+    tagIds = (get("tagIds") as? List<*>)?.filterIsInstance<String>().orEmpty()
 )
 
 private fun GoalEntity.toMap(): Map<String, Any?> = mapOf(
@@ -23,7 +24,8 @@ private fun GoalEntity.toMap(): Map<String, Any?> = mapOf(
     "type" to type.name,
     "startDate" to startDate?.toString(),
     "endDate" to endDate?.toString(),
-    "photoUrls" to photoUrls
+    "photoUrls" to photoUrls,
+    "tagIds" to tagIds
 )
 
 class GoalRepository(

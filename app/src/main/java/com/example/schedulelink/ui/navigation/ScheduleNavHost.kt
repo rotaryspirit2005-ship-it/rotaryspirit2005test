@@ -10,6 +10,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,6 +26,7 @@ import com.example.schedulelink.data.GoalRepository
 import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
+import com.example.schedulelink.data.TagRepository
 import com.example.schedulelink.data.TodoRepository
 import com.example.schedulelink.ui.AppViewModelFactory
 import com.example.schedulelink.ui.auth.FamilySettingsScreen
@@ -50,6 +52,9 @@ import com.example.schedulelink.ui.milestone.MilestoneEditScreen
 import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
 import com.example.schedulelink.ui.month.MonthScreen
 import com.example.schedulelink.ui.month.MonthViewModel
+import com.example.schedulelink.ui.tag.LocalTagController
+import com.example.schedulelink.ui.tag.TagController
+import com.example.schedulelink.ui.tag.TagManageScreen
 import com.example.schedulelink.ui.theme.Motion
 import com.example.schedulelink.ui.todo.TodoListScreen
 import com.example.schedulelink.ui.todo.TodoListViewModel
@@ -72,6 +77,7 @@ private const val ROUTE_FAMILY_SETTINGS = "familySettings"
 private const val ROUTE_IMPORT_ICS = "importIcs"
 private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
 private const val ROUTE_TODOS = "todos"
+private const val ROUTE_TAGS = "tags"
 
 // 画面遷移(Material 3の「Z軸」モーション)。階層を深く進むときは新しい画面が少し小さい所から
 // 手前に出てきて、前の画面は少し拡大しながら消える。戻るときはその逆向きに動かす。
@@ -98,6 +104,7 @@ fun ScheduleNavHost(
     milestoneRepository: MilestoneRepository,
     photoStorageRepository: PhotoStorageRepository,
     todoRepository: TodoRepository,
+    tagRepository: TagRepository,
     uid: String,
     familyId: String,
     familyRepository: FamilyRepository,
@@ -118,6 +125,11 @@ fun ScheduleNavHost(
     }
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository, todoRepository) }
 
+    // タグは一度だけ購読して、どの画面からも引けるようにする。
+    val tags by remember(tagRepository) { tagRepository.allTags() }.collectAsState(initial = emptyList())
+    val tagController = remember(tags, tagRepository) { TagController(tags, tagRepository) }
+
+    CompositionLocalProvider(LocalTagController provides tagController) {
     SharedTransitionLayout {
         NavHost(
             navController = navController,
@@ -139,6 +151,7 @@ fun ScheduleNavHost(
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onTodoListClick = { navController.navigate(ROUTE_TODOS) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
+                    onTagManageClick = { navController.navigate(ROUTE_TAGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
                     onImportCalendarClick = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
                     isDarkTheme = isDarkTheme,
@@ -336,9 +349,14 @@ fun ScheduleNavHost(
                 familyId = familyId,
                 familyRepository = familyRepository,
                 onBack = { navController.popBackStack() },
+                onTagManageClick = { navController.navigate(ROUTE_TAGS) },
                 onLeft = {},
                 onSignOut = onSignOut
             )
+        }
+
+        composable(ROUTE_TAGS) {
+            TagManageScreen(onBack = { navController.popBackStack() })
         }
 
         composable(ROUTE_IMPORT_ICS) {
@@ -355,5 +373,6 @@ fun ScheduleNavHost(
             )
         }
         }
+    }
     }
 }

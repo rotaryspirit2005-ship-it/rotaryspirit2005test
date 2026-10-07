@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
@@ -79,6 +80,7 @@ fun MilestoneEditScreen(
     var showEndDatePicker by remember { mutableStateOf(false) }
     var existingPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val context = LocalContext.current
 
@@ -109,6 +111,7 @@ fun MilestoneEditScreen(
                 milestone.startDate?.let { startDate = it }
                 milestone.endDate?.let { endDate = it }
                 existingPhotoUrls = milestone.photoUrls
+                tagIds = milestone.tagIds
             }
         }
     }
@@ -168,6 +171,8 @@ fun MilestoneEditScreen(
                     label = "完了"
                 )
             }
+
+            TagPickerSection(selectedIds = tagIds, onChange = { tagIds = it })
 
             // 「yyyy年M月d日」は半分の幅に収まらず折り返すため、縦に並べる。
             PickerField(
@@ -249,7 +254,8 @@ fun MilestoneEditScreen(
                             startDate = startDate,
                             endDate = endDate,
                             status = status,
-                            photoUrls = existingPhotoUrls
+                            photoUrls = existingPhotoUrls,
+                            tagIds = tagIds
                         )
                         viewModel.save(
                             milestone,

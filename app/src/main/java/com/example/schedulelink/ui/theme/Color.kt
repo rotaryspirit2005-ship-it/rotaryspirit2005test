@@ -103,6 +103,24 @@ private val ConnectorPaletteDark = listOf(
     Color(0xFFFF9B7A), Color(0xFFF28BB8), Color(0xFF4FD1D9), Color(0xFFD8BE8F)
 )
 
+// 家族のタグ(誰の予定か)に選べる色。階層色・今日・リンクとは別の色相で、ライトは濃く、ダークはパステル寄り。
+// タグには必ず名前も併記するので、色だけに意味を持たせない。
+private val TagPaletteLight = listOf(
+    Color(0xFFC2185B), Color(0xFF6A1B9A), Color(0xFF303F9F), Color(0xFF00838F),
+    Color(0xFF2E7D32), Color(0xFF827717), Color(0xFFE65100), Color(0xFF5D4037)
+)
+private val TagPaletteDark = listOf(
+    Color(0xFFF48FB1), Color(0xFFCE93D8), Color(0xFF9FA8DA), Color(0xFF80DEEA),
+    Color(0xFFA5D6A7), Color(0xFFE6EE9C), Color(0xFFFFCC80), Color(0xFFBCAAA4)
+)
+const val TAG_COLOR_COUNT = 8
+
+/** タグの色。[index]が範囲外でも落ちないよう循環させる。 */
+fun tagColor(index: Int, isDark: Boolean): Color {
+    val palette = if (isDark) TagPaletteDark else TagPaletteLight
+    return palette[Math.floorMod(index, palette.size)]
+}
+
 /** 親ごとの線の色。[slot]が色の数を超えたら循環する。 */
 fun connectorColor(slot: Int, isDark: Boolean): Color {
     val palette = if (isDark) ConnectorPaletteDark else ConnectorPaletteLight

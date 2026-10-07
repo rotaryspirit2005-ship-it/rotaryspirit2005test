@@ -16,7 +16,8 @@ private fun DocumentSnapshot.toTodo(): TodoEntity = TodoEntity(
     dueDate = getString("dueDate")?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
     scheduleId = getString("scheduleId"),
     createdAt = getLong("createdAt") ?: 0L,
-    completedAt = getLong("completedAt")
+    completedAt = getLong("completedAt"),
+    tagIds = (get("tagIds") as? List<*>)?.filterIsInstance<String>().orEmpty()
 )
 
 private fun TodoEntity.toMap(): Map<String, Any?> = mapOf(
@@ -26,7 +27,8 @@ private fun TodoEntity.toMap(): Map<String, Any?> = mapOf(
     "dueDate" to dueDate?.toString(),
     "scheduleId" to scheduleId,
     "createdAt" to createdAt,
-    "completedAt" to completedAt
+    "completedAt" to completedAt,
+    "tagIds" to tagIds
 )
 
 /**

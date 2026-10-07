@@ -13,7 +13,9 @@ data class TodoEntity(
     val scheduleId: String? = null,
     /** 並び順用の作成時刻(端末時刻)。サーバー時刻だとオフライン中にnullになり並びが跳ねるため。 */
     val createdAt: Long = 0L,
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    /** 付けたタグ(誰の予定か)のID。タグ自体は families/{id}/tags にある。未設定は空。 */
+    val tagIds: List<String> = emptyList()
 )
 
 /** 未完了の並び: 期限の近い順(期限なしは後ろ)→作成順。アプリとウィジェットで共通。 */

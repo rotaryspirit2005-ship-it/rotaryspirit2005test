@@ -56,6 +56,8 @@ import com.example.schedulelink.data.TodoEntity
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.commonTimeFormatter
+import com.example.schedulelink.ui.tag.TagLabels
+import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.tabularNums
 import kotlinx.coroutines.launch
@@ -103,6 +105,7 @@ fun TodoRow(
                 textDecoration = if (todo.done) TextDecoration.LineThrough else null,
                 color = if (todo.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
             )
+            TagLabels(todo.tagIds, modifier = Modifier.padding(top = 2.dp))
             val hasDue = todo.dueDate != null && !todo.done
             val showChip = linkedSchedule != null && onScheduleClick != null
             if (hasDue || showChip) {
@@ -184,6 +187,7 @@ fun TodoEditSheet(
     var memo by remember(initial.id) { mutableStateOf(initial.memo) }
     var dueDate by remember(initial.id) { mutableStateOf(initial.dueDate) }
     var scheduleId by remember(initial.id) { mutableStateOf(initial.scheduleId) }
+    var tagIds by remember(initial.id) { mutableStateOf(initial.tagIds) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showSchedulePicker by remember { mutableStateOf(false) }
     val linkedSchedule = schedules.firstOrNull { it.id == scheduleId }
@@ -229,6 +233,7 @@ fun TodoEditSheet(
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth()
             )
+            TagPickerSection(selectedIds = tagIds, onChange = { tagIds = it })
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PickerField(
                     label = "期限",
@@ -267,7 +272,8 @@ fun TodoEditSheet(
                             title = title.trim(),
                             memo = memo.trim(),
                             dueDate = dueDate,
-                            scheduleId = scheduleId
+                            scheduleId = scheduleId,
+                            tagIds = tagIds
                         )
                         closeThen { onSave(updated) }
                     },
