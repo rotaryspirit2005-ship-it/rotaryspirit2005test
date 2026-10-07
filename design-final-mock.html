@@ -1,0 +1,1316 @@
+<title>DRIVE SCORE 改善デザイン案</title>
+<script>document.documentElement.setAttribute("data-pal", "b");</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: one section per screen; each section shows phone mockups side by side (wrapping on phones) with a short note per mockup. Single dark look, same tokens as the app. Colour tokens switch per palette option via data-pal on <html>. */
+:root {
+  color-scheme: dark;
+  --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --font-num: "Chakra Petch", "Noto Sans JP", ui-monospace, sans-serif;
+}
+/* 配色トークン。:root が「現在」、data-pal="a|b|c" が各案（値は scratchpad/pal/emit.py で計算） */
+:root {
+  --bg: #06080c;
+  --surface: #0f131a;
+  --surface2: #161c26;
+  --outline: #232c3b;
+  --grid: #1b2230;
+  --text: #f3f6fb;
+  --muted: #8b96a8;
+  --accent: #00e1ff;
+  --accent2: #7c5cff;
+  --up: #ff2d4b;
+  --down: #2f80ff;
+  --long: #ffb020;
+  --lat: #d77bff;
+  --flow: #c7f464;
+  --stab: #2bd9a0;
+  --lap: #e6e9ef;
+  --warn: #ff7a1a;
+  --sun-surface: #1d2430;
+  --sun-outline: #3a4659;
+  --sun-muted: #c2cbd9;
+  --sun-bg: #0b0f15;
+  --ring: #e8fbff;
+  --track: #e9f3e6;
+}
+:root[data-pal="a"] {
+  --bg: #06080c;
+  --surface: #0f131a;
+  --surface2: #161c26;
+  --outline: #232c3b;
+  --grid: #1b2230;
+  --text: #f3f6fb;
+  --muted: #8b96a8;
+  --accent: #32e2ff;
+  --accent2: #8267e2;
+  --up: #fc4e57;
+  --down: #4490fe;
+  --long: #f2ab35;
+  --lat: #db9efc;
+  --flow: #c9ef7a;
+  --stab: #3cd8a2;
+  --lap: #e6e9ef;
+  --warn: #ed6e12;
+  --sun-surface: #1d2430;
+  --sun-outline: #3a4659;
+  --sun-muted: #c2cbd9;
+  --sun-bg: #0b0f15;
+  --ring: #e8fbff;
+  --track: #e9f3e6;
+}
+:root[data-pal="b"] {
+  --bg: #04090f;
+  --surface: #0a131d;
+  --surface2: #111d29;
+  --outline: #1e2f41;
+  --grid: #192532;
+  --text: #eff6fb;
+  --muted: #8ba2b2;
+  --accent: #8fe2ff;
+  --accent2: #7f76dc;
+  --up: #f85360;
+  --down: #4392f7;
+  --long: #eca851;
+  --lat: #c7a3fc;
+  --flow: #c0ec85;
+  --stab: #50cbbf;
+  --lap: #e8f3fd;
+  --warn: #e4762c;
+  --sun-surface: #182532;
+  --sun-outline: #33485d;
+  --sun-muted: #bbcddb;
+  --sun-bg: #080f17;
+  --ring: #edf9ff;
+  --track: #e2f1fa;
+}
+:root[data-pal="c"] {
+  --bg: #07080a;
+  --surface: #111315;
+  --surface2: #1a1c20;
+  --outline: #2a2e34;
+  --grid: #212429;
+  --text: #f6f5f2;
+  --muted: #9a9fa6;
+  --accent: #f3f2ef;
+  --accent2: #9b9fa5;
+  --up: #fc4e51;
+  --down: #4c89ff;
+  --long: #fcab19;
+  --lat: #5eddfe;
+  --flow: #bc9cff;
+  --stab: #5bdb87;
+  --lap: #ebe8df;
+  --warn: #ed6e12;
+  --sun-surface: #222427;
+  --sun-outline: #42464c;
+  --sun-muted: #c7cbd0;
+  --sun-bg: #0d0f11;
+  --ring: #ffffff;
+  --track: #f0eee9;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); padding: 20px 16px 48px; line-height: 1.6; }
+.page { max-width: 1180px; margin: 0 auto; }
+header h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; }
+header p { color: var(--muted); margin: 6px 0 0; max-width: 70ch; font-size: .92rem; }
+section { margin-top: 36px; }
+section > h2 { font-size: 1.12rem; margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+section > h2 small { font-weight: 500; color: var(--muted); font-size: .8rem; }
+section > p.lead { color: var(--muted); font-size: .9rem; margin: 0 0 14px; max-width: 75ch; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.opt { flex: 0 1 330px; min-width: 0; display: grid; gap: 10px; }
+.opt h3 { margin: 0; font-size: .98rem; }
+.opt h3 .tag { font-size: .7rem; font-weight: 700; color: var(--bg); background: var(--accent); border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
+.opt ul { margin: 0; padding-left: 1.1em; color: var(--muted); font-size: .84rem; }
+.opt li b { color: var(--text); font-weight: 700; }
+.opt .refs { font-size: .72rem; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 16px; }
+.controls button { font: inherit; font-size: .84rem; color: var(--text); background: var(--surface2); border: 1px solid var(--outline); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+.controls button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* palette section */
+.palbtns button { display: inline-flex; align-items: center; gap: 8px; }
+.palbtns .dots { display: inline-flex; gap: 3px; }
+.palbtns .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.palbtns .tag { font-size: .68rem; font-weight: 700; color: var(--bg); background: var(--accent); border-radius: 999px; padding: 0 7px; }
+.palpanel { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .palpanel { grid-template-columns: minmax(0, 1fr); } }
+.paldetail { display: grid; gap: 12px; padding: 14px 16px; }
+.paldetail h3 { margin: 0; font-size: 1rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.paldetail h3 .tag { font-size: .7rem; font-weight: 700; color: var(--bg); background: var(--accent); border-radius: 999px; padding: 1px 8px; }
+.paldetail p { margin: 0; font-size: .86rem; color: var(--muted); max-width: 72ch; }
+.paldetail p b { color: var(--text); }
+.pstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.pstrip.small { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+.sw { border: 1px solid var(--outline); border-radius: 12px; overflow: hidden; background: var(--bg); min-width: 0; }
+.sw .bar { height: 26px; }
+.pstrip.small .sw .bar { height: 14px; }
+.sw .tx { padding: 5px 8px 6px; display: grid; gap: 1px; font-size: .74rem; color: var(--muted); }
+.sw .nm { font-weight: 700; font-size: .86rem; }
+.pstrip.small .sw .nm { font-size: .76rem; color: var(--text); }
+.sw .hx { font-family: var(--font-num); color: var(--text); letter-spacing: .02em; }
+.sw .cr { white-space: nowrap; }
+.sw .cr b { color: var(--text); font-family: var(--font-num); font-weight: 700; }
+.checks { display: grid; gap: 4px; font-size: .8rem; color: var(--muted); margin: 0; padding-left: 1.1em; }
+.checks b { color: var(--text); }
+.checks .ok { color: var(--stab); font-weight: 700; }
+.checks .ng { color: var(--warn); font-weight: 700; }
+.palprev { display: grid; gap: 6px; justify-items: center; padding: 12px; }
+.palprev svg { width: 100%; max-width: 236px; height: auto; display: block; }
+.palprev .cap { font-size: .74rem; color: var(--muted); text-align: center; }
+.palprev .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+.palprev .row2 > div { border-radius: 12px; padding: 4px; }
+
+/* phone */
+.phone { width: 330px; max-width: 100%; border: 1px solid var(--outline); border-radius: 28px; padding: 10px; background: #000; }
+.screen { position: relative; border-radius: 20px; overflow: hidden; height: 640px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); font-size: 12px; }
+.sun .screen { --surface: var(--sun-surface); --outline: var(--sun-outline); --muted: var(--sun-muted); background: var(--sun-bg); }
+.card { background: var(--surface); border: 1px solid var(--outline); border-radius: 18px; padding: 10px 12px; }
+.sun .card { background: var(--sun-surface); }
+.top { display: flex; align-items: center; gap: 8px; }
+.top .rec { display: flex; align-items: center; gap: 5px; font-weight: 700; letter-spacing: .1em; font-size: .72rem; }
+.top .rec i { width: 8px; height: 8px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 15%, transparent); }
+.top .spd { margin-left: auto; font-family: var(--font-num); font-weight: 700; font-size: 1.5rem; line-height: 1; }
+.top .spd small { font-size: .62rem; color: var(--muted); margin-left: 2px; }
+.stop { position: relative; width: 56px; height: 48px; border-radius: 14px; border: 1.5px solid var(--outline); background: var(--surface2); color: var(--text); font: inherit; font-weight: 700; font-size: .78rem; cursor: pointer; overflow: hidden; }
+.stop .fill { position: absolute; inset: 0; background: color-mix(in srgb, var(--warn) 35%, transparent); transform-origin: left; transform: scaleX(0); }
+.stop span { position: relative; }
+.stop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-btn { width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--outline); display: grid; place-items: center; color: var(--muted); font-size: .64rem; }
+.gaugecard { display: grid; grid-template-columns: 1.25fr 1fr; gap: 6px; align-items: center; transition: opacity .6s; }
+.gaugecard svg { width: 100%; height: auto; display: block; }
+.losses { display: grid; gap: 4px; transition: opacity .6s; }
+.loss { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 4px; border-radius: 8px; padding: 2px 5px; font-size: .9rem; font-weight: 700; white-space: nowrap; }
+.loss .g { font-size: .9rem; text-align: center; }
+.loss .v { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.loss .sub { grid-column: 2 / -1; font-size: .66rem; font-weight: 500; opacity: .85; margin-top: -3px; }
+.loss.focus { outline: 2px solid currentColor; background: rgba(255,255,255,.04); }
+.coach { display: grid; gap: 2px; border-color: color-mix(in srgb, var(--long) 50%, transparent); }
+.coach .k { font-size: .7rem; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.coach .theme { color: var(--bg); background: var(--long); border-radius: 999px; padding: 0 7px; font-weight: 700; }
+.coach .msg { font-weight: 900; font-size: 1.5rem; line-height: 1.25; }
+.coach .cnt { font-size: .74rem; color: var(--muted); }
+.coach .cnt b { color: var(--text); font-family: var(--font-num); }
+.strip { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; padding: 0 4px; }
+.strip b { color: var(--text); font-family: var(--font-num); font-size: 1rem; margin-left: 3px; }
+.lowergrid { flex: 1; display: grid; grid-template-rows: 1fr 1fr; gap: 8px; min-height: 0; transition: opacity .6s; }
+.lowergrid .card { padding: 6px 8px; display: flex; flex-direction: column; min-height: 0; }
+.lowergrid .cap { font-size: .64rem; color: var(--muted); }
+.lowergrid svg { flex: 1; width: 100%; min-height: 0; }
+.dim { opacity: .55; }
+.hidden-moving { transition: opacity .6s; }
+.moving .hidden-moving { opacity: 0; }
+.peek { flex: 1; display: grid; place-items: center; color: var(--muted); font-size: .76rem; border: 1px dashed var(--outline); border-radius: 14px; }
+
+/* result / home */
+.scroll { overflow: hidden; }
+.eyebrow { font-size: .66rem; color: var(--muted); letter-spacing: .06em; }
+.next { border-color: color-mix(in srgb, var(--long) 55%, transparent); display: grid; gap: 4px; }
+.next .ttl { font-weight: 900; font-size: 1.15rem; line-height: 1.3; }
+.badge { display: inline-flex; gap: 6px; align-items: center; font-size: .78rem; }
+.theme-ok { color: var(--stab); font-weight: 700; }
+.hero { display: flex; align-items: center; gap: 14px; }
+.hero .num { font-family: var(--font-num); font-weight: 700; font-size: 3.4rem; line-height: 1; }
+.hero .delta { font-family: var(--font-num); font-weight: 700; color: var(--up); font-size: 1.05rem; }
+.dir { display: grid; grid-template-columns: 120px 1fr; gap: 8px; align-items: center; }
+.dir table { font-size: .74rem; border-collapse: collapse; width: 100%; }
+.dir td { padding: 1px 2px; }
+.dir td:last-child { text-align: right; font-family: var(--font-num); }
+.scene { display: grid; grid-template-columns: 20px 1fr auto; gap: 6px; align-items: center; font-size: .76rem; padding: 3px 0; border-top: 1px solid var(--outline); }
+.scene:first-of-type { border-top: 0; }
+.pin { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: .66rem; color: var(--bg); }
+.fold { display: flex; justify-content: space-between; color: var(--muted); font-size: .8rem; }
+.cta { background: var(--accent); color: var(--bg); font-weight: 900; text-align: center; border-radius: 14px; padding: 12px; font-size: 1rem; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface2); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg span { text-align: center; padding: 6px; border-radius: 9px; font-weight: 700; font-size: .82rem; color: var(--muted); }
+.seg span.on { background: var(--surface); color: var(--text); outline: 1px solid var(--outline); }
+.status { display: flex; justify-content: space-between; font-size: .76rem; color: var(--muted); }
+.status b { color: var(--stab); }
+.spark { display: grid; grid-template-columns: 64px 1fr 34px; gap: 6px; align-items: center; font-size: .74rem; }
+.spark svg { width: 100%; height: 20px; }
+.spark b { font-family: var(--font-num); text-align: right; }
+
+/* system section */
+.sys { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.sys .card { padding: 14px 16px; }
+.sys h3 { margin: 0 0 8px; font-size: .95rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--outline); border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: .84rem; }
+table.terms { width: 100%; border-collapse: collapse; font-size: .82rem; }
+table.terms th, table.terms td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--outline); vertical-align: top; }
+table.terms th { color: var(--muted); font-weight: 500; }
+.sys p { color: var(--muted); font-size: .84rem; margin: 6px 0 0; }
+.legend-lines svg { width: 100%; height: 90px; }
+
+/* 最終案（案 2 ＋配色 b）: 扇の周りに向きの名前と点数 */
+#final .finalrow { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+#final .side { flex: 1 1 320px; min-width: 0; max-width: 560px; display: grid; gap: 12px; }
+#final .side h3 { margin: 6px 0 0; font-size: 1rem; }
+#final .side p, #final .side li { color: var(--muted); font-size: .88rem; }
+#final .side ul { margin: 0; padding-left: 1.1em; }
+#final .side b { color: var(--text); }
+#final .modes { display: grid; gap: 8px; }
+#final .modes button { text-align: left; font: inherit; color: var(--text); background: var(--surface2); border: 1px solid var(--outline); border-radius: 14px; padding: 8px 12px; cursor: pointer; }
+#final .modes button[aria-pressed="true"] { border-color: var(--accent); background: rgba(143,226,255,.08); }
+#final .modes button small { display: block; color: var(--muted); font-size: .78rem; }
+#final .modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#final .phase { font-size: .8rem; color: var(--muted); }
+#final .phase b { color: var(--accent); }
+#fphone .screen { gap: 8px; }
+#fphone svg.fg { width: 100%; height: auto; display: block; }
+
+/* ゾーンの背景（デモ） */
+#zone .zrow { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+#zone .side { flex: 1 1 320px; min-width: 0; max-width: 580px; display: grid; gap: 10px; }
+#zone .side h3 { margin: 6px 0 0; font-size: 1rem; }
+#zone .side p, #zone .side li { color: var(--muted); font-size: .88rem; }
+#zone .side ul { margin: 0; padding-left: 1.1em; }
+#zone .side b { color: var(--text); }
+.zphone .screen { position: relative; isolation: isolate; }
+.zbg { position: absolute; inset: 0; z-index: -1; pointer-events: none; transition: background 1s linear; }
+.zedge { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.zgauge { width: 100%; height: auto; display: block; }
+.zbadge { position: absolute; top: 62px; right: 18px; font-weight: 900; letter-spacing: .12em; font-size: .8rem; color: #2a1a08; background: #ffe08a; box-shadow: 0 0 14px rgba(255,224,138,.8); border-radius: 999px; padding: 2px 10px; opacity: 0; transition: opacity .4s; }
+.zbadge.on { opacity: 1; }
+.zstate { display: flex; gap: 10px; flex-wrap: wrap; font-size: .84rem; color: var(--muted); }
+.zstate b { font-family: var(--font-num); color: var(--text); }
+.zband { display: grid; grid-template-columns: 70px 1fr; gap: 6px 10px; font-size: .84rem; align-items: center; }
+.zband i { display: block; height: 22px; border-radius: 6px; border: 1px solid var(--outline); }
+#zone input[type=range] { width: 100%; accent-color: #ffc94d; }
+
+/* 扇の意味が一目で分かる案（デモ） */
+#legend2 .lrow { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+#legend2 .gcard { flex: 0 1 380px; min-width: 0; background: var(--surface); border: 1px solid var(--outline); border-radius: 20px; padding: 10px; position: relative; }
+#legend2 .gcard svg { width: 100%; height: auto; display: block; }
+#legend2 .side { flex: 1 1 320px; min-width: 0; max-width: 560px; display: grid; gap: 10px; }
+#legend2 .side h3 { margin: 6px 0 0; font-size: 1rem; }
+#legend2 .side li, #legend2 .side p { color: var(--muted); font-size: .88rem; }
+#legend2 .side b { color: var(--text); }
+#legend2 .side ul { margin: 0; padding-left: 1.1em; }
+@media (prefers-reduced-motion: reduce) { .gaugecard, .losses, .lowergrid, .hidden-moving { transition: none; } }
+</style>
+
+<div class="page">
+  <header>
+    <h1>DRIVE SCORE 改善デザイン案</h1>
+    <p>デザインチームの提案を画面に落とし込んだ案です。いちばん上の「配色の案」で色の組み合わせを切り替えると、下のすべての画面に反映されます。扇は選んでいただいた形 C（なめらかな扇）にしています。記録中の画面は 3 案、走行後の結果・ホーム・全体の統一はそれぞれ 1 案です。各案の下の番号は、前回お見せした提案一覧の番号です。数値はすべて見本です。</p>
+  </header>
+
+
+
+
+  <section id="legend2">
+    <h2>どの扇が何のスコアか、一目で分かるように <small>チームの案</small></h2>
+    <p class="lead">3 人の意見はほぼ一致しました。<b>真ん中に上から見た車</b>を置き、扇を「車の前・後ろ・横」として読めるようにします。文字の代わりに<b>ペダルとハンドルの絵</b>を付け、走行中は強調中の向きだけ名前を出して、ほかは絵と数字だけにします。下のボタンで見え方を切り替えられます。</p>
+    <div class="controls" role="group" aria-label="表示">
+      <button type="button" data-lg="moving" aria-pressed="true">走行中（ブレーキを強調）</button>
+      <button type="button" data-lg="stopped" aria-pressed="false">停車中（全部の名前）</button>
+      <button type="button" data-lg="intro" aria-pressed="false">初回の説明（順に光る）</button>
+      <button type="button" data-lg="now" aria-pressed="false">比較: 今の表示</button>
+    </div>
+    <div class="lrow">
+      <div class="gcard"><svg id="lg" viewBox="-175 -175 350 350" role="img" aria-label="車のシルエットと絵の付いた扇"></svg></div>
+      <div class="side">
+        <h3>チームの案（組み合わせて使う）</h3>
+        <ul>
+          <li><b>上から見た車のシルエット</b>（3 人とも推奨）: 数字の後ろにうっすら、前が上。扇が「前 = ブレーキ、後ろ = 加速、横 = 曲がる向き」と読める。円盤と一緒に傾く</li>
+          <li><b>ペダルとハンドルの絵</b>（3 人とも推奨）: 上 = 幅の広いブレーキペダル、下 = 縦長のアクセルペダル、左右 = 曲がる向きの矢印付きハンドル。色は今の項目の色のまま（ブレーキと加速は同じオレンジで、絵の形で見分ける）</li>
+          <li><b>走行中は強調中の向きだけ名前</b>（見やすさ担当・実装担当）: ほかは絵と数字だけ。斜め（つながり）の数字は走行中は出さない。停車中・拡大中は全部の名前を出す</li>
+          <li><b>初回の説明</b>: 最初の走行の前（停車中）に、扇が順に光って絵と名前を見せる（2〜4 秒、1 回だけ。走行中は出さない）</li>
+          <li><b>名前と絵は傾けない</b>: 3D で円盤を大きく傾けると文字がつぶれて読みにくいので、扇と車だけ傾け、名前と絵はまっすぐのまま扇の位置に付いていく</li>
+        </ul>
+        <h3>見送った案</h3>
+        <ul>
+          <li>ブレーキと加速の色を分ける: 計算すると、赤（上がった）や黄緑（つながり）と見分けにくくなるため、色ではなく絵の形で分ける</li>
+          <li>扇の先を矢印形にする: 扇の長さで点数を読みにくくなるので、まずは絵とシルエットで試す</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <section id="zone">
+    <h2>背景の色　ゾーン案 <small>上手く走れている状態を、色で覚えられるように</small></h2>
+    <p class="lead">チームの結論です。背景は「点数の上がり下がり」ではなく、<b>今どのゾーンにいるか</b>を表します。良いゾーンに入った向きが、<b>その向きの色で光ります</b>（ブレーキ・加速 = オレンジ、左右 = 紫、つながり = 黄緑）。入るときは 0.24 秒ですっと灯り、同時に光が一度だけ外へ走ります。いる間は静かに灯ったまま、出るときは 0.65 秒でゆっくり消えます（照明の調光のように、点くのは速く、消えるのはゆっくり）。上がり下がりは数字の下の ▲▼ と、扇の後ろの小さな光だけで示します。下の画面は見本の走行で、点数が上下しながら時々良いゾーンに入ります。</p>
+    <div class="zrow">
+      <div class="phone zphone"><div class="screen" id="zscreen">
+        <div class="zbg" id="zbg"></div><div class="zedge" id="zedge"></div>
+        <div class="top"><div class="home-btn" aria-hidden="true">HOME<br>長押し</div><span class="rec"><i></i>REC</span><span class="spd">62<small>km/h</small></span><button class="stop" type="button" aria-label="長押しで停止"><span class="fill"></span><span>■ 停止</span></button></div>
+        <span class="zbadge" id="zbadge">GOOD</span>
+        <svg class="zgauge" id="zgauge" viewBox="-165 -165 330 330" role="img" aria-label="総合点とゾーンにいた時間の輪"></svg>
+        <div class="card coach"><div class="k"><span class="theme">今日のテーマ</span><span>ブレーキの抜き ・ ゾーン <b id="zthr">72</b>+</span></div><div class="msg" style="font-size:1.4rem">ブレーキはじわっと抜く</div></div>
+        <div class="strip"><span>ゾーン<b id="zpct">0%</b></span><span>最長<b id="zlong">0:00</b></span><span>TIME<b id="ztime">0:00</b></span></div>
+      </div></div>
+      <div class="side">
+        <div class="zstate" aria-live="off"><span>10 秒の点 <b id="zs">--</b></span><span>状態 <b id="zz">--</b></span><span>上がり下がり <b id="ztr">--</b></span></div>
+        <label for="zman" style="font-size:.86rem;color:var(--muted)">点数を手で動かす（動かすと見本の走行が止まります）</label>
+        <input type="range" id="zman" min="40" max="100" value="70">
+        <div class="controls" role="group" aria-label="デモ"><button type="button" id="zauto" aria-pressed="true">見本の走行</button><button type="button" id="zroad" aria-pressed="false">公道モード（光らずにじわっと色付く）</button></div>
+        <h3>ゾーンの色</h3>
+        <div class="zband">
+          <span>低め</span><i style="background:linear-gradient(90deg,#04090f,#060d18)"></i>
+          <span>ふつう</span><i style="background:linear-gradient(90deg,#04090f,#121820)"></i>
+          <span>良い</span><i style="background:linear-gradient(90deg,#6b4a1e,#4b3a66,#4a5a2a)"></i>
+        </div>
+        <h3>決めたこと（チームの案）</h3>
+        <ul>
+          <li><b>3 つのゾーン</b>: 低め（少し暗い紺）・ふつう（色なし）・良い。<b>良いゾーンでは、基準を超えた向きがその向きの色で光る</b>（ブレーキが良ければ上がオレンジに、左右のハンドルが良ければ両脇が紫に）。全部の向きが良いと、色が重なってオーロラのように光る</li>
+          <li><b>光り方（上品に）</b>: 扇の先端を中心に、ぼかした光が灯る。光の芯は白っぽく、外へ行くほど項目の色になって消える（本物の光のように）。色は重ねても濁らない「スクリーン合成」。流れる光の筋や揺らぎはやめ、静かに灯り続ける。いくつも灯ると明るくなりすぎないように抑える</li>
+          <li><b>入った瞬間</b>: 光が扇の内側から外へ一度だけ走る（0.45 秒、同じ向きは 10 秒に 1 回まで）、「GOOD」。チャイムはコースでは有効、公道では無効。公道では光は走らず、灯るだけ</li>
+          <li><b>慣れ対策</b>: 揺らぎはつけず、扇の外側の輪が「ゾーンにいた時間」でたまっていくことで、いい状態が続いていると分かる</li>
+          <li><b>出るときは静かに</b>: 警告や音は出さない。0.65 秒かけて消えるだけ</li>
+          <li><b>判定は 10 秒の点</b>（滑らかさ・つながり・安定。ラップは入れない）で、良い操作をしたコーナーと色が結びつく</li>
+          <li><b>基準は自分の実力に合わせる</b>: 同じ種類・同じコースの直近 5 回の点の上位 35% の水準（55〜92 点の範囲）。走行時間の 25〜40% がゾーンになるのが目安。ゾーンが多すぎた日は最大 +2 点、少なすぎた日は最大 −1 点ずつ動く（悪い日に基準が大きく下がらない）。最初の 3 回は 70 点</li>
+          <li><b>ちらつき防止</b>: 2 秒続いたら入る、基準 −4 点が 3 秒続いたら出る、最低 6 秒はいる、入るのは 20 秒に 1 回まで</li>
+          <li>「GOOD」と外側の輪（ゾーンにいた時間）は、どの向きにも寄らない白っぽい金色</li>
+          <li><b>走行後</b>: 先に「今日ゾーンにいた割合は？」（少ない・ふつう・多い）と聞いてから、ゾーンの割合・最長時間・地図で良かった区間を見せる（自分の感覚と結果を照らし合わせて、感覚を育てる）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <section id="final">
+    <h2>記録中の画面　最終案 <small>案 2 ＋ 配色 b ＋ 扇の周りに名前と点数</small></h2>
+    <p class="lead">走行中は大きな扇だけを見せる案 2 をもとに、扇の外側へ向きの名前と点数を置きました。点数が動いている向きだけを項目の色で強調し、ほかは淡くします。下の画面は「ブレーキ → 左コーナー → 立ち上がりの加速 → 右コーナー」を繰り返す見本の走行です。</p>
+    <div class="finalrow">
+      <div class="phone" id="fphone">
+        <div class="screen">
+          <div class="top"><div class="home-btn" aria-hidden="true">HOME<br>長押し</div><span class="rec"><i></i>REC</span><span class="spd" id="fspd">80<small>km/h</small></span><button class="stop" type="button" aria-label="長押しで停止"><span class="fill"></span><span>■ 停止</span></button></div>
+          <svg class="fg" id="fgauge" viewBox="-165 -165 330 330" role="img" aria-label="総合と 8 方向の扇、名前と点数"></svg>
+          <div class="card coach"><div class="k"><span class="theme">今回のテーマ</span><span>ブレーキの抜き</span></div><div class="msg" style="font-size:1.6rem">ブレーキはじわっと抜く</div></div>
+          <div class="strip"><span>直近30秒<b>79</b></span><span>ここまで<b>81</b></span><span>TIME<b>2:16</b></span></div>
+          <div class="peek">タップでグラフと地図を 5 秒表示</div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="phase" id="fphase" aria-live="off">いまの場面: <b>ブレーキ</b></div>
+        <h3>強調のしかた（3 案）</h3>
+        <div class="modes" role="group" aria-label="強調のしかた">
+          <button type="button" data-fmode="change" aria-pressed="true">A　点数が動いている向き <span class="tag">おすすめ</span><small>ブレーキの点が上がっている間は「ブレーキ 88 ▲」を色付きで大きく、ほかは淡く。動きが止まっても 2 秒は残す</small></button>
+          <button type="button" data-fmode="use" aria-pressed="false">B　いま使っている向き<small>G の向き（ブレーキ中なら上）をそのまま強調。外側の G の輪と同じ場所が光る</small></button>
+          <button type="button" data-fmode="weak" aria-pressed="false">C　いちばん弱い向き<small>課題の向きだけをずっと強調。走行中の動きはない</small></button>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:.86rem"><input type="checkbox" id="ffan" checked> 扇も同じように強調する（ほかの扇を少し暗く）</label>
+        <h3>表示のきまり</h3>
+        <ul>
+          <li>上 = ブレーキ、下 = 加速、左右 = その向きのコーナー。名前と点数は扇のすぐ外側</li>
+          <li>斜めの 4 つ（G のつながり）は点数だけを小さく</li>
+          <li>強調した向きは項目の色・太字・少し大きく。点数の横の ▲ は赤、▼ は青（点数の上下の色）</li>
+          <li>強調していない向きは淡いグレー。データがない向きは「--」</li>
+          <li>停車中は強調をやめ、すべて同じ濃さで表示。失点の内訳・グラフ・地図も戻る</li>
+          <li>配色は b（ナイトサーキット）、日差しモードはなし</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <section id="palette">
+    <h2>配色の案 <small>切り替えると、このページのすべての画面の色が変わります</small></h2>
+    <p class="lead">色の「明るさ」と「鮮やかさ」をそろえて、画面全体のまとまりを出す案を 3 つ用意しました。どの案も、項目の文字は画面の面に対して読みやすさの基準（4.5 : 1）を十分に超え、色覚の違いがあっても 5 つの項目と「上がった・下がった」を見分けやすいことを計算で確かめています。</p>
+    <div class="controls palbtns" role="group" aria-label="配色" id="palbtns"></div>
+    <div class="palpanel">
+      <div class="card paldetail" id="paldetail" aria-live="polite"></div>
+      <div class="card palprev">
+        <svg id="pg" viewBox="-136 -136 272 272" role="img" aria-label="この配色の扇の見本"></svg>
+        <div class="row2"><div style="background:var(--surface)"><svg id="pgs1" viewBox="-136 -136 272 272" role="img" aria-label="通常の面"></svg></div><div class="sun" style="background:var(--sun-surface)"><svg id="pgs2" viewBox="-136 -136 272 272" role="img" aria-label="日差しモードの面"></svg></div></div>
+        <div class="cap">上：扇の見本 ／ 下左：通常 ・ 下右：日差しモード</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="drive">
+    <h2>記録中の画面 <small>3 案から選んでください</small></h2>
+    <p class="lead">上のボタンで「走行中」と「停車中」を切り替えると、走行中だけ細かい情報を薄く・隠す動きを確かめられます。停止ボタンは長押しすると 1.2 秒でゲージが満ちて止まります（見本なので実際には止まりません）。</p>
+    <div class="controls" role="group" aria-label="走行状態">
+      <button type="button" data-state="moving" aria-pressed="true">走行中（80 km/h）</button>
+      <button type="button" data-state="stopped" aria-pressed="false">停車中</button>
+    </div>
+    <div class="row">
+      <div class="opt">
+        <h3>案 1　見やすさ強化 <span class="tag">おすすめ</span></h3>
+        <div class="phone" id="p1"></div>
+        <ul>
+          <li><b>総合の数字を約 1.7 倍</b>にし、色は白に近いまま。上がり下がりは ▲▼ で示す（1）</li>
+          <li>走行中は<b>失点の内訳・グラフ・地図を薄く</b>、扇の文字と細かい数字を隠す（2）</li>
+          <li>失点の行に<b>項目の記号</b>（↕ ↔ ⤢ ≈）を付け、色だけに頼らない（10）</li>
+          <li>課題カードに<b>今回のテーマ</b>と回数（13）</li>
+          <li>停止は<b>大きなボタンを 1.2 秒長押し</b>、REC は白（4・8）</li>
+        </ul>
+        <div class="refs">提案 1・2・4・8・10・13</div>
+      </div>
+      <div class="opt">
+        <h3>案 2　走行中は最小限</h3>
+        <div class="phone" id="p2"></div>
+        <ul>
+          <li>走行中は<b>ゲージを画面幅いっぱい</b>にし、課題の一文と 1 行の数字だけ</li>
+          <li>グラフと地図は<b>停車中に戻る</b>（走行中は下のスペースをタップで一時表示）</li>
+          <li>見る場所が 2 つに減るので、視線を外す時間がいちばん短い</li>
+          <li>停車中は案 1 と同じ画面</li>
+        </ul>
+        <div class="refs">提案 1・2・4・13</div>
+      </div>
+      <div class="opt" hidden>
+        <h3>案 3　日差しモード</h3>
+        <div class="phone sun" id="p3"></div>
+        <ul>
+          <li>案 1 の<b>明るい場所向け</b>（周りが明るいと自動、または設定で切り替え）</li>
+          <li>光っていない扇の段・灰色の文字・カードの背景を濃くし、半透明をやめる</li>
+          <li>背景の色の変化は画面のふちだけ</li>
+          <li>案 1・案 2 のどちらとも組み合わせられる</li>
+        </ul>
+        <div class="refs">提案 5</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="fanstyle">
+    <h2>扇のなめらかさ <small>形と動きの 2 つ</small></h2>
+    <p class="lead">形は 3 種類から選べます。動きは、点数が変わったときに扇がすぐ跳ぶか、なめらかに追いかけるかを切り替えられます。下の扇は点数をランダムに動かしているので、見比べてください。選んだ形は上の 3 案の画面と結果画面にも反映されます（最初は形 C）。</p>
+    <div class="controls" role="group" aria-label="動き">
+      <button type="button" data-ease="smooth" aria-pressed="true">動き: なめらかに追う（約 0.8 秒）</button>
+      <button type="button" data-ease="jump" aria-pressed="false">動き: すぐ跳ぶ（今に近い）</button>
+    </div>
+    <div class="row">
+      <div class="opt"><h3>形 A　5 段（今の形）</h3><div class="card"><svg id="fsA" viewBox="-136 -136 272 272" role="img" aria-label="5 段の扇"></svg></div>
+        <ul><li>段の数で点数を読む。20 点ごとに 1 段</li><li>途中の点数は次の段が薄く光る</li></ul>
+        <div class="controls"><button type="button" data-style="steps" aria-pressed="false">この形を使う</button></div></div>
+      <div class="opt"><h3>形 B　10 段の細い線</h3><div class="card"><svg id="fsB" viewBox="-136 -136 272 272" role="img" aria-label="10 段の扇"></svg></div>
+        <ul><li>段を細かくして、伸び縮みを細やかに見せる</li><li>Wi‑Fi らしさは残る</li></ul>
+        <div class="controls"><button type="button" data-style="fine" aria-pressed="false">この形を使う</button></div></div>
+      <div class="opt"><h3>形 C　なめらかな扇 <span class="tag">採用</span></h3><div class="card"><svg id="fsC" viewBox="-136 -136 272 272" role="img" aria-label="なめらかな扇"></svg></div>
+        <ul><li>段をなくし、点数に合わせて<b>扇がすっと伸びる</b></li><li>先端を明るい線で縁取り、どこまで伸びたかを一目で分かるように</li><li>うすい外枠で 100 点の長さを示す</li></ul>
+        <div class="controls"><button type="button" data-style="smooth" aria-pressed="true">この形を使う</button></div></div>
+    </div>
+  </section>
+
+  <section id="result">
+    <h2>走行後の結果画面 <small>「次にやること」を先頭に</small></h2>
+    <p class="lead">いちばん上に次回の課題を 1 つ、次にテーマの達成度と点数、向き別の扇、地図上のワースト場面を並べ、計算式などの詳しい説明は折りたたみます。</p>
+    <div class="row">
+      <div class="opt">
+        <h3>結果画面（上半分）</h3>
+        <div class="phone" id="r1"></div>
+        <div class="refs">提案 12・13・7</div>
+      </div>
+      <div class="opt">
+        <h3>結果画面（下半分）</h3>
+        <div class="phone" id="r2"></div>
+        <ul>
+          <li><b>ワースト場面を地図にピン</b>で表示し、周回コースでは「5 周中 4 周」のように同じ場所をまとめる（14）</li>
+          <li><b>周回ごとの表</b>にタイム・滑らかさ・急な操作の回数（15）</li>
+          <li>計算式・比重などは「計算の内訳」に折りたたむ（12）</li>
+        </ul>
+        <div class="refs">提案 14・15・12</div>
+      </div>
+      <div class="opt">
+        <h3>ホーム</h3>
+        <div class="phone" id="h1"></div>
+        <ul>
+          <li>最初に<b>走行場所（公道／コース）</b>を選ぶ。公道ではラップの自己ベスト・NEW BEST・高 G の評価を出さない（18）</li>
+          <li>前回から引き継いだ<b>今回のテーマ</b>（13）</li>
+          <li>開始ボタンを 1 つ、大きく。0 点補正は 1 行の状態表示に（11）</li>
+          <li><b>項目別の推移</b>を小さなグラフで（16）</li>
+        </ul>
+        <div class="refs">提案 11・13・16・18</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="system">
+    <h2>全体の統一 <small>色・記号・用語</small></h2>
+    <div class="sys">
+      <div class="card">
+        <h3>項目の色と記号（全画面で共通）</h3>
+        <div class="chips">
+          <span class="chip" style="color:var(--long)">↕ 前後</span>
+          <span class="chip" style="color:var(--lat)">↔ 左右</span>
+          <span class="chip" style="color:var(--flow)">⤢ つながり</span>
+          <span class="chip" style="color:var(--stab)">≈ 安定</span>
+          <span class="chip" style="color:var(--lap)">⟳ ラップ</span>
+        </div>
+        <p>結果画面の内訳バーやデータ画面のグラフも、この色にそろえます（7）。色覚によって似て見える組み合わせがあるので、記号を必ず添えます（10）。</p>
+        <div class="chips" style="margin-top:10px">
+          <span class="chip" style="color:var(--up)">▲ 上がった</span>
+          <span class="chip" style="color:var(--down)">▼ 下がった</span>
+        </div>
+        <p>赤と青は点数の上下だけに使います。グラフの標準の線と REC は白系、横滑りの光は注意の色（オレンジ）にします（8・3）。</p>
+      </div>
+      <div class="card">
+        <h3>用語の統一（9）</h3>
+        <table class="terms">
+          <thead><tr><th>今</th><th>変更後</th></tr></thead>
+          <tbody>
+            <tr><td>━ 安定（点数の動き）</td><td>━ 横ばい</td></tr>
+            <tr><td>安定 ／ 安定性</td><td>安定</td></tr>
+            <tr><td>ラップの安定</td><td>ラップのばらつき</td></tr>
+            <tr><td>G のつながり ／ つながり</td><td>つながり</td></tr>
+            <tr><td>左旋回 ／ 左</td><td>左</td></tr>
+            <tr><td>減速 ／ ブレーキ</td><td>ブレーキ</td></tr>
+            <tr><td>Progress ・ Latest session</td><td>上達の記録 ・ 前回の走行</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card legend-lines">
+        <h3>比較画面の記録の見分け方（7）</h3>
+        <svg id="cmp" viewBox="0 0 300 90" role="img" aria-label="線の種類で記録を見分ける例"></svg>
+        <p>記録は線の種類と印（●▲■）で見分け、色は項目のためだけに使います。</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = {};
+  const TOKEN_KEYS = ["long", "lat", "flow", "stab", "lap", "text", "muted", "outline", "grid", "up", "down", "warn", "bg", "surface", "accent", "ring", "track"];
+  function readC() { TOKEN_KEYS.forEach((k) => { C[k] = css("--" + k); }); }
+  readC();
+  let moving = true;
+  let fanStyle = "smooth";
+  let ease = true;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const rad = (d) => (d * Math.PI) / 180;
+  function sector(r1, r2, a0, a1) {
+    const p = (r, a) => [r * Math.cos(rad(a)), r * Math.sin(rad(a))];
+    const [x1, y1] = p(r2, a0), [x2, y2] = p(r2, a1), [x3, y3] = p(r1, a1), [x4, y4] = p(r1, a0);
+    return `M${x1},${y1} A${r2},${r2} 0 0 1 ${x2},${y2} L${x3},${y3} A${r1},${r1} 0 0 0 ${x4},${y4} Z`;
+  }
+  // 8 方向の点（上 = ブレーキ、下 = 加速、左・右 = 旋回、斜め = つながり）
+  const SIDES = { brake: 88, accel: 66, left: 81, right: 74, bl: 92, br: 70, al: 85, ar: null };
+
+  function gauge(svg, o) {
+    svg.replaceChildren();
+    const defs = el("defs", {}, svg);
+    const f = el("filter", { id: o.id + "g", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
+    el("feGaussianBlur", { stdDeviation: 5 }, f);
+    const unlit = o.sun ? 0.28 : 0.1;
+    el("circle", { r: 114, fill: "none", stroke: C.outline, "stroke-width": 1.2 }, svg);
+    // 瞬間の G の輪（ブレーキ中）
+    el("path", { d: sector(107, 119, -118, -62), fill: C.ring, "fill-opacity": 0.6, filter: `url(#${o.id}g)` }, svg);
+    el("path", { d: sector(110, 116, -112, -68), fill: C.ring }, svg);
+    const S = o.sides || SIDES;
+    const style = o.style || fanStyle;
+    const fan = (v, color, dir, span, focus) => {
+      if (style === "smooth") {
+        const s0 = span;
+        el("path", { d: sector(60, 106, dir - s0, dir + s0), fill: color, "fill-opacity": unlit, stroke: color, "stroke-opacity": 0.25, "stroke-width": 1 }, svg);
+        if (v == null) {
+          el("path", { d: sector(60, 106, dir - s0, dir + s0), fill: "none", stroke: color, "stroke-width": 1.6, "stroke-dasharray": "3 3", "stroke-opacity": 0.6 }, svg);
+        } else {
+          const r2 = 60 + 46 * Math.max(0, Math.min(1, v / 100));
+          const gid = o.id + "f" + dir;
+          const gr = el("radialGradient", { id: gid, cx: 0, cy: 0, r: 106, gradientUnits: "userSpaceOnUse" }, defs);
+          el("stop", { offset: "0.5", "stop-color": color, "stop-opacity": 0.35 }, gr);
+          el("stop", { offset: (r2 / 106).toFixed(3), "stop-color": color, "stop-opacity": 1 }, gr);
+          el("path", { d: sector(60, r2, dir - s0, dir + s0), fill: `url(#${gid})`, stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+          const p = (r, a) => `${(r * Math.cos(rad(a))).toFixed(2)},${(r * Math.sin(rad(a))).toFixed(2)}`;
+          el("path", { d: `M${p(r2, dir - s0)} A${r2},${r2} 0 0 1 ${p(r2, dir + s0)}`, fill: "none", stroke: "#ffffff", "stroke-width": 2.5, "stroke-linecap": "round", "stroke-opacity": 0.9 }, svg);
+        }
+        if (focus) el("path", { d: sector(56, 110, dir - span - 3, dir + span + 3), fill: "none", stroke: color, "stroke-width": 3, "stroke-linejoin": "round" }, svg);
+        return;
+      }
+      const steps = style === "fine" ? 10 : 5;
+      const pitch = style === "fine" ? 5 : 10, thick = style === "fine" ? 3.4 : 6.5;
+      const n = v == null ? 0 : (v / 100) * steps;
+      for (let k = 0; k < steps; k++) {
+        const r1 = 60 + k * pitch, r2 = r1 + thick, s = span * (1 - k * pitch * 0.004);
+        if (v == null) {
+          el("path", { d: sector(r1, r2, dir - s, dir + s), fill: "none", stroke: color, "stroke-width": 1.6, "stroke-dasharray": "3 3", "stroke-opacity": 0.6 }, svg);
+        } else {
+          const lit = Math.max(0, Math.min(1, n - k));
+          el("path", { d: sector(r1, r2, dir - s, dir + s), fill: color, "fill-opacity": (unlit + (1 - unlit) * lit).toFixed(3) }, svg);
+        }
+      }
+      if (focus) el("path", { d: sector(56, 110, dir - span - 3, dir + span + 3), fill: "none", stroke: color, "stroke-width": 3, "stroke-linejoin": "round" }, svg);
+    };
+    fan(S.brake, C.long, -90, 28, false);
+    fan(S.accel, C.long, 90, 28, !o.noFocus);
+    fan(S.left, C.lat, 180, 28, false);
+    fan(S.right, C.lat, 0, 28, false);
+    fan(S.bl, C.flow, -135, 9, false);
+    fan(S.br, C.flow, -45, 9, false);
+    fan(S.al, C.flow, 135, 9, false);
+    fan(S.ar, C.flow, 45, 9, false);
+    // 安定の波打つ輪（数字の外へ広げた）
+    let d = "";
+    for (let i = 0; i <= 120; i++) {
+      const a = (i / 120) * 2 * Math.PI;
+      const r = 52 + 1.6 * Math.sin(7 * a) * (0.6 + 0.4 * Math.sin(3 * a));
+      d += (i ? "L" : "M") + (r * Math.cos(a)).toFixed(2) + "," + (r * Math.sin(a)).toFixed(2);
+    }
+    el("path", { d: d + "Z", fill: "none", stroke: C.stab, "stroke-width": 3, "stroke-opacity": 0.85 }, svg);
+    if (!o.hideLabels) {
+      const lab = (t, x, y, c) => { const e = el("text", { x, y, fill: c, "font-size": 10, "text-anchor": "middle", "font-weight": 700, "font-family": "Noto Sans JP, sans-serif" }, svg); e.textContent = t; };
+      lab("ブレーキ", 0, -122, C.long); lab("加速", 0, 130, C.long); lab("左", -124, 4, C.lat); lab("右", 124, 4, C.lat);
+    }
+    const num = el("text", { x: 0, y: o.big ? 20 : 12, fill: C.text, "font-size": o.big ? 58 : 34, "text-anchor": "middle", "font-family": "Chakra Petch, sans-serif", "font-weight": 700 }, svg);
+    num.textContent = "82";
+    const tr = el("text", { x: 0, y: o.big ? 40 : 30, fill: C.up, "font-size": o.big ? 14 : 10, "text-anchor": "middle", "font-weight": 700 }, svg);
+    tr.textContent = "▲ 上昇";
+  }
+
+  const LOSSES = [
+    { g: "↕", name: "前後", sub: "加速 66 / ブレーキ 88", v: "−11.5", c: "long", focus: true },
+    { g: "↔", name: "左右", sub: "右 74 / 左 81", v: "−6.4", c: "lat" },
+    { g: "⤢", name: "つながり", sub: "ブレーキ↔右 70", v: "−0.5", c: "flow" },
+    { g: "≈", name: "安定", sub: "修正 2 回/分", v: "0", c: "stab" },
+  ];
+  function losses(showSub) {
+    return LOSSES.map((l) => `<div class="loss${l.focus ? " focus" : ""}" style="color:var(--${l.c})"><span class="g">${l.g}</span><span>${l.name}</span><span class="v">${l.v}</span>${showSub ? `<span class="sub">${l.sub}</span>` : ""}</div>`).join("");
+  }
+  function graphSvg() {
+    let pts = [];
+    for (let i = 0; i <= 150; i++) {
+      const v = 82 + 10 * Math.sin(i / 9) - 8 * Math.max(0, Math.sin(i / 5));
+      pts.push(`${i * 2},${100 - (Math.min(100, Math.max(60, v)) - 60) * 2.2}`);
+    }
+    return `<svg viewBox="0 0 300 105" preserveAspectRatio="none">${[60, 70, 80, 90, 100].map((v) => `<line x1="0" x2="300" y1="${100 - (v - 60) * 2.2}" y2="${100 - (v - 60) * 2.2}" stroke="${C.grid}"/>`).join("")}<polyline points="${pts.join(" ")}" fill="none" stroke="${C.text}" stroke-width="2" stroke-opacity=".9"/></svg>`;
+  }
+  function mapSvg(pins) {
+    const p = pins ? `<circle cx="226" cy="20" r="9" fill="${C.long}"/><text x="226" y="24" font-size="11" text-anchor="middle" font-weight="900" fill="${C.bg}">1</text>
+      <circle cx="162" cy="92" r="9" fill="${C.lat}"/><text x="162" y="96" font-size="11" text-anchor="middle" font-weight="900" fill="${C.bg}">2</text>
+      <circle cx="84" cy="40" r="9" fill="${C.flow}"/><text x="84" y="44" font-size="11" text-anchor="middle" font-weight="900" fill="${C.bg}">3</text>` : `<path d="M205 8 l-10 6 10 6 z" fill="${C.text}"/>`;
+    return `<svg viewBox="0 0 300 110"><path d="M80 14 H230 V56 H160 V96 H80 Z" fill="none" stroke="${C.track}" stroke-width="5" stroke-linejoin="round" stroke-opacity=".8"/>${p}</svg>`;
+  }
+  const topBar = (sun) => `<div class="top"><div class="home-btn" aria-hidden="true">HOME<br>長押し</div><span class="rec"><i></i>REC</span><span class="spd">${moving ? 80 : 0}<small>km/h</small></span><button class="stop" type="button" aria-label="長押しで停止"><span class="fill"></span><span>■ 停止</span></button></div>`;
+  const coach = (big) => `<div class="card coach"><div class="k"><span class="theme">今回のテーマ</span><span>ブレーキの抜き</span></div><div class="msg" style="${big ? "font-size:1.8rem" : ""}">アクセルは一呼吸かけて</div><div class="cnt hidden-moving">急な抜き <b>3</b> 回（前回の同じ時点 <b>7</b> 回）</div></div>`;
+
+  function renderDrive() {
+    // 案 1
+    const p1 = document.getElementById("p1");
+    p1.className = "phone" + (moving ? " moving" : "");
+    p1.innerHTML = `<div class="screen">${topBar()}
+      <div class="card gaugecard"><svg id="g1" viewBox="-136 -136 272 272" role="img" aria-label="総合 82 と 8 方向の扇"></svg><div class="losses ${moving ? "dim" : ""}">${losses(!moving)}</div></div>
+      ${coach(false)}
+      <div class="strip hidden-moving"><span>直近30秒<b>79</b></span><span>ここまで<b>81</b></span><span>TIME<b>2:16</b></span></div>
+      <div class="lowergrid ${moving ? "dim" : ""}"><div class="card"><div class="cap hidden-moving">瞬間の総合 · 20 秒</div>${graphSvg()}</div><div class="card"><div class="cap hidden-moving">N 北が上</div>${mapSvg(false)}</div></div></div>`;
+    gauge(document.getElementById("g1"), { id: "g1", big: true, hideLabels: moving });
+
+    // 案 2
+    const p2 = document.getElementById("p2");
+    p2.className = "phone" + (moving ? " moving" : "");
+    if (moving) {
+      p2.innerHTML = `<div class="screen">${topBar()}
+        <svg id="g2" viewBox="-136 -136 272 272" style="width:100%;height:auto" role="img" aria-label="総合 82 と 8 方向の扇"></svg>
+        ${coach(true)}
+        <div class="strip"><span>直近30秒<b>79</b></span><span>ここまで<b>81</b></span><span>TIME<b>2:16</b></span></div>
+        <div class="peek">タップでグラフと地図を 5 秒表示</div></div>`;
+      gauge(document.getElementById("g2"), { id: "g2", big: true, hideLabels: true });
+    } else {
+      p2.innerHTML = p1.innerHTML.replace('id="g1"', 'id="g2"');
+      gauge(document.getElementById("g2"), { id: "g2", big: true, hideLabels: false });
+    }
+
+    // 案 3
+    const p3 = document.getElementById("p3");
+    p3.className = "phone sun" + (moving ? " moving" : "");
+    p3.innerHTML = p1.innerHTML.replace('id="g1"', 'id="g3"').replaceAll('class="losses dim"', 'class="losses"').replaceAll('lowergrid dim', 'lowergrid');
+    gauge(document.getElementById("g3"), { id: "g3", big: true, hideLabels: moving, sun: true });
+
+    wireStop();
+  }
+
+  function wireStop() {
+    document.querySelectorAll(".stop").forEach((b) => {
+      const fill = b.querySelector(".fill");
+      const label = b.querySelector("span:last-child");
+      let t0 = 0, raf = 0;
+      const step = () => {
+        const p = Math.min(1, (performance.now() - t0) / 1200);
+        fill.style.transform = `scaleX(${p})`;
+        if (p >= 1) { label.textContent = "停止済"; return; }
+        raf = requestAnimationFrame(step);
+      };
+      const start = (e) => { e.preventDefault(); label.textContent = "■ 停止"; t0 = performance.now(); raf = requestAnimationFrame(step); };
+      const end = () => { cancelAnimationFrame(raf); if (label.textContent !== "停止済") fill.style.transform = "scaleX(0)"; };
+      b.addEventListener("pointerdown", start);
+      ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, end));
+    });
+  }
+
+  function renderResult() {
+    document.getElementById("r1").innerHTML = `<div class="screen scroll">
+      <div class="eyebrow">10月5日 20:34 · サーキット · 18 分 · 5 周</div>
+      <div class="card next"><div class="eyebrow">次はこれ 1 つ</div><div class="ttl" style="color:var(--long)">↕ アクセルは一呼吸かけて踏む</div><div style="color:var(--muted);font-size:.78rem">急な踏み込み 9 回。特に信号からの発進で多め。</div></div>
+      <div class="card"><div class="badge"><span class="theme-ok">✓ テーマ達成</span><span>ブレーキの急な抜き 12 → 5 回</span></div></div>
+      <div class="card hero"><div><div class="eyebrow">総合</div><div class="num">82</div></div><div><div class="delta">▲ +4</div><div style="color:var(--muted);font-size:.74rem">前回 78 · 丁寧さ自己ベスト</div></div></div>
+      <div class="card"><div class="eyebrow">向き別（弱い側）</div><div class="dir"><svg id="rg" viewBox="-136 -136 272 272"></svg>
+        <table><tr style="color:var(--long)"><td>↕ ブレーキ</td><td>88</td></tr><tr style="color:var(--long)"><td><b>↕ 加速</b></td><td><b>66</b></td></tr><tr style="color:var(--lat)"><td>↔ 左</td><td>81</td></tr><tr style="color:var(--lat)"><td>↔ 右</td><td>74</td></tr><tr style="color:var(--flow)"><td>⤢ ブレーキ↔右</td><td>70</td></tr></table></div></div>
+    </div>`;
+    gauge(document.getElementById("rg"), { id: "rg", big: false, hideLabels: true });
+
+    document.getElementById("r2").innerHTML = `<div class="screen scroll">
+      <div class="card"><div class="eyebrow">ワーストの場面（地図のピン）</div>${mapSvg(true)}
+        <div class="scene"><span class="pin" style="background:var(--long)">1</span><span>第 3 コーナー手前　ブレーキの抜きが急</span><span style="color:var(--muted)">5 周中 4 周</span></div>
+        <div class="scene"><span class="pin" style="background:var(--lat)">2</span><span>ヘアピン出口　切り返しが急</span><span style="color:var(--muted)">5 周中 3 周</span></div>
+        <div class="scene"><span class="pin" style="background:var(--flow)">3</span><span>最終コーナー　G が途切れた</span><span style="color:var(--muted)">5 周中 2 周</span></div></div>
+      <div class="card"><div class="eyebrow">周回ごと</div>
+        <table class="terms" style="font-size:.74rem"><thead><tr><th>周</th><th>タイム</th><th>滑らか</th><th>急な操作</th></tr></thead><tbody>
+        <tr><td>2</td><td>1:12.4</td><td>78</td><td>4</td></tr><tr><td><b>3</b></td><td><b>1:10.9</b></td><td><b>86</b></td><td><b>1</b></td></tr><tr><td>4</td><td>1:11.6</td><td>83</td><td>2</td></tr></tbody></table>
+        <div style="font-size:.74rem;color:var(--muted);margin-top:4px">ベスト周（3 周目）は急な抜き 1 回、ワースト周は 4 回</div></div>
+      <div class="card fold"><span>計算の内訳（ジャーク・比重など）</span><span>▾</span></div>
+      <div class="card fold"><span>G-G 図・生データ</span><span>▾</span></div>
+    </div>`;
+
+    const spark = (vals, color) => {
+      const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * 100},${20 - ((v - 50) / 50) * 18}`).join(" ");
+      return `<svg viewBox="0 0 100 20" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6"/></svg>`;
+    };
+    document.getElementById("h1").innerHTML = `<div class="screen scroll">
+      <div style="font-weight:900;letter-spacing:.14em;color:var(--accent)">DRIVE SCORE</div>
+      <div class="seg" role="group" aria-label="走行場所"><span class="on">公道</span><span>コース</span></div>
+      <div class="card next"><div class="eyebrow">今回のテーマ（前回から）</div><div class="ttl" style="color:var(--long)">↕ アクセルは一呼吸かけて踏む</div><div style="color:var(--muted);font-size:.76rem">前回は急な踏み込み 9 回 · 変更</div></div>
+      <div class="cta">走行待機を開始</div>
+      <div class="status"><span><b>✓</b> 0 点補正済み · 今日 20:12</span><span>やり直す</span></div>
+      <div class="card" style="display:grid;gap:6px"><div class="eyebrow">項目別の推移（直近 10 回）</div>
+        <div class="spark" style="color:var(--long)"><span>↕ 前後</span>${spark([62, 64, 61, 67, 70, 69, 72, 74, 73, 77], C.long)}<b>77</b></div>
+        <div class="spark" style="color:var(--lat)"><span>↔ 左右</span>${spark([70, 72, 74, 71, 75, 76, 78, 77, 79, 80], C.lat)}<b>80</b></div>
+        <div class="spark" style="color:var(--flow)"><span>⤢ つながり</span>${spark([80, 78, 83, 85, 84, 88, 86, 90, 89, 91], C.flow)}<b>91</b></div>
+        <div class="spark" style="color:var(--stab)"><span>≈ 安定</span>${spark([90, 92, 91, 94, 93, 95, 96, 95, 97, 97], C.stab)}<b>97</b></div></div>
+      <div style="font-size:.7rem;color:var(--muted);border-left:3px solid var(--warn);padding-left:8px">公道では交通法規を守り、走行中は画面を注視しないでください。公道ではラップ・自己ベストの表示は出ません。</div>
+    </div>`;
+  }
+
+  function renderCompare() {
+    const svg = document.getElementById("cmp");
+    svg.replaceChildren();
+    const styles = [{ dash: "", m: "circle" }, { dash: "6 4", m: "tri" }, { dash: "2 3", m: "sq" }];
+    styles.forEach((s, k) => {
+      const pts = [];
+      for (let i = 0; i <= 5; i++) pts.push([20 + i * 50, 70 - k * 18 - 10 * Math.sin(i + k)]);
+      el("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: C.text, "stroke-opacity": 0.85 - k * 0.15, "stroke-width": 2, "stroke-dasharray": s.dash }, svg);
+      pts.forEach(([x, y]) => {
+        if (s.m === "circle") el("circle", { cx: x, cy: y, r: 3.5, fill: C.text }, svg);
+        else if (s.m === "tri") el("path", { d: `M${x},${y - 4} L${x + 4},${y + 3} L${x - 4},${y + 3}Z`, fill: C.text }, svg);
+        else el("rect", { x: x - 3.5, y: y - 3.5, width: 7, height: 7, fill: C.text }, svg);
+      });
+      const t = el("text", { x: 4, y: pts[0][1] + 4, fill: C.muted, "font-size": 10 }, svg);
+      t.textContent = "ABC"[k];
+    });
+  }
+
+  document.querySelectorAll("[data-state]").forEach((b) => b.addEventListener("click", () => {
+    moving = b.dataset.state === "moving";
+    document.querySelectorAll("[data-state]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    renderDrive();
+  }));
+  // 扇のなめらかさのデモ
+  const KEYS = ["brake", "accel", "left", "right", "bl", "br", "al", "ar"];
+  const target = {}, shown = {};
+  KEYS.forEach((k) => { target[k] = SIDES[k] ?? 70; shown[k] = target[k]; });
+  let lastT = performance.now(), nextChange = 0;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function demo(t) {
+    const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+    if (t > nextChange) {
+      KEYS.forEach((k) => { target[k] = Math.max(15, Math.min(100, target[k] + (Math.random() - 0.5) * 50)); });
+      nextChange = t + 1400;
+    }
+    KEYS.forEach((k) => { shown[k] = ease ? shown[k] + (target[k] - shown[k]) * (1 - Math.exp(-dt / 0.28)) : target[k]; });
+    const sides = Object.fromEntries(KEYS.map((k) => [k, shown[k]]));
+    gauge(document.getElementById("fsA"), { id: "fsA", big: false, hideLabels: true, sides, style: "steps", noFocus: true });
+    gauge(document.getElementById("fsB"), { id: "fsB", big: false, hideLabels: true, sides, style: "fine", noFocus: true });
+    gauge(document.getElementById("fsC"), { id: "fsC", big: false, hideLabels: true, sides, style: "smooth", noFocus: true });
+    if (!reduced) setTimeout(() => requestAnimationFrame(demo), 33);
+  }
+  requestAnimationFrame(demo);
+  document.querySelectorAll("[data-ease]").forEach((b) => b.addEventListener("click", () => {
+    ease = b.dataset.ease === "smooth";
+    document.querySelectorAll("[data-ease]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  }));
+  document.querySelectorAll("[data-style]").forEach((b) => b.addEventListener("click", () => {
+    fanStyle = b.dataset.style;
+    document.querySelectorAll("[data-style]").forEach((x) => x.setAttribute("aria-pressed", x.dataset.style === fanStyle));
+    renderDrive(); renderResult();
+  }));
+
+const PALS = {"cur": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "#161c26", "outline": "#232c3b", "grid": "#1b2230", "text": "#f3f6fb", "muted": "#8b96a8", "accent": "#00e1ff", "accent2": "#7c5cff", "up": "#ff2d4b", "down": "#2f80ff", "warn": "#ff7a1a", "long": "#ffb020", "lat": "#d77bff", "flow": "#c7f464", "stab": "#2bd9a0", "lap": "#e6e9ef", "sunSurface": "#1d2430", "sunOutline": "#3a4659", "sunMuted": "#c2cbd9", "sunBg": "#0b0f15", "ring": "#e8fbff", "track": "#e9f3e6"}, "name": "現在", "cr": {"text": {"s": 17.2, "sun": 14.4}, "muted": {"s": 6.2, "sun": 5.2}, "accent": {"s": 11.7, "sun": 9.8}, "long": {"s": 10.2, "sun": 8.5}, "lat": {"s": 7.2, "sun": 6.1}, "flow": {"s": 14.7, "sun": 12.3}, "stab": {"s": 10.2, "sun": 8.6}, "lap": {"s": 15.3, "sun": 12.8}, "up": {"s": 5.1, "sun": 4.3}, "down": {"s": 5.0, "sun": 4.2}, "warn": {"s": 7.1, "sun": 6.0}}, "cvd": [["lat", "down", 5.4], ["long", "flow", 9.1]], "normalMin": 16.7, "L": {"long": 0.81, "lat": 0.73, "flow": 0.91, "stab": 0.79, "lap": 0.93, "up": 0.65, "down": 0.62}, "Cc": {"long": 0.165, "lat": 0.202, "flow": 0.177, "stab": 0.158, "lap": 0.009, "up": 0.239, "down": 0.205}}, "a": {"t": {"bg": "#06080c", "surface": "#0f131a", "surface2": "#161c26", "outline": "#232c3b", "grid": "#1b2230", "text": "#f3f6fb", "muted": "#8b96a8", "accent": "#32e2ff", "accent2": "#8267e2", "up": "#fc4e57", "down": "#4490fe", "warn": "#ed6e12", "long": "#f2ab35", "lat": "#db9efc", "flow": "#c9ef7a", "stab": "#3cd8a2", "lap": "#e6e9ef", "sunSurface": "#1d2430", "sunOutline": "#3a4659", "sunMuted": "#c2cbd9", "sunBg": "#0b0f15", "ring": "#e8fbff", "track": "#e9f3e6"}, "name": "(a) ハーモニー", "cr": {"text": {"s": 17.2, "sun": 14.4}, "muted": {"s": 6.2, "sun": 5.2}, "accent": {"s": 11.9, "sun": 10.0}, "long": {"s": 9.4, "sun": 7.9}, "lat": {"s": 9.1, "sun": 7.7}, "flow": {"s": 14.3, "sun": 12.0}, "stab": {"s": 10.2, "sun": 8.6}, "lap": {"s": 15.3, "sun": 12.8}, "up": {"s": 5.6, "sun": 4.7}, "down": {"s": 5.9, "sun": 4.9}, "warn": {"s": 6.1, "sun": 5.1}}, "cvd": [["lat", "down", 9.1], ["long", "flow", 10.8]], "normalMin": 15.3, "L": {"long": 0.79, "lat": 0.79, "flow": 0.9, "stab": 0.79, "lap": 0.93, "up": 0.67, "down": 0.66}, "Cc": {"long": 0.15, "lat": 0.144, "flow": 0.15, "stab": 0.15, "lap": 0.009, "up": 0.21, "down": 0.18}}, "b": {"t": {"bg": "#04090f", "surface": "#0a131d", "surface2": "#111d29", "outline": "#1e2f41", "grid": "#192532", "text": "#eff6fb", "muted": "#8ba2b2", "accent": "#8fe2ff", "accent2": "#7f76dc", "up": "#f85360", "down": "#4392f7", "warn": "#e4762c", "long": "#eca851", "lat": "#c7a3fc", "flow": "#c0ec85", "stab": "#50cbbf", "lap": "#e8f3fd", "sunSurface": "#182532", "sunOutline": "#33485d", "sunMuted": "#bbcddb", "sunBg": "#080f17", "ring": "#edf9ff", "track": "#e2f1fa"}, "name": "(b) ナイトサーキット", "cr": {"text": {"s": 17.1, "sun": 14.3}, "muted": {"s": 7.0, "sun": 5.9}, "accent": {"s": 12.9, "sun": 10.7}, "long": {"s": 9.2, "sun": 7.6}, "lat": {"s": 9.0, "sun": 7.5}, "flow": {"s": 13.9, "sun": 11.5}, "stab": {"s": 9.5, "sun": 7.9}, "lap": {"s": 16.6, "sun": 13.8}, "up": {"s": 5.7, "sun": 4.7}, "down": {"s": 6.0, "sun": 5.0}, "warn": {"s": 6.2, "sun": 5.1}}, "cvd": [["lat", "stab", 8.7], ["lat", "down", 8.7]], "normalMin": 16.4, "L": {"long": 0.78, "lat": 0.78, "flow": 0.89, "stab": 0.77, "lap": 0.96, "up": 0.67, "down": 0.66}, "Cc": {"long": 0.13, "lat": 0.129, "flow": 0.139, "stab": 0.11, "lap": 0.018, "up": 0.2, "down": 0.169}}, "c": {"t": {"bg": "#07080a", "surface": "#111315", "surface2": "#1a1c20", "outline": "#2a2e34", "grid": "#212429", "text": "#f6f5f2", "muted": "#9a9fa6", "accent": "#f3f2ef", "accent2": "#9b9fa5", "up": "#fc4e51", "down": "#4c89ff", "warn": "#ed6e12", "long": "#fcab19", "lat": "#5eddfe", "flow": "#bc9cff", "stab": "#5bdb87", "lap": "#ebe8df", "sunSurface": "#222427", "sunOutline": "#42464c", "sunMuted": "#c7cbd0", "sunBg": "#0d0f11", "ring": "#ffffff", "track": "#f0eee9"}, "name": "(c) データだけに色", "cr": {"text": {"s": 17.1, "sun": 14.3}, "muted": {"s": 7.0, "sun": 5.8}, "accent": {"s": 16.6, "sun": 13.9}, "long": {"s": 9.7, "sun": 8.1}, "lat": {"s": 11.7, "sun": 9.8}, "flow": {"s": 8.3, "sun": 6.9}, "stab": {"s": 10.6, "sun": 8.8}, "lap": {"s": 15.2, "sun": 12.7}, "up": {"s": 5.6, "sun": 4.7}, "down": {"s": 5.6, "sun": 4.7}, "warn": {"s": 6.1, "sun": 5.1}}, "cvd": [["lat", "lap", 8.5], ["flow", "down", 8.8]], "normalMin": 15.5, "L": {"long": 0.8, "lat": 0.84, "flow": 0.76, "stab": 0.8, "lap": 0.93, "up": 0.67, "down": 0.65}, "Cc": {"long": 0.165, "lat": 0.12, "flow": 0.142, "stab": 0.165, "lap": 0.012, "up": 0.21, "down": 0.187}}};
+  const PAL_ORDER = ["cur", "a", "b", "c"];
+  const RECOMMENDED = "b";
+  const PAL_TEXT = {
+    cur: "今のアプリの色です。項目ごとに明るさと鮮やかさがばらばらで、オレンジ・黄緑・注意のオレンジと暖かい色が競い合っています。左右の紫と「下がった」の青は、色覚によっては見分けにくい組み合わせです。",
+    a: "色の系統は今のまま、<b>明るさと鮮やかさをそろえた</b>控えめな案です。紫を明るいラベンダー寄りにして「下がった」の青と区別しやすくし、赤と青も少し明るくして日差しの下でも読みやすくしました。見た目の変化はいちばん小さい案です。",
+    b: "背景・枠・灰色の文字を<b>同じ青みの夜色</b>にそろえ、項目の色は鮮やかさを少し抑えて明るさをそろえました。暖かい色は前後のアンバー 1 色だけ、安定は青緑、アクセントは氷のような水色です。夜のサーキットの照明のような、落ち着いたまとまりが出ます。",
+    c: "枠やボタンは<b>白とグレーだけ</b>にして、色は項目と点数の上下だけに使う大胆な案です。前後（ペダル）は暖色、左右（ハンドル）は寒色の水色、つながりは紫。アクセントの水色をやめるので、色が出たら必ず意味がある画面になります。ラップは文字と同じ白なので、記号 ⟳ で見分けます。",
+  };
+  const PARTS = [["long", "↕ 前後"], ["lat", "↔ 左右"], ["flow", "⤢ つながり"], ["stab", "≈ 安定"], ["lap", "⟳ ラップ"]];
+  const OTHERS = [["bg", "背景"], ["surface", "カードの面"], ["surface2", "面（濃）"], ["outline", "枠線"], ["text", "文字"], ["muted", "灰色の文字"], ["accent", "アクセント"], ["up", "▲ 上がった"], ["down", "▼ 下がった"], ["warn", "注意"]];
+  const NAMES = { long: "前後", lat: "左右", flow: "つながり", stab: "安定", lap: "ラップ", up: "上がった", down: "下がった" };
+  let pal = document.documentElement.getAttribute("data-pal") || RECOMMENDED;
+
+  function renderPalButtons() {
+    const box = document.getElementById("palbtns");
+    box.innerHTML = PAL_ORDER.map((k) => {
+      const p = PALS[k];
+      const dots = PARTS.map(([pk]) => `<i style="background:${p.t[pk]}"></i>`).join("");
+      return `<button type="button" data-pal="${k}" aria-pressed="${k === pal}"><span class="dots" aria-hidden="true">${dots}</span>${p.name}${k === RECOMMENDED ? ' <span class="tag">おすすめ</span>' : ""}</button>`;
+    }).join("");
+    box.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setPal(b.dataset.pal)));
+  }
+  function renderPalDetail() {
+    const p = PALS[pal];
+    const crs = (k) => p.cr[k] ? `<span class="cr">面に対して <b>${p.cr[k].s.toFixed(1)}</b>:1</span>` : "";
+    const parts = PARTS.map(([k, n]) => `<div class="sw"><div class="bar" style="background:linear-gradient(90deg, color-mix(in srgb, ${p.t[k]} 35%, transparent), ${p.t[k]})"></div><div class="tx"><span class="nm" style="color:${p.t[k]}">${n}</span><span class="hx">${p.t[k]}</span><span class="cr">面に対して <b>${p.cr[k].s.toFixed(1)}</b>:1</span><span class="cr">日差しモード <b>${p.cr[k].sun.toFixed(1)}</b>:1</span></div></div>`).join("");
+    const others = OTHERS.map(([k, n]) => `<div class="sw"><div class="bar" style="background:${p.t[k]}"></div><div class="tx"><span class="nm">${n}</span><span class="hx">${p.t[k]}</span>${crs(k)}</div></div>`).join("");
+    const w = p.cvd[0];
+    const ok = w[2] >= 8;
+    const Ls = ["long", "lat", "stab"].map((k) => p.L[k]);
+    const Cs = ["long", "lat", "flow", "stab"].map((k) => p.Cc[k]);
+    const minPart = Math.min(...PARTS.map(([k]) => p.cr[k].s));
+    document.getElementById("paldetail").innerHTML = `<h3>${p.name}${pal === RECOMMENDED ? ' <span class="tag">おすすめ</span>' : ""}</h3>
+      <p>${PAL_TEXT[pal]}</p>
+      <div class="pstrip">${parts}</div>
+      <div class="pstrip small">${others}</div>
+      <ul class="checks">
+        <li>項目の文字の読みやすさ：いちばん低くて <b>${minPart.toFixed(1)} : 1</b>（基準 4.5 : 1）<span class="ok"> ✓</span></li>
+        <li>色覚の違い（赤と緑が似て見えるタイプ）で最も近い組み合わせ：<b>${NAMES[w[0]]}と${NAMES[w[1]]}</b> の差 <b>${w[2]}</b>（目安 8 以上）${ok ? '<span class="ok"> ✓</span>' : '<span class="ng"> △ 見分けにくい</span>'}</li>
+        <li>ふつうの見え方での最小の差：<b>${p.normalMin}</b>（目安 15 以上）<span class="ok"> ✓</span></li>
+        <li>明るさのそろい方（前後・左右・安定）：<b>${Math.min(...Ls).toFixed(2)}〜${Math.max(...Ls).toFixed(2)}</b> ・ 鮮やかさ：<b>${Math.min(...Cs).toFixed(2)}〜${Math.max(...Cs).toFixed(2)}</b></li>
+      </ul>`;
+    gauge(document.getElementById("pg"), { id: "pg", big: false, hideLabels: false, style: "smooth", noFocus: true });
+    gauge(document.getElementById("pgs1"), { id: "pgs1", big: false, hideLabels: true, style: "smooth", noFocus: true });
+    gauge(document.getElementById("pgs2"), { id: "pgs2", big: false, hideLabels: true, style: "smooth", noFocus: true, sun: true });
+  }
+  function setPal(k) {
+    pal = k;
+    document.documentElement.setAttribute("data-pal", k);
+    readC();
+    document.querySelectorAll("#palbtns button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.pal === k));
+    renderPalDetail(); renderDrive(); renderResult(); renderCompare();
+  }
+
+  renderPalButtons(); renderPalDetail();
+  renderDrive(); renderResult(); renderCompare();
+})();
+</script>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const svg = document.getElementById("fgauge");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const rad = (d) => (d * Math.PI) / 180;
+  const sector = (r1, r2, a0, a1) => {
+    const p = (r, a) => [r * Math.cos(rad(a)), r * Math.sin(rad(a))];
+    const [x1, y1] = p(r2, a0), [x2, y2] = p(r2, a1), [x3, y3] = p(r1, a1), [x4, y4] = p(r1, a0);
+    return `M${x1},${y1} A${r2},${r2} 0 0 1 ${x2},${y2} L${x3},${y3} A${r1},${r1} 0 0 0 ${x4},${y4} Z`;
+  };
+  // 8 方向: 名前・扇の向き・開き・色・ラベルの位置
+  const D = [
+    { k: "brake", name: "ブレーキ", dir: -90, span: 28, col: "long", lx: 0, ly: -134, big: true },
+    { k: "accel", name: "加速", dir: 90, span: 28, col: "long", lx: 0, ly: 152, big: true },
+    { k: "left", name: "左", dir: 180, span: 28, col: "lat", lx: -142, ly: -6, big: true, stack: true },
+    { k: "right", name: "右", dir: 0, span: 28, col: "lat", lx: 142, ly: -6, big: true, stack: true },
+    { k: "bl", dir: -135, span: 9, col: "flow", lx: -96, ly: -92 },
+    { k: "br", dir: -45, span: 9, col: "flow", lx: 96, ly: -92 },
+    { k: "al", dir: 135, span: 9, col: "flow", lx: -96, ly: 104 },
+    { k: "ar", dir: 45, span: 9, col: "flow", lx: 96, ly: 104 },
+  ];
+  const val = { brake: 84, accel: 66, left: 78, right: 74, bl: 90, br: 70, al: 85, ar: null };
+  const target = { ...val };
+  const lastMove = {}, dirSign = {};
+  D.forEach((d) => { lastMove[d.k] = -1e9; dirSign[d.k] = 0; });
+  // 見本の走行: 場面ごとに G の向きと、点数が動く向き
+  const PHASES = [
+    { name: "ブレーキ", g: -90, k: "brake", d: +7 },
+    { name: "左コーナー（ブレーキを残して）", g: -135, k: "left", d: +6, k2: "bl", d2: +4 },
+    { name: "立ち上がりの加速（急な踏み込み）", g: 90, k: "accel", d: -8 },
+    { name: "ブレーキ", g: -90, k: "brake", d: +4 },
+    { name: "右コーナー（切り足し）", g: 0, k: "right", d: -7 },
+    { name: "直線", g: null },
+  ];
+  let mode = "change", fanEmph = true, phase = 0, phaseT = 0, last = performance.now();
+
+  function emphasized(t) {
+    const set = new Set();
+    if (mode === "change") D.forEach((d) => { if (t - lastMove[d.k] < 2000) set.add(d.k); });
+    else if (mode === "use") { const ph = PHASES[phase]; if (ph.g != null) D.forEach((d) => { if (d.dir === ph.g || (ph.g === -135 && (d.k === "left" || d.k === "bl"))) set.add(d.k); }); }
+    else { let m = null; D.slice(0, 4).forEach((d) => { if (val[d.k] != null && (m == null || val[d.k] < val[m])) m = d.k; }); if (m) set.add(m); }
+    return set;
+  }
+
+  function draw(t) {
+    const C = {}; ["long", "lat", "flow", "stab", "text", "muted", "outline", "up", "down", "ring"].forEach((k) => C[k] = css("--" + k));
+    svg.replaceChildren();
+    const defs = el("defs", {}, svg);
+    const f = el("filter", { id: "fgb", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
+    el("feGaussianBlur", { stdDeviation: 5 }, f);
+    const emph = emphasized(t);
+    const any = emph.size > 0;
+    el("circle", { r: 114, fill: "none", stroke: C.outline, "stroke-width": 1.2 }, svg);
+    const ph = PHASES[phase];
+    if (ph.g != null) {
+      el("path", { d: sector(107, 119, ph.g - 28, ph.g + 28), fill: C.ring, "fill-opacity": 0.55, filter: "url(#fgb)" }, svg);
+      el("path", { d: sector(110, 116, ph.g - 22, ph.g + 22), fill: C.ring }, svg);
+    }
+    D.forEach((d) => {
+      const v = val[d.k], col = C[d.col];
+      const dimFan = fanEmph && any && !emph.has(d.k);
+      const g = el("g", { opacity: dimFan ? 0.45 : 1 }, svg);
+      el("path", { d: sector(60, 106, d.dir - d.span, d.dir + d.span), fill: col, "fill-opacity": 0.1, stroke: col, "stroke-opacity": 0.25, "stroke-width": 1 }, g);
+      if (v == null) {
+        el("path", { d: sector(60, 106, d.dir - d.span, d.dir + d.span), fill: "none", stroke: col, "stroke-width": 1.6, "stroke-dasharray": "3 3", "stroke-opacity": 0.6 }, g);
+      } else {
+        const r2 = 60 + 46 * Math.max(0, Math.min(1, v / 100));
+        const gid = "fgr" + d.k;
+        const gr = el("radialGradient", { id: gid, cx: 0, cy: 0, r: 106, gradientUnits: "userSpaceOnUse" }, defs);
+        el("stop", { offset: "0.5", "stop-color": col, "stop-opacity": 0.35 }, gr);
+        el("stop", { offset: (r2 / 106).toFixed(3), "stop-color": col, "stop-opacity": 1 }, gr);
+        el("path", { d: sector(60, r2, d.dir - d.span, d.dir + d.span), fill: `url(#${gid})`, stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }, g);
+        const p = (r, a) => `${(r * Math.cos(rad(a))).toFixed(2)},${(r * Math.sin(rad(a))).toFixed(2)}`;
+        el("path", { d: `M${p(r2, d.dir - d.span)} A${r2},${r2} 0 0 1 ${p(r2, d.dir + d.span)}`, fill: "none", stroke: "#ffffff", "stroke-width": 2.5, "stroke-linecap": "round", "stroke-opacity": 0.9 }, g);
+      }
+      // 名前と点数
+      const on = emph.has(d.k);
+      const color = on ? col : (any ? C.muted : col);
+      const op = on ? 1 : (any ? 0.5 : 0.8);
+      const num = v == null ? "--" : Math.round(v).toString();
+      const arrow = on && dirSign[d.k] !== 0 && mode === "change" ? (dirSign[d.k] > 0 ? "▲" : "▼") : "";
+      const arrowCol = dirSign[d.k] > 0 ? C.up : C.down;
+      if (d.name) {
+        const fsName = on ? 15 : 12, fsNum = on ? 30 : 22;
+        if (d.stack) {
+          const t1 = el("text", { x: d.lx, y: d.ly - 10, fill: color, "fill-opacity": op, "font-size": fsName, "text-anchor": "middle", "font-weight": on ? 900 : 700, "font-family": "Noto Sans JP, sans-serif" }, svg); t1.textContent = d.name;
+          const t2 = el("text", { x: d.lx, y: d.ly + 18, fill: color, "fill-opacity": op, "font-size": fsNum, "text-anchor": "middle", "font-weight": 700, "font-family": "Chakra Petch, sans-serif" }, svg); t2.textContent = num;
+          if (arrow) { const t3 = el("text", { x: d.lx, y: d.ly + 36, fill: arrowCol, "font-size": 13, "text-anchor": "middle", "font-weight": 900 }, svg); t3.textContent = arrow; }
+        } else {
+          const t = el("text", { x: d.lx, y: d.ly, "text-anchor": "middle" }, svg);
+          const a = el("tspan", { fill: color, "fill-opacity": op, "font-size": fsName, "font-weight": on ? 900 : 700, "font-family": "Noto Sans JP, sans-serif" }, t); a.textContent = d.name + " ";
+          const b = el("tspan", { fill: color, "fill-opacity": op, "font-size": fsNum, "font-weight": 700, "font-family": "Chakra Petch, sans-serif" }, t); b.textContent = num;
+          if (arrow) { const c = el("tspan", { fill: arrowCol, "font-size": 15, "font-weight": 900, dx: 4 }, t); c.textContent = arrow; }
+        }
+      } else {
+        const t = el("text", { x: d.lx, y: d.ly, fill: color, "fill-opacity": op, "font-size": on ? 18 : 13, "text-anchor": "middle", "font-weight": 700, "font-family": "Chakra Petch, sans-serif" }, svg);
+        t.textContent = num + (arrow ? " " + arrow : "");
+      }
+    });
+    // 安定の輪と総合
+    let wd = "";
+    for (let i = 0; i <= 120; i++) { const a = (i / 120) * 2 * Math.PI; const r = 52 + 1.4 * Math.sin(7 * a + t / 400) * (0.6 + 0.4 * Math.sin(3 * a)); wd += (i ? "L" : "M") + (r * Math.cos(a)).toFixed(2) + "," + (r * Math.sin(a)).toFixed(2); }
+    el("path", { d: wd + "Z", fill: "none", stroke: C.stab, "stroke-width": 3, "stroke-opacity": 0.85 }, svg);
+    const n = el("text", { x: 0, y: 18, fill: C.text, "font-size": 56, "text-anchor": "middle", "font-family": "Chakra Petch, sans-serif", "font-weight": 700 }, svg); n.textContent = "82";
+    const tr = el("text", { x: 0, y: 38, fill: C.up, "font-size": 13, "text-anchor": "middle", "font-weight": 700 }, svg); tr.textContent = "▲ 上昇";
+  }
+
+  function tick(t) {
+    const dt = Math.min(0.1, (t - last) / 1000); last = t;
+    phaseT += dt;
+    if (phaseT > 2.6) {
+      phaseT = 0; phase = (phase + 1) % PHASES.length;
+      const ph = PHASES[phase];
+      if (ph.k) target[ph.k] = Math.max(30, Math.min(100, target[ph.k] + ph.d));
+      if (ph.k2) target[ph.k2] = Math.max(30, Math.min(100, target[ph.k2] + ph.d2));
+      if (ph.k === "accel" && target.accel < 45) target.accel = 74;
+      if (ph.k === "brake" && target.brake > 97) target.brake = 80;
+      if (ph.k === "right" && target.right < 45) target.right = 76;
+      if (ph.k === "left" && target.left > 97) target.left = 75;
+      document.getElementById("fphase").innerHTML = "いまの場面: <b>" + ph.name + "</b>";
+      document.getElementById("fspd").firstChild.textContent = ph.g === -90 ? "62" : ph.g === 90 ? "71" : ph.g == null ? "96" : "55";
+    }
+    for (const k in val) {
+      if (val[k] == null || target[k] == null) continue;
+      const nv = val[k] + (target[k] - val[k]) * (1 - Math.exp(-dt / 0.6));
+      const rate = (nv - val[k]) / Math.max(dt, 1e-3);
+      if (Math.abs(rate) > 0.8) { lastMove[k] = t; dirSign[k] = Math.sign(rate); }
+      val[k] = nv;
+    }
+    draw(t);
+    if (!reduced) setTimeout(() => requestAnimationFrame(tick), 33);
+  }
+  document.querySelectorAll("[data-fmode]").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.fmode;
+    document.querySelectorAll("[data-fmode]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  }));
+  document.getElementById("ffan").addEventListener("change", (e) => { fanEmph = e.target.checked; });
+  requestAnimationFrame(tick);
+})();
+</script>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const svg = document.getElementById("zgauge"), bg = document.getElementById("zbg"), edge = document.getElementById("zedge"), badge = document.getElementById("zbadge");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const T = 72; document.getElementById("zthr").textContent = T;
+  let auto = true, road = false, score = 66, target = 66, s10 = 66, prevS = 66, t0 = performance.now(), last = t0;
+  let zone = "normal", cand = null, candSince = 0, zoneSince = 0, lastEntry = -1e9, bloomAt = -1e9, inZoneSec = 0, longest = 0, cur = 0, driveSec = 0, trend = 0;
+  const lerp = (a, b, f) => a + (b - a) * f;
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  function mix(h, a) { const [r, g, b] = hex(h); return `rgba(${r},${g},${b},${a})`; }
+  // 8 方向（値は見本: 10 秒の点から少しずつずらす）
+  const DIRS = [
+    { dir: -90, span: 28, col: "#eca851", off: 8, pos: "50% 6%", size: "70% 34%" },
+    { dir: 90, span: 28, col: "#eca851", off: -4, pos: "50% 60%", size: "70% 26%" },
+    { dir: 180, span: 28, col: "#c7a3fc", off: 2, pos: "0% 33%", size: "38% 30%" },
+    { dir: 0, span: 28, col: "#c7a3fc", off: -2, pos: "100% 33%", size: "38% 30%" },
+    { dir: -135, span: 9, col: "#c0ec85", off: 6, pos: "8% 12%", size: "30% 22%" },
+    { dir: -45, span: 9, col: "#c0ec85", off: -6, pos: "92% 12%", size: "30% 22%" },
+    { dir: 135, span: 9, col: "#c0ec85", off: 1, pos: "8% 52%", size: "30% 22%" },
+    { dir: 45, span: 9, col: "#c0ec85", off: -9, pos: "92% 52%", size: "30% 22%" },
+  ];
+  // 各方向の状態: 入った時刻・出た時刻（光は時間で決める: 入り 240 ms、出 650 ms、入った瞬間に 1 回だけ光が外へ走る）
+  const inz = DIRS.map(() => false), onAt = DIRS.map(() => -1e9), offAt = DIRS.map(() => -1e9), lvlAtOff = DIRS.map(() => 0), lastSweep = DIRS.map(() => -1e9);
+  let sweepAt = -1e9, sweepDirs = [];
+  const easeOut = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const easeInOut = (x) => { x = Math.min(1, Math.max(0, x)); return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+  const toWhite = (h, f) => { const c = hex(h); return "#" + c.map((v) => Math.round(v + (255 - v) * f).toString(16).padStart(2, "0")).join(""); };
+  function level(i, now) {
+    if (inz[i]) return reduced ? 1 : easeOut((now - onAt[i]) / 240);
+    return lvlAtOff[i] * (1 - (reduced ? Math.min(1, (now - offAt[i]) / 150) : easeInOut((now - offAt[i]) / 650)));
+  }
+  function draw(now) {
+    const vals = DIRS.map((d) => Math.max(0, Math.min(100, s10 + d.off)));
+    const entered = [];
+    DIRS.forEach((d, i) => {
+      const on = inz[i] ? vals[i] >= T - 4 : vals[i] >= T;
+      if (on && !inz[i]) { onAt[i] = now; if (now - lastSweep[i] > 10000) { entered.push(i); lastSweep[i] = now; } }
+      if (!on && inz[i]) { lvlAtOff[i] = level(i, now); offAt[i] = now; }
+      inz[i] = on;
+    });
+    if (entered.length && !road && !reduced) { sweepAt = now + 80; sweepDirs = (now - sweepAt < 300 && sweepDirs.length) ? [...new Set([...sweepDirs, ...entered])] : entered; }
+    bg.style.background = (zone === "low" ? "radial-gradient(circle at 50% 30%, rgba(14,26,54,.45), transparent 70%), " : "radial-gradient(circle at 50% 30%, rgba(74,85,102,.20), transparent 70%), ") + "#04090f";
+    edge.style.boxShadow = "none";
+    badge.classList.toggle("on", zone === "good");
+    svg.replaceChildren();
+    const defs = el("defs", {}, svg);
+    const fb = el("filter", { id: "zbloom", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
+    el("feGaussianBlur", { stdDeviation: 6 }, fb);
+    el("circle", { r: 118, fill: "none", stroke: "#1e2f41", "stroke-width": 6 }, svg);
+    const pct = driveSec > 0 ? inZoneSec / driveSec : 0;
+    const a1 = -Math.PI / 2 + pct * 2 * Math.PI;
+    if (pct > 0.001) {
+      const big = pct > 0.5 ? 1 : 0;
+      el("path", { d: `M0,-118 A118,118 0 ${big} 1 ${(118 * Math.cos(a1)).toFixed(2)},${(118 * Math.sin(a1)).toFixed(2)}`, fill: "none", stroke: "#FFE08A", "stroke-width": 6, "stroke-linecap": "round", "stroke-opacity": 0.95 }, svg);
+    }
+    const tl = el("text", { x: 0, y: -132, fill: "#c9d6e0", "font-size": 12, "text-anchor": "middle" }, svg); tl.textContent = "外側の輪 = ゾーンにいた時間";
+    const rad = (x) => x * Math.PI / 180;
+    const p = (r, a) => `${(r * Math.cos(rad(a))).toFixed(1)},${(r * Math.sin(rad(a))).toFixed(1)}`;
+    const sec = (dir, span, r1, r2) => `M${p(r2, dir - span)} A${r2},${r2} 0 0 1 ${p(r2, dir + span)} L${p(r1, dir + span)} A${r1},${r1} 0 0 0 ${p(r1, dir - span)} Z`;
+    const lit = DIRS.map((d, i) => level(i, now));
+    const nLit = lit.filter((x) => x > 0.3).length;
+    const scaleN = nLit >= 4 ? 1 / Math.sqrt(nLit / 3) : 1;
+    const glowLayer = el("g", { style: "mix-blend-mode:screen" }, svg);
+    DIRS.forEach((d, i) => {
+      const v = vals[i], r2 = 60 + 46 * v / 100, L = lit[i] * 0.85 * scaleN;
+      if (L > 0.01) {
+        // ガウス状の光（扇の先端が中心。芯は白に寄せる）
+        const gid = "zg" + i;
+        const gr = el("radialGradient", { id: gid }, defs);
+        el("stop", { offset: "0", "stop-color": toWhite(d.col, 0.6), "stop-opacity": 1 }, gr);
+        el("stop", { offset: "0.45", "stop-color": d.col, "stop-opacity": 0.55 }, gr);
+        el("stop", { offset: "1", "stop-color": d.col, "stop-opacity": 0 }, gr);
+        const cap = d.col === "#c0ec85" ? 0.20 : 0.26;
+        const sc = 0.94 + 0.06 * lit[i];
+        const cx = (r2 + 14) * Math.cos(rad(d.dir)), cy = (r2 + 14) * Math.sin(rad(d.dir));
+        const wAcross = d.span > 10 ? 52 : 26;
+        el("ellipse", { cx: cx.toFixed(1), cy: cy.toFixed(1), rx: (48 * sc).toFixed(1), ry: (wAcross * sc).toFixed(1), transform: `rotate(${d.dir} ${cx.toFixed(1)} ${cy.toFixed(1)})`, fill: `url(#${gid})`, opacity: Math.min(1, L * cap / 0.2).toFixed(3) }, glowLayer);
+        // 扇のにじみ（小さくぼかした光）
+        el("path", { d: sec(d.dir, d.span + 2, 58, r2 + 4), fill: d.col, opacity: (0.35 * L).toFixed(3), filter: "url(#zbloom)" }, glowLayer);
+      }
+      el("path", { d: sec(d.dir, d.span, 60, 106), fill: d.col, "fill-opacity": 0.1 }, svg);
+      el("path", { d: sec(d.dir, d.span, 60, r2), fill: d.col, "fill-opacity": (0.72 + 0.28 * lit[i]).toFixed(2) }, svg);
+      if (lit[i] > 0.01) {
+        const draw = Math.min(1, inz[i] ? easeOut((now - onAt[i]) / 180) : 1);
+        const a0 = d.dir - d.span, a1d = d.dir - d.span + 2 * d.span * draw;
+        el("path", { d: `M${p(r2, a0)} A${r2},${r2} 0 0 1 ${p(r2, a1d)}`, fill: "none", stroke: "#ffffff", "stroke-width": 2, "stroke-linecap": "round", "stroke-opacity": (0.8 * lit[i]).toFixed(2) }, svg);
+      }
+    });
+    // 入った瞬間の光の走り（1 回だけ、扇の内側から外へ 450 ms）
+    const st = (now - sweepAt) / 450;
+    if (st >= 0 && st <= 1) {
+      const e = 1 - Math.pow(1 - st, 2);
+      const rr = 60 + e * 105;
+      const fade = st < 0.6 ? 1 : 1 - (st - 0.6) / 0.4;
+      sweepDirs.forEach((i) => {
+        const d = DIRS[i];
+        el("path", { d: sec(d.dir, d.span, rr, rr + 20), fill: toWhite(d.col, 0.5), opacity: (0.5 * fade).toFixed(2), style: "mix-blend-mode:screen", filter: "url(#zbloom)" }, svg);
+      });
+    }
+    if (Math.abs(trend) > 0.6) el("circle", { r: 58, fill: trend > 0 ? "#f85360" : "#4392f7", "fill-opacity": 0.12 }, svg);
+    el("circle", { r: 52, fill: "#04090f", "fill-opacity": 0.75 }, svg);
+    const nn = el("text", { x: 0, y: 18, fill: "#eff6fb", "font-size": 56, "font-weight": 700, "text-anchor": "middle", "font-family": "Chakra Petch, sans-serif" }, svg); nn.textContent = Math.round(score);
+    const tr = el("text", { x: 0, y: 40, fill: trend > 0.6 ? "#f85360" : trend < -0.6 ? "#4392f7" : "#8ba2b2", "font-size": 13, "font-weight": 700, "text-anchor": "middle" }, svg);
+    tr.textContent = trend > 0.6 ? "▲ 上昇" : trend < -0.6 ? "▼ 下降" : "━ 横ばい";
+  }
+  function step(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    driveSec += dt;
+    if (auto) {
+      if (Math.random() < dt / 2.2) target = Math.max(45, Math.min(97, target + (Math.random() - 0.45) * 22));
+      document.getElementById("zman").value = Math.round(target);
+    }
+    score += (target - score) * (1 - Math.exp(-dt / 0.5));
+    s10 += (score - s10) * (1 - Math.exp(-dt / 4));
+    trend = trend + (((s10 - prevS) / dt) - trend) * (1 - Math.exp(-dt / 1.5)); prevS = s10;
+    // ゾーンの判定（ヒステリシス）
+    const want = s10 >= T ? "good" : s10 < 55 ? "low" : "normal";
+    const stayGood = zone === "good" && s10 >= T - 4;
+    const next = stayGood ? "good" : want;
+    if (next !== zone) {
+      if (cand !== next) { cand = next; candSince = now; }
+      const need = next === "good" ? 2000 : 3000;
+      const minStay = zone === "good" ? 6000 : 0;
+      const okEntry = next !== "good" || now - lastEntry > 20000;
+      if (now - candSince >= need && now - zoneSince >= minStay && okEntry) {
+        if (zone === "good") { cur = 0; }
+        zone = next; zoneSince = now; cand = null;
+        if (zone === "good") { lastEntry = now; bloomAt = now; }
+      }
+    } else cand = null;
+    if (zone === "good") { inZoneSec += dt; cur += dt; longest = Math.max(longest, cur); if (now - bloomAt > 60000) bloomAt = now; }
+    const fmt = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
+    document.getElementById("zpct").textContent = Math.round(100 * inZoneSec / Math.max(1, driveSec)) + "%";
+    document.getElementById("zlong").textContent = fmt(longest);
+    document.getElementById("ztime").textContent = fmt(driveSec);
+    document.getElementById("zs").textContent = Math.round(s10);
+    document.getElementById("zz").textContent = { good: "良い", normal: "ふつう", low: "低め" }[zone];
+    document.getElementById("ztr").textContent = trend > 0.6 ? "▲" : trend < -0.6 ? "▼" : "━";
+    draw(now);
+    if (!reduced) requestAnimationFrame(step);
+  }
+  document.getElementById("zman").addEventListener("input", (e) => { auto = false; target = +e.target.value; document.getElementById("zauto").setAttribute("aria-pressed", "false"); });
+  document.getElementById("zauto").addEventListener("click", (e) => { auto = !auto; e.currentTarget.setAttribute("aria-pressed", auto); });
+  document.getElementById("zroad").addEventListener("click", (e) => { road = !road; e.currentTarget.setAttribute("aria-pressed", road); });
+  requestAnimationFrame(step);
+})();
+</script>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("lg");
+  const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const C = { long: "#eca851", lat: "#c7a3fc", flow: "#c0ec85", muted: "#8ba2b2", text: "#eff6fb", up: "#f85360", bg: "#04090f", stab: "#50cbbf", outline: "#1e2f41" };
+  const D = [
+    { k: "brake", dir: -90, span: 28, col: C.long, v: 62, name: "ブレーキ", icon: "brake" },
+    { k: "accel", dir: 90, span: 28, col: C.long, v: 88, name: "加速", icon: "accel" },
+    { k: "left", dir: 180, span: 28, col: C.lat, v: 83, name: "左", icon: "wheelL" },
+    { k: "right", dir: 0, span: 28, col: C.lat, v: 79, name: "右", icon: "wheelR" },
+    { k: "bl", dir: -135, span: 9, col: C.flow, v: 90, name: "ブレーキ→左" },
+    { k: "br", dir: -45, span: 9, col: C.flow, v: 74, name: "ブレーキ→右" },
+    { k: "al", dir: 135, span: 9, col: C.flow, v: 85, name: "左→加速" },
+    { k: "ar", dir: 45, span: 9, col: C.flow, v: 70, name: "右→加速" },
+  ];
+  let mode = "moving", introT0 = 0, carPhase = 0;
+  const rad = (x) => x * Math.PI / 180;
+  const p = (r, a) => `${(r * Math.cos(rad(a))).toFixed(1)},${(r * Math.sin(rad(a))).toFixed(1)}`;
+  const sec = (dir, span, r1, r2) => `M${p(r2, dir - span)} A${r2},${r2} 0 0 1 ${p(r2, dir + span)} L${p(r1, dir + span)} A${r1},${r1} 0 0 0 ${p(r1, dir - span)} Z`;
+  // 絵（中心 0,0、大きさ約 24）
+  function icon(g, kind, col, sc) {
+    const s = el("g", { transform: `scale(${sc})`, fill: "none", stroke: col, "stroke-width": 2.2, "stroke-linecap": "round", "stroke-linejoin": "round" }, g);
+    if (kind === "brake") { el("rect", { x: -11, y: -6, width: 22, height: 10, rx: 3 }, s); el("path", { d: "M0 4 L0 11 M-5 11 L5 11" }, s); el("path", { d: "M-7 -1 H7" , "stroke-width": 1.4 }, s); }
+    if (kind === "accel") { el("rect", { x: -5, y: -12, width: 10, height: 20, rx: 3 }, s); el("path", { d: "M0 8 L0 12 M-5 12 L5 12" }, s); el("path", { d: "M-2 -6 H2 M-2 -2 H2 M-2 2 H2", "stroke-width": 1.2 }, s); }
+    if (kind === "wheelL" || kind === "wheelR") {
+      el("circle", { r: 10 }, s); el("circle", { r: 2.5 }, s); el("path", { d: "M-10 0 H-2.5 M2.5 0 H10 M0 2.5 V10" }, s);
+      const m = kind === "wheelL" ? -1 : 1;
+      el("path", { d: `M${-6 * m} -14 A 14 14 0 0 ${m > 0 ? 1 : 0} ${10 * m} -9`, "stroke-width": 1.8 }, s);
+      el("path", { d: `M${10 * m} -9 l${-4 * m} -1 M${10 * m} -9 l${-1 * m} -4`, "stroke-width": 1.8 }, s);
+    }
+  }
+  function draw(now) {
+    svg.replaceChildren();
+    const t = (now - introT0) / 1000;
+    const ph0 = (now / 1000) % 8; const axT = mode !== "moving" ? 0 : ph0 < 2 ? 0.25 : ph0 < 3.5 ? -0.5 : ph0 < 5.5 ? -0.05 : ph0 < 6.5 ? 0.3 : 0; const tilt = mode === "moving" ? `matrix(1,0,0,${(0.92 + axT * 0.1).toFixed(3)},0,${(axT * -6).toFixed(1)})` : "";
+    const disc = el("g", { transform: tilt }, svg);
+    // 車のシルエット（上から、前が上）
+    const showCar = mode !== "now";
+    if (showCar) {
+      // 見本の走行（8 秒周期）: 直線加速 → ブレーキ → 左コーナー → 立ち上がり → 右コーナー
+      const ph = (now / 1000) % 8;
+      const ax = mode !== "moving" ? 0 : ph < 2 ? 0.25 : ph < 3.5 ? -0.5 : ph < 5.5 ? -0.05 : ph < 6.5 ? 0.3 : 0;
+      const ay = mode !== "moving" ? 0 : ph < 3.5 ? 0 : ph < 5.5 ? 0.5 : ph < 6.5 ? 0.15 : -0.45;
+      const speed = mode !== "moving" ? 0 : 70 + 25 * Math.sin(ph / 8 * 2 * Math.PI);
+      carPhase = (carPhase || 0) + speed * 0.016 * 1.4;
+      // 道路（車の下を流れる線）: 円盤の内側だけに見せる
+      const cid = "lgclip";
+      const defs = el("defs", {}, disc);
+      const cp = el("clipPath", { id: cid }, defs); el("circle", { r: 60 }, cp);
+      const road = el("g", { "clip-path": `url(#${cid})` }, disc);
+      const curve = ay * 60; // 曲がっている向きへ道が曲がって見える
+      for (const lx of [-44, 44]) {
+        el("path", { d: `M${lx + curve} -70 Q${lx + curve * 0.3} 0 ${lx} 70`, fill: "none", stroke: C.muted, "stroke-opacity": 0.35, "stroke-width": 2, "stroke-dasharray": "10 12", "stroke-dashoffset": (-carPhase).toFixed(1) }, road);
+      }
+      // 速さの筋（スピードが出ているほど長く・多く）
+      if (speed > 0) for (let k = 0; k < 4; k++) {
+        const x = [-36, -32, 32, 36][k], y0 = ((carPhase * 1.3 + k * 37) % 140) - 70;
+        el("line", { x1: x, y1: y0, x2: x, y2: y0 + speed * 0.25, stroke: "#eff6fb", "stroke-opacity": 0.18, "stroke-width": 1.4, "stroke-linecap": "round" }, road);
+      }
+      // 車（向きは横 G で少しヨー、前輪は切れる、ブレーキでテールランプ）
+      const yaw = -ay * 10;
+      const car = el("g", { fill: "none", stroke: C.muted, "stroke-opacity": 0.75, "stroke-width": 2.2, transform: `rotate(${yaw.toFixed(1)}) translate(0,${(ax * -6).toFixed(1)})` }, disc);
+      el("rect", { x: -24, y: -42, width: 48, height: 84, rx: 18, fill: "#0a131d", "fill-opacity": 0.85 }, car);
+      el("path", { d: "M-18 -20 Q0 -27 18 -20 L15 -9 Q0 -13 -15 -9 Z" }, car);
+      el("path", { d: "M-16 20 Q0 24 16 20 L14 29 Q0 31 -14 29 Z" }, car);
+      const steer = -ay * 30;
+      [[-27, -24, true], [27, -24, true], [-27, 24, false], [27, 24, false]].forEach(([x, y, front]) =>
+        el("rect", { x: x - 3, y: y - 8, width: 6, height: 16, rx: 2, fill: C.muted, "fill-opacity": 0.6, stroke: "none", transform: front ? `rotate(${steer.toFixed(1)} ${x} ${y})` : "" }, car));
+      // ヘッドライトの光（前へ）
+      el("path", { d: "M-16 -42 L-26 -70 L-6 -70 Z M16 -42 L26 -70 L6 -70 Z", fill: "#eff6fb", "fill-opacity": speed > 0 ? 0.08 : 0, stroke: "none" }, car);
+      // テールランプ（ブレーキで明るく）
+      const br = ax < -0.2 ? 0.95 : 0.25;
+      [-15, 15].forEach((x) => el("rect", { x: x - 6, y: 39, width: 12, height: 3.5, rx: 1.5, fill: "#ff6b4a", "fill-opacity": br, stroke: "none" }, car));
+      if (ax < -0.2) el("ellipse", { cx: 0, cy: 46, rx: 26, ry: 7, fill: "#ff6b4a", "fill-opacity": 0.18, stroke: "none" }, car);
+      const fr = el("text", { x: 0, y: -52, fill: C.muted, "fill-opacity": 0.7, "font-size": 10, "text-anchor": "middle" }, disc); fr.textContent = "前";
+    }
+    el("circle", { r: 122, fill: "none", stroke: C.outline, "stroke-width": 1.2 }, disc);
+    const introIdx = mode === "intro" ? Math.floor(t / 0.55) % 9 : -1;
+    D.forEach((d, i) => {
+      const r2 = 66 + 46 * d.v / 100;
+      const lit = mode === "intro" ? introIdx === i : (mode === "moving" ? d.k === "brake" : false);
+      const dim = (mode === "moving" && !lit) || (mode === "intro" && !lit);
+      const g = el("g", { opacity: dim ? (mode === "intro" ? 0.3 : 0.55) : 1 }, disc);
+      el("path", { d: sec(d.dir, d.span, 66, 112), fill: d.col, "fill-opacity": 0.1 }, g);
+      el("path", { d: sec(d.dir, d.span, 66, r2), fill: d.col, "fill-opacity": 0.75 }, g);
+      el("path", { d: `M${p(r2, d.dir - d.span)} A${r2},${r2} 0 0 1 ${p(r2, d.dir + d.span)}`, fill: "none", stroke: "#fff", "stroke-width": 2, "stroke-opacity": 0.85 }, g);
+    });
+    // 名前・絵・数字（傾けない層）
+    D.forEach((d, i) => {
+      const isWide = d.span > 10;
+      const lit = mode === "intro" ? introIdx === i : mode === "moving" && d.k === "brake";
+      if (mode === "moving" && !isWide && !lit) return;              // 走行中は斜めの数字を出さない
+      const rr = isWide ? 146 : 136;
+      const x = rr * Math.cos(rad(d.dir)) + (d.dir === 180 ? 14 : d.dir === 0 ? -4 : 0), y = rr * Math.sin(rad(d.dir)) * (mode === "moving" ? 0.9 : 1) + (mode === "moving" ? 6 : 0);
+      const g = el("g", { transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`, opacity: mode === "intro" && !lit ? 0.35 : 1 }, svg);
+      const showName = mode === "stopped" || mode === "now" || lit;
+      const col = (mode === "moving" && !lit) ? C.muted : d.col;
+      if (mode === "now") {
+        const tx = el("text", { x: 0, y: 6, fill: d.col, "fill-opacity": 0.8, "font-size": isWide ? 15 : 13, "font-weight": 700, "text-anchor": "middle" }, g);
+        tx.textContent = isWide ? `${d.name} ${d.v}` : d.v; return;
+      }
+      if (lit && mode === "moving") {
+        el("rect", { x: -62, y: -20, width: 124, height: 40, rx: 20, fill: C.bg, "fill-opacity": 0.94, stroke: d.col, "stroke-width": 2.5 }, g);
+      }
+      if (d.icon) { const ig = el("g", { transform: `translate(${showName && isWide ? -38 : -18},0)` }, g); icon(ig, d.icon, col, lit ? 1.1 : 0.85); }
+      const label = el("text", { x: d.icon ? (showName ? -20 : 0) : 0, y: 7, fill: col, "font-size": lit ? 22 : 17, "font-weight": 800, "text-anchor": d.icon ? "start" : "middle", "font-family": "Chakra Petch, Noto Sans JP, sans-serif" }, g);
+      if (showName && isWide) { const a = el("tspan", { "font-size": lit ? 15 : 12, "font-family": "Noto Sans JP, sans-serif" }, label); a.textContent = d.name + " "; }
+      else if (showName && !isWide) { const a = el("tspan", { "font-size": 10, "font-family": "Noto Sans JP, sans-serif", x: 0, dy: -14 }, label); a.textContent = d.name; const b = el("tspan", { x: 0, dy: 16 }, label); b.textContent = d.v; return; }
+      const b = el("tspan", {}, label); b.textContent = d.v;
+      if (lit && mode === "moving") { const c = el("tspan", { fill: C.up, "font-size": 14, dx: 4 }, label); c.textContent = "▲"; }
+    });
+    // 中央の数字（傾けない）
+    el("circle", { r: 40, fill: C.bg, "fill-opacity": mode === "now" ? 0.8 : 0 }, svg);
+    const n = el("text", { x: 0, y: 14, fill: C.text, "font-size": 38, "font-weight": 700, "text-anchor": "middle", "font-family": "Chakra Petch, sans-serif" }, svg); n.textContent = "82";
+    if (mode === "intro") {
+      const cap = el("text", { x: 0, y: 168, fill: C.text, "font-size": 13, "text-anchor": "middle" }, svg);
+      cap.textContent = introIdx >= 0 && introIdx < 8 ? `この扇は「${D[introIdx].name}」の滑らかさ` : "前 = ブレーキ、後ろ = 加速、横 = 曲がる向き";
+    }
+    if (mode === "intro" || mode === "moving") requestAnimationFrame(draw);
+  }
+  document.querySelectorAll("[data-lg]").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.lg; introT0 = performance.now();
+    document.querySelectorAll("[data-lg]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    requestAnimationFrame(draw);
+  }));
+  requestAnimationFrame(draw);
+})();
+</script>
