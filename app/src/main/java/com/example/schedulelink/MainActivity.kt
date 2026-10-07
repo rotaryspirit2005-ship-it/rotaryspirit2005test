@@ -33,8 +33,13 @@ class MainActivity : ComponentActivity() {
 
         val app = application as ScheduleLinkApplication
         // ウィジェットから特定の画面(やること一覧など)を開く指定。画面回転などの再生成では繰り返さない。
+        // ウィジェットなどから特定の画面を開いた起動のときは、起動画面を出さない。
+        var launchedFromDeepLink = false
         if (savedInstanceState == null) {
-            DeepLinks.destinationOf(intent)?.let { DeepLinks.pending.value = it }
+            DeepLinks.destinationOf(intent)?.let {
+                DeepLinks.pending.value = it
+                launchedFromDeepLink = true
+            }
         }
 
         setContent {
@@ -60,7 +65,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // 起動のたびに1度だけ、ロゴとサブタイトルの起動画面を重ねて出す(画面回転では繰り返さない)。
                     // 下の本編は先に読み込みを始める。ウィジェットなどから開いたときは出さない。
-                    var showSplash by rememberSaveable { mutableStateOf(DeepLinks.pending.value == null) }
+                    var showSplash by rememberSaveable { mutableStateOf(!launchedFromDeepLink) }
                     Box(modifier = Modifier.fillMaxSize()) {
                         AppRoot(
                             app = app,

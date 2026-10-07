@@ -4,8 +4,8 @@ package com.example.schedulelink.ui.splash
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -79,8 +79,13 @@ fun SlatchLogo(modifier: Modifier, linkA: Color, linkB: Color, halo: Color, open
 
 @Composable
 fun SlatchSplash(onFinished: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    val dark = cs.background.luminance() < 0.5f
+    // 色は、アプリ内のライト/ダーク設定ではなく端末の設定に合わせる。起動直後のシステムの
+    // スプラッシュ画面も端末の設定で決まるので、そこから継ぎ目なくつながる。
+    val dark = isSystemInDarkTheme()
+    val background = if (dark) Color(0xFF121411) else Color(0xFFF9FAF3)
+    val titleColor = if (dark) Color(0xFFE2E3DD) else Color(0xFF1A1C19)
+    val subtitleColor = if (dark) Color(0xFFC2C9BD) else Color(0xFF424940)
+    val plusColor = if (dark) Color(0xFF88D982) else Color(0xFF1B6D24)
     val linkA = if (dark) Color(0xFFEAF8E6) else Color(0xFF12461A)
     val linkB = if (dark) Color(0xFF88D982) else Color(0xFF34A043)
 
@@ -105,28 +110,55 @@ fun SlatchSplash(onFinished: () -> Unit) {
         exit.animateTo(0f, tween(220)); onFinished()
     }
 
+    // 動く値は描画の段階(graphicsLayer)で読み、アニメーション中に毎フレームの再構成・再測定をしない。
     Box(
         Modifier
             .fillMaxSize()
-            .background(cs.background)
-            .alpha(exit.value)
-            // 表示中は下の画面を操作できないようにする。
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+            .graphicsLayer { alpha = exit.value }
+            .background(background)
+            // 表示中は下の画面を操作できないよう、タッチをすべて受け止める。
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         // logo box = 288dp * scale, centred; lifts up by `lift`
         SlatchLogo(
-            Modifier.size((288f * scale.value * pulse.value).dp).offset(y = (-lift.value).dp),
-            linkA, linkB, cs.background, open.value
+            Modifier
+                .size(288.dp)
+                .graphicsLayer {
+                    val s = scale.value * pulse.value
+                    scaleX = s
+                    scaleY = s
+                    translationY = -lift.value * density
+                },
+            linkA, linkB, background, open.value
         )
         Column(Modifier.offset(y = 94.dp), horizontalAlignment = Alignment.CenterHorizontally) {  // title baseline ~ +58dp below centre
-            Text("Slatch", color = cs.onBackground, fontSize = 44.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp, modifier = Modifier.alpha(title.value).offset(y = ((1f - title.value) * 12).dp))
+            Text(
+                "Slatch", color = titleColor, fontSize = 44.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp,
+                modifier = Modifier.graphicsLayer {
+                    alpha = title.value
+                    translationY = (1f - title.value) * 12f * density
+                }
+            )
             Spacer(Modifier.height(6.dp))
-            Text(buildAnnotatedString {
-                append("Schedule "); withStyle(SpanStyle(color = cs.primary, fontWeight = FontWeight.Bold)) { append("+") }; append(" Latch")
-            }, color = cs.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Normal, letterSpacing = 2.6.sp,
-                modifier = Modifier.alpha(sub.value).offset(y = ((1f - sub.value) * 8).dp))
+            Text(
+                buildAnnotatedString {
+                    append("Schedule ")
+                    withStyle(SpanStyle(color = plusColor, fontWeight = FontWeight.Bold)) { append("+") }
+                    append(" Latch")
+                },
+                color = subtitleColor, fontSize = 14.sp, fontWeight = FontWeight.Normal, letterSpacing = 2.6.sp,
+                modifier = Modifier.graphicsLayer {
+                    alpha = sub.value
+                    translationY = (1f - sub.value) * 8f * density
+                }
+            )
         }
     }
 }
