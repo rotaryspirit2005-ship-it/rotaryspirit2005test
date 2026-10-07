@@ -136,6 +136,9 @@ fun ScheduleEditScreen(
     val shiftActive = shiftLinked && canShiftLinked
     val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
+    // 入力を直したら、固定バーに出ている検証エラーを消す(直したのに赤いまま残らないように)。
+    LaunchedEffect(title, date, startTime, endTime) { errorMessage = null }
+
     Scaffold(
         modifier = Modifier.imePadding(),
         bottomBar = {

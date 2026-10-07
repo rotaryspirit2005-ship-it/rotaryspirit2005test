@@ -117,6 +117,9 @@ fun MilestoneEditScreen(
         }
     }
 
+    // 入力を直したら、固定バーに出ている検証エラーを消す(直したのに赤いまま残らないように)。
+    LaunchedEffect(title, startDate, endDate) { errorMessage = null }
+
     Scaffold(
         modifier = Modifier.imePadding(),
         bottomBar = {
