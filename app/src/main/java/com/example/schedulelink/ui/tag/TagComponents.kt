@@ -2,7 +2,7 @@ package com.example.schedulelink.ui.tag
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -141,6 +143,8 @@ fun TagPickerSection(selectedIds: List<String>, onChange: (List<String>) -> Unit
     val isDark = LocalIsDarkTheme.current
     var showCreate by remember { mutableStateOf(false) }
 
+    // ダイアログは親に大きさ0の要素を1つ出すので、呼び出し元の間隔(spacedBy)が増えないよう全体を包む。
+    Box {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FormLabel("タグ(誰の予定か)")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -187,6 +191,7 @@ fun TagPickerSection(selectedIds: List<String>, onChange: (List<String>) -> Unit
             onDelete = null
         )
     }
+    }
 }
 
 /** タグの名前と色を決めるダイアログ。[initial]がnullなら新規作成。[onDelete]があれば削除ボタンも出す。 */
@@ -220,11 +225,12 @@ fun TagEditDialog(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     for (index in 0 until TAG_COLOR_COUNT) {
                         val selected = index == colorIndex
+                        val swatch = tagColor(index, isDark)
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(tagColor(index, isDark))
+                                .background(swatch)
                                 .then(
                                     if (selected) {
                                         Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
@@ -232,12 +238,18 @@ fun TagEditDialog(
                                         Modifier
                                     }
                                 )
-                                .clickable { colorIndex = index }
-                                .semantics { contentDescription = "色${index + 1}" + if (selected) "(選択中)" else "" },
+                                .selectable(selected = selected, role = Role.RadioButton, onClick = { colorIndex = index })
+                                .semantics { contentDescription = "色${index + 1}" },
                             contentAlignment = Alignment.Center
                         ) {
                             if (selected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                // 明るい色(ダークのパステル)の上でも見えるよう、色の明るさでチェックの色を替える。
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = if (swatch.luminance() > 0.5f) Color.Black else Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
                         }
                     }
