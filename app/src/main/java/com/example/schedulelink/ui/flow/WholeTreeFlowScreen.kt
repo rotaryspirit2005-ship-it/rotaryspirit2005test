@@ -228,6 +228,7 @@ fun WholeTreeFlowScreen(
                             } else {
                                 WholeTreeOutlineView(
                                     outline = shown,
+                                    expandMatches = activeTagFilter.isNotEmpty(),
                                     onGoalClick = onGoalClick,
                                     onMilestoneClick = onMilestoneClick,
                                     onScheduleClick = onScheduleClick,
@@ -555,7 +556,8 @@ private fun TreeNodeCard(
     } else {
         lerp(MaterialTheme.colorScheme.surface, tierColor, CARD_TINT_RATIO)
     }
-    val borderColor = if (isDone && !isSelected) MaterialTheme.colorScheme.outlineVariant else tierColor
+    val borderColor = (if (isDone && !isSelected) MaterialTheme.colorScheme.outlineVariant else tierColor)
+        .copy(alpha = if (dimmed) DIMMED_CARD_ALPHA else 1f)
     val textColor = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     val shape = MaterialTheme.shapes.medium
     Column(
@@ -563,7 +565,6 @@ private fun TreeNodeCard(
             .width(NODE_WIDTH.dp)
             .height(NODE_HEIGHT.dp)
             .counterScale(scale)
-            .alpha(if (dimmed) DIMMED_CARD_ALPHA else 1f)
             .clip(shape)
             .background(fillColor)
             .then(
@@ -583,7 +584,13 @@ private fun TreeNodeCard(
         // 配線は高さNODE_HEIGHTのカードとして計算しているので、副題がなくても高さは変えない。
         verticalArrangement = Arrangement.Center
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 絞り込みに合わないカードは、塗りは不透明のまま(裏の線を隠したまま)中身だけ薄くする。
+        val contentAlpha = if (dimmed) DIMMED_CARD_ALPHA else 1f
+        Row(
+            modifier = Modifier.alpha(contentAlpha),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             if (isDone) {
                 Icon(
                     imageVector = Icons.Default.Check,
@@ -608,7 +615,7 @@ private fun TreeNodeCard(
                 color = textColor,
                 modifier = Modifier.weight(1f, fill = false)
             )
-            TagDots(node.tagIds)
+            TagDots(node.tagIds, max = 2)
         }
         if (node.subtitle.isNotBlank()) {
             Text(
@@ -618,7 +625,7 @@ private fun TreeNodeCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else tierColor,
-                modifier = Modifier.padding(start = 14.dp)
+                modifier = Modifier.alpha(contentAlpha).padding(start = 14.dp)
             )
         }
     }

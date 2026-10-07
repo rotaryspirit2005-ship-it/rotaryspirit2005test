@@ -340,7 +340,9 @@ fun WholeTreeOutlineView(
     onMilestoneClick: (String) -> Unit,
     onScheduleClick: (String) -> Unit,
     onAddGoalClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** タグで絞り込み中は、合う項目が閉じた大目的・中日程の中に隠れないよう、既定で開く。 */
+    expandMatches: Boolean = false
 ) {
     if (outline.isEmpty) {
         EmptyState(
@@ -355,9 +357,11 @@ fun WholeTreeOutlineView(
 
     val expansion = rememberSaveable(saver = ExpansionSaver) { mutableStateMapOf<String, Boolean>() }
     val today = remember { LocalDate.now() }
-    val rows = flattenOutline(outline, today) { key, default -> expansion[key] ?: default }
+    fun defaultOf(key: String, default: Boolean): Boolean =
+        default || (expandMatches && (key.startsWith("g:") || key.startsWith("m:") || key == KEY_UNASSIGNED))
+    val rows = flattenOutline(outline, today) { key, default -> expansion[key] ?: defaultOf(key, default) }
     fun toggle(key: String, default: Boolean) {
-        expansion[key] = !(expansion[key] ?: default)
+        expansion[key] = !(expansion[key] ?: defaultOf(key, default))
     }
 
     // 初めて開いたときは、進行中の大目的が画面の先頭に来るようにする。
@@ -715,8 +719,8 @@ private fun ScheduleOutlineRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TagLabels(schedule.tagIds, modifier = Modifier.padding(start = 8.dp))
             }
+            TagLabels(schedule.tagIds, modifier = Modifier.padding(top = 2.dp))
         }
         val linkCount = row.item.links.size
         if (linkCount > 0) {
