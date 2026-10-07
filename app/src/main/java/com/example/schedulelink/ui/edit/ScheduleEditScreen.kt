@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.tag.TagPickerSection
+import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SectionHeader
@@ -136,6 +137,42 @@ fun ScheduleEditScreen(
     val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
     Scaffold(
+        modifier = Modifier.imePadding(),
+        bottomBar = {
+            if (loaded) {
+            SaveBottomBar(onSave = {
+                        when {
+                            title.isBlank() -> errorMessage = "タイトルを入力してください"
+                            !endTime.isAfter(startTime) -> errorMessage = "終了時刻は開始時刻より後にしてください"
+                            else -> {
+                                errorMessage = null
+                                val schedule = ScheduleEntity(
+                                    id = scheduleId ?: "",
+                                    title = title.trim(),
+                                    memo = memo.trim(),
+                                    date = date,
+                                    startTime = startTime,
+                                    endTime = endTime,
+                                    milestoneId = milestoneId,
+                                    photoUrls = existingPhotoUrls,
+                                    tagIds = tagIds
+                                )
+                                val shiftDays = if (shiftActive) dayShift else 0L
+                                viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftDays) {
+                                    if (shiftDays != 0L) {
+                                        Toast.makeText(
+                                            context,
+                                            "リンクした予定の日付を${signedDays(shiftDays)}ずらしました",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                    onSaved()
+                                }
+                            }
+                        }
+        }, errorMessage = errorMessage)
+        }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(if (scheduleId == null) "予定を追加" else "予定を編集") },
@@ -155,7 +192,6 @@ fun ScheduleEditScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .consumeWindowInsets(padding)
-                    .imePadding()
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -296,46 +332,6 @@ fun ScheduleEditScreen(
                     }
                 }
 
-                errorMessage?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
-
-                Button(
-                    onClick = {
-                        when {
-                            title.isBlank() -> errorMessage = "タイトルを入力してください"
-                            !endTime.isAfter(startTime) -> errorMessage = "終了時刻は開始時刻より後にしてください"
-                            else -> {
-                                errorMessage = null
-                                val schedule = ScheduleEntity(
-                                    id = scheduleId ?: "",
-                                    title = title.trim(),
-                                    memo = memo.trim(),
-                                    date = date,
-                                    startTime = startTime,
-                                    endTime = endTime,
-                                    milestoneId = milestoneId,
-                                    photoUrls = existingPhotoUrls,
-                                    tagIds = tagIds
-                                )
-                                val shiftDays = if (shiftActive) dayShift else 0L
-                                viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftDays) {
-                                    if (shiftDays != 0L) {
-                                        Toast.makeText(
-                                            context,
-                                            "リンクした予定の日付を${signedDays(shiftDays)}ずらしました",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                    onSaved()
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("保存")
-                }
             }
         }
     }

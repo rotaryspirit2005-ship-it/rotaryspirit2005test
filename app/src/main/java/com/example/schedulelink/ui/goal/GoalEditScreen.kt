@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalType
 import com.example.schedulelink.ui.tag.TagPickerSection
+import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
@@ -132,6 +133,43 @@ fun GoalEditScreen(
     }
 
     Scaffold(
+        modifier = Modifier.imePadding(),
+        bottomBar = {
+            SaveBottomBar(onSave = {
+                    if (title.isBlank()) {
+                        errorMessage = "タイトルを入力してください"
+                    } else if (type == GoalType.PHASED && !endDate.isAfter(startDate)) {
+                        errorMessage = "終了日は開始日より後にしてください"
+                    } else {
+                        errorMessage = null
+                        val goal = GoalEntity(
+                            id = goalId ?: "",
+                            title = title.trim(),
+                            memo = memo.trim(),
+                            type = type,
+                            startDate = if (type == GoalType.PHASED) startDate else null,
+                            endDate = if (type == GoalType.PHASED) endDate else null,
+                            photoUrls = existingPhotoUrls,
+                            tagIds = tagIds
+                        )
+                        val shiftsAnything = activeShift != 0L &&
+                            (selectedMilestones.isNotEmpty() || selectedSchedules.isNotEmpty())
+                        val toastText = (if (selectedMilestones.isNotEmpty()) "リンクした中日程・予定" else "リンクした予定") +
+                            "の日付を${signedDays(activeShift)}ずらしました"
+                        viewModel.save(
+                            goal,
+                            pendingPhotoUris,
+                            removedPhotoUrls,
+                            shiftMilestoneIds = if (activeShift != 0L) selectedMilestones.map { it.id }.toSet() else emptySet(),
+                            shiftScheduleIds = if (activeShift != 0L) selectedSchedules.map { it.id }.toSet() else emptySet(),
+                            shiftDays = activeShift
+                        ) {
+                            if (shiftsAnything) Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+                            onSaved()
+                        }
+                    }
+        }, errorMessage = errorMessage)
+        },
         topBar = {
             TopAppBar(
                 title = { Text(if (goalId == null) "大目的を追加" else "大目的を編集") },
@@ -148,7 +186,6 @@ fun GoalEditScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .consumeWindowInsets(padding)
-                .imePadding()
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -269,49 +306,6 @@ fun GoalEditScreen(
                 )
             }
 
-            errorMessage?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-
-            Button(
-                onClick = {
-                    if (title.isBlank()) {
-                        errorMessage = "タイトルを入力してください"
-                    } else if (type == GoalType.PHASED && !endDate.isAfter(startDate)) {
-                        errorMessage = "終了日は開始日より後にしてください"
-                    } else {
-                        errorMessage = null
-                        val goal = GoalEntity(
-                            id = goalId ?: "",
-                            title = title.trim(),
-                            memo = memo.trim(),
-                            type = type,
-                            startDate = if (type == GoalType.PHASED) startDate else null,
-                            endDate = if (type == GoalType.PHASED) endDate else null,
-                            photoUrls = existingPhotoUrls,
-                            tagIds = tagIds
-                        )
-                        val shiftsAnything = activeShift != 0L &&
-                            (selectedMilestones.isNotEmpty() || selectedSchedules.isNotEmpty())
-                        val toastText = (if (selectedMilestones.isNotEmpty()) "リンクした中日程・予定" else "リンクした予定") +
-                            "の日付を${signedDays(activeShift)}ずらしました"
-                        viewModel.save(
-                            goal,
-                            pendingPhotoUris,
-                            removedPhotoUrls,
-                            shiftMilestoneIds = if (activeShift != 0L) selectedMilestones.map { it.id }.toSet() else emptySet(),
-                            shiftScheduleIds = if (activeShift != 0L) selectedSchedules.map { it.id }.toSet() else emptySet(),
-                            shiftDays = activeShift
-                        ) {
-                            if (shiftsAnything) Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
-                            onSaved()
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("保存")
-            }
         }
     }
 

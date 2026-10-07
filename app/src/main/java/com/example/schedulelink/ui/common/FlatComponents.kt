@@ -1,5 +1,13 @@
 package com.example.schedulelink.ui.common
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
@@ -230,5 +238,49 @@ fun DestructiveTextButton(text: String, onClick: () -> Unit) {
         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
     ) {
         Text(text)
+    }
+}
+
+/**
+ * 編集画面の下に固定する保存バー(Scaffoldのbottombarに置く)。スクロールしても保存ボタンが常に見え、
+ * 入力のエラーもボタンの真上に出るので、画面外で気づかないことがない。呼び出し側のScaffoldには
+ * `Modifier.imePadding()`を付けること(キーボードの上にバーが乗る)。影は使わず、上端の細い線で区切る。
+ */
+@Composable
+fun SaveBottomBar(
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+    errorMessage: String? = null,
+    enabled: Boolean = true,
+    label: String = "保存"
+) {
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+    ) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimens.ScreenPadding, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
+            }
+            Button(
+                onClick = onSave,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Text(label)
+            }
+        }
     }
 }
