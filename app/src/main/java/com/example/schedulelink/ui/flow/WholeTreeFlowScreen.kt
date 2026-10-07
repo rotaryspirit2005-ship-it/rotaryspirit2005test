@@ -158,6 +158,8 @@ fun WholeTreeFlowScreen(
     // タグでの絞り込み(ツリーとタイムラインで共通)。削除済みのタグが残っていても無視する。
     val tagController = LocalTagController.current
     var tagFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
+    // ツリーを、タグを作った順に並べ替える(タイムラインは日付が横軸なので並べ替えない)。
+    var sortByTag by rememberSaveable { mutableStateOf(false) }
     val knownTagIds = remember(tagController) { tagController?.byId?.keys.orEmpty() }
     val activeTagFilter = remember(tagFilter, knownTagIds) {
         tagFilter.filter { it == NO_TAG_FILTER || it in knownTagIds }.toSet()
@@ -204,7 +206,9 @@ fun WholeTreeFlowScreen(
             TagFilterRow(
                 selected = activeTagFilter,
                 onChange = { tagFilter = it.toList() },
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 4.dp),
+                sortByTag = if (viewMode == 0) sortByTag else null,
+                onSortByTagChange = { sortByTag = it }
             )
             AnimatedContent(
                 targetState = viewMode,
@@ -216,8 +220,16 @@ fun WholeTreeFlowScreen(
                     if (mode == 0) {
                         // 読み込み前(null)は何も出さない。
                         outline?.let { fullOutline ->
-                            val shown = remember(fullOutline, activeTagFilter, knownTagIds) {
-                                filterOutlineByTags(fullOutline, activeTagFilter, knownTagIds)
+                            val shown = remember(fullOutline, activeTagFilter, knownTagIds, sortByTag, tagController) {
+                                val filtered = filterOutlineByTags(fullOutline, activeTagFilter, knownTagIds)
+                                if (sortByTag && tagController != null) {
+                                    sortOutlineByTags(
+                                        filtered,
+                                        tagController.tags.withIndex().associate { (index, tag) -> tag.id to index }
+                                    )
+                                } else {
+                                    filtered
+                                }
                             }
                             if (activeTagFilter.isNotEmpty() && shown.isEmpty) {
                                 EmptyState(

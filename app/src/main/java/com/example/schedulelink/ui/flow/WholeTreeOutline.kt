@@ -193,6 +193,27 @@ fun filterOutlineByTags(outline: TreeOutline, filter: Set<String>, knownTagIds: 
     return TreeOutline(goals, outline.unassigned.filter { matches(it.schedule.tagIds) })
 }
 
+/**
+ * タグの順(タグを作った順)に並べ替える。大目的・中日程・小日程それぞれの階層の中で、
+ * 項目に付いたタグのうち一番前のタグの順に並べ、タグのない項目は後ろにする。同じタグの中では
+ * 元の並び(日付順など)を保つ。済んだ大目的が後ろに来る並びは変えない。
+ */
+fun sortOutlineByTags(outline: TreeOutline, tagOrder: Map<String, Int>): TreeOutline {
+    fun rank(tagIds: List<String>): Int = tagIds.mapNotNull { tagOrder[it] }.minOrNull() ?: Int.MAX_VALUE
+    val goals = outline.goals
+        .map { goal ->
+            goal.copy(
+                milestones = goal.milestones
+                    .map { milestone ->
+                        milestone.copy(schedules = milestone.schedules.sortedBy { rank(it.schedule.tagIds) })
+                    }
+                    .sortedBy { rank(it.milestone.tagIds) }
+            )
+        }
+        .sortedWith(compareBy({ it.status == NodeStatus.DONE }, { rank(it.goal.tagIds) }))
+    return TreeOutline(goals, outline.unassigned.sortedBy { rank(it.schedule.tagIds) })
+}
+
 // ---------------------------------------------------------------------------
 // 表示用の行(開閉状態を反映して平らに並べる。LazyColumnの1行 = 1要素)
 // ---------------------------------------------------------------------------

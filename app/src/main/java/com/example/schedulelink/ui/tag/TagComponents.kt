@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -273,7 +274,14 @@ fun TagEditDialog(
  * 項目を出す。タグが1件もないときは何も出さない。
  */
 @Composable
-fun TagFilterRow(selected: Set<String>, onChange: (Set<String>) -> Unit, modifier: Modifier = Modifier) {
+fun TagFilterRow(
+    selected: Set<String>,
+    onChange: (Set<String>) -> Unit,
+    modifier: Modifier = Modifier,
+    /** nullでなければ、先頭に「タグ順」(タグの順に並べ替える)のチップを出す。 */
+    sortByTag: Boolean? = null,
+    onSortByTagChange: (Boolean) -> Unit = {}
+) {
     val controller = LocalTagController.current ?: return
     if (controller.tags.isEmpty()) return
     val isDark = LocalIsDarkTheme.current
@@ -282,6 +290,18 @@ fun TagFilterRow(selected: Set<String>, onChange: (Set<String>) -> Unit, modifie
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        if (sortByTag != null) {
+            item(key = "sort") {
+                FilterChip(
+                    selected = sortByTag,
+                    onClick = { onSortByTagChange(!sortByTag) },
+                    label = { Text("タグ順") },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
+            }
+        }
         item(key = "all") {
             FilterChip(
                 selected = selected.isEmpty(),
