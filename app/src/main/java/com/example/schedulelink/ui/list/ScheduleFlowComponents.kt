@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.Dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleWithLinks
 import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.tag.TagLabels
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.Motion
 import com.example.schedulelink.ui.theme.tabularNums
@@ -329,6 +330,7 @@ private fun MainScheduleCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            TagLabels(schedule.tagIds, modifier = Modifier.padding(top = 4.dp))
         }
         if (showLinkCountPill) {
             Row(

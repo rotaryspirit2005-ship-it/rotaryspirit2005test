@@ -66,6 +66,8 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.common.TodayBadge
+import com.example.schedulelink.ui.tag.TagLabels
+import com.example.schedulelink.ui.tag.matchesTagFilter
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.LocalIsDarkTheme
 import com.example.schedulelink.ui.theme.Motion
@@ -86,13 +88,21 @@ data class OutlineLink(val schedule: ScheduleEntity, val milestoneTitle: String?
 
 data class OutlineSchedule(val schedule: ScheduleEntity, val links: List<OutlineLink>)
 
-data class OutlineMilestone(val milestone: MilestoneEntity, val status: NodeStatus, val schedules: List<OutlineSchedule>)
+data class OutlineMilestone(
+    val milestone: MilestoneEntity,
+    val status: NodeStatus,
+    val schedules: List<OutlineSchedule>,
+    /** タグで絞り込む前の小日程の数(絞り込み中も、件数の表示は変えない)。 */
+    val totalScheduleCount: Int = schedules.size
+)
 
 data class OutlineGoal(
     val goal: GoalEntity,
     val status: NodeStatus,
     val milestones: List<OutlineMilestone>,
-    val doneMilestoneCount: Int
+    val doneMilestoneCount: Int,
+    /** タグで絞り込む前の中日程の数(進み具合の分母)。 */
+    val totalMilestoneCount: Int = milestones.size
 )
 
 data class TreeOutline(val goals: List<OutlineGoal>, val unassigned: List<OutlineSchedule>) {
@@ -158,6 +168,29 @@ fun buildTreeOutline(
         .map(::outlineOf)
 
     return TreeOutline(outlineGoals, unassigned)
+}
+
+/**
+ * タグで絞り込む。何も選んでいなければそのまま返す。項目自身にタグが合えばその下は全部残し、
+ * 合わない大目的・中日程は、合う項目を下に持つときだけ(経路として)残す。
+ */
+fun filterOutlineByTags(outline: TreeOutline, filter: Set<String>, knownTagIds: Set<String>): TreeOutline {
+    if (filter.isEmpty()) return outline
+    fun matches(tagIds: List<String>) = matchesTagFilter(tagIds, filter, knownTagIds)
+
+    val goals = outline.goals.mapNotNull { goal ->
+        if (matches(goal.goal.tagIds)) return@mapNotNull goal
+        val milestones = goal.milestones.mapNotNull { milestone ->
+            if (matches(milestone.milestone.tagIds)) {
+                milestone
+            } else {
+                val schedules = milestone.schedules.filter { matches(it.schedule.tagIds) }
+                if (schedules.isEmpty()) null else milestone.copy(schedules = schedules)
+            }
+        }
+        if (milestones.isEmpty()) null else goal.copy(milestones = milestones)
+    }
+    return TreeOutline(goals, outline.unassigned.filter { matches(it.schedule.tagIds) })
 }
 
 // ---------------------------------------------------------------------------
@@ -493,7 +526,7 @@ private fun GoalOutlineRow(
     modifier: Modifier
 ) {
     val goal = row.item.goal
-    val total = row.item.milestones.size
+    val total = row.item.totalMilestoneCount
     val isDone = row.item.status == NodeStatus.DONE
     val summary = listOfNotNull(
         formatRangeSubtitle(goal.startDate, goal.endDate).ifBlank { null },
@@ -529,6 +562,7 @@ private fun GoalOutlineRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            TagLabels(goal.tagIds, modifier = Modifier.padding(top = 2.dp))
             if (goal.type == GoalType.PHASED && total > 0) {
                 AppProgressBar(
                     ratio = row.item.doneMilestoneCount.toFloat() / total,
@@ -556,7 +590,7 @@ private fun MilestoneOutlineRow(
     }
     val summary = listOfNotNull(
         formatRangeSubtitle(milestone.startDate, milestone.endDate).ifBlank { null },
-        "小日程 ${row.item.schedules.size}"
+        "小日程 ${row.item.totalScheduleCount}"
     ).joinToString(" · ")
     val isDone = row.item.status == NodeStatus.DONE
 
@@ -581,6 +615,7 @@ private fun MilestoneOutlineRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            TagLabels(milestone.tagIds, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -680,6 +715,7 @@ private fun ScheduleOutlineRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                TagLabels(schedule.tagIds, modifier = Modifier.padding(start = 8.dp))
             }
         }
         val linkCount = row.item.links.size

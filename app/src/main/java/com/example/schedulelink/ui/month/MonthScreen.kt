@@ -61,11 +61,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -83,6 +85,12 @@ import com.example.schedulelink.ui.common.TodayBadge
 import com.example.schedulelink.ui.list.FlowLegend
 import com.example.schedulelink.ui.list.ScheduleEmptyState
 import com.example.schedulelink.ui.list.ScheduleFlowList
+import com.example.schedulelink.ui.tag.LocalTagController
+import com.example.schedulelink.ui.tag.NO_TAG_FILTER
+import com.example.schedulelink.ui.tag.TagFilterRow
+import com.example.schedulelink.ui.tag.matchesTagFilter
+import com.example.schedulelink.ui.theme.LocalIsDarkTheme
+import com.example.schedulelink.ui.theme.tagColor
 import com.example.schedulelink.ui.theme.weekendColor
 import com.example.schedulelink.ui.theme.Motion
 import com.example.schedulelink.ui.theme.fadeThrough
@@ -135,6 +143,22 @@ fun MonthScreen(
     onTogglePhotoFeature: (Boolean) -> Unit
 ) {
     val schedulesByDate by viewModel.schedulesByDate.collectAsState()
+    // タグでの絞り込み(「パパの予定だけ」など)。削除済みのタグが残っていても無視する。
+    val tagController = LocalTagController.current
+    var tagFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val knownTagIds = remember(tagController) { tagController?.byId?.keys.orEmpty() }
+    val activeTagFilter = remember(tagFilter, knownTagIds) {
+        tagFilter.filter { it == NO_TAG_FILTER || it in knownTagIds }.toSet()
+    }
+    val shownSchedulesByDate = remember(schedulesByDate, activeTagFilter, knownTagIds) {
+        if (activeTagFilter.isEmpty()) {
+            schedulesByDate
+        } else {
+            schedulesByDate
+                .mapValues { (_, list) -> list.filter { matchesTagFilter(it.tagIds, activeTagFilter, knownTagIds) } }
+                .filterValues { it.isNotEmpty() }
+        }
+    }
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
     val openTodoCount by viewModel.openTodoCount.collectAsState()
@@ -268,6 +292,11 @@ fun MonthScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TagFilterRow(
+                selected = activeTagFilter,
+                onChange = { tagFilter = it.toList() },
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
             WeekdayHeaderRow()
             // 横スワイプで月送り。指に追従し、隣の月を見せながら慣性で止まる。
             // 前後の月も先に組み立てておき(beyondViewportPageCount)、ドラッグ開始時の引っかかりを防ぐ。
@@ -280,7 +309,7 @@ fun MonthScreen(
                 MonthGrid(
                     month = monthOf(page),
                     isSettledPage = page == pagerState.settledPage,
-                    schedulesByDate = schedulesByDate,
+                    schedulesByDate = shownSchedulesByDate,
                     selectedDate = selectedDate,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
@@ -297,7 +326,13 @@ fun MonthScreen(
                 transitionSpec = { fadeThrough() },
                 modifier = Modifier.weight(1f),
                 label = "selectedDay"
-            ) { day ->
+            ) { dayAll ->
+                // タグで絞り込んでいるときは、その日の一覧もタグに合う予定だけにする。
+                val day = if (activeTagFilter.isEmpty()) {
+                    dayAll
+                } else {
+                    dayAll.copy(items = dayAll.items.filter { matchesTagFilter(it.schedule.tagIds, activeTagFilter, knownTagIds) })
+                }
                 Column(modifier = Modifier.fillMaxSize()) {
                     SelectedDayHeading(day, openTodoCount = openTodoCount, onTodoClick = onTodoListClick)
                     if (day.items.any { it.linkedSchedules.isNotEmpty() }) {
@@ -483,6 +518,13 @@ private fun MonthGrid(
 ) {
     val weeks = remember(month) { buildMonthGrid(month) }
     val today = remember { LocalDate.now() }
+    // 点の色は、その日の予定ごとに「最初のタグの色」(タグがなければ従来のprimary)。
+    val tagController = LocalTagController.current
+    val isDark = LocalIsDarkTheme.current
+    val primary = MaterialTheme.colorScheme.primary
+    fun dotColorsOf(list: List<ScheduleEntity>): List<Color> = list.take(3).map { schedule ->
+        tagController?.resolve(schedule.tagIds)?.firstOrNull()?.let { tagColor(it.colorIndex, isDark) } ?: primary
+    }
 
     Column(
         modifier = Modifier
@@ -533,6 +575,7 @@ private fun MonthGrid(
                                 isToday = date == today,
                                 isSelected = date == selectedDate,
                                 scheduleCount = schedulesByDate[date]?.size ?: 0,
+                                dotColors = dotColorsOf(schedulesByDate[date].orEmpty()),
                                 // 画面外に組み立ててある前後の月のマスが、週表示との共有要素
                                 // アニメーションで画面外から飛んでこないよう、表示中の月だけに付ける。
                                 enableSharedBounds = isSettledPage,
@@ -556,6 +599,7 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     scheduleCount: Int,
+    dotColors: List<Color>,
     enableSharedBounds: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -624,11 +668,11 @@ private fun DayCell(
                 modifier = Modifier.padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                repeat(minOf(scheduleCount, 3)) {
+                dotColors.forEach { dotColor ->
                     Box(
                         modifier = Modifier
                             .size(5.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .background(dotColor, CircleShape)
                     )
                 }
             }

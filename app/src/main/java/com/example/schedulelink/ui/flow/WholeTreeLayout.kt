@@ -23,7 +23,9 @@ data class TreeNode(
     val date: LocalDate,
     /** 同じ階層で日付が近いノードどうしが重ならないよう、縦にずらすためのレーン番号。 */
     val lane: Int,
-    val status: NodeStatus
+    val status: NodeStatus,
+    /** 付いているタグのID(カードの色の点と、タグでの絞り込みに使う)。 */
+    val tagIds: List<String> = emptyList()
 )
 
 /** 小日程どうしの横のリンク(親子関係とは別の、同じ階層内のつながり)。 */
@@ -50,7 +52,8 @@ private data class RawNode(
     val title: String,
     val subtitle: String,
     val date: LocalDate,
-    val status: NodeStatus
+    val status: NodeStatus,
+    val tagIds: List<String> = emptyList()
 )
 
 /**
@@ -111,7 +114,8 @@ fun buildWholeTree(
                 title = milestone.title,
                 subtitle = formatRangeSubtitle(milestone.startDate, milestone.endDate),
                 date = milestoneDateById.getValue(milestone.id),
-                status = mStatus
+                status = mStatus,
+                tagIds = milestone.tagIds
             )
             for (schedule in schedulesByMilestone[milestone.id].orEmpty()) {
                 edges += milestone.id to schedule.id
@@ -121,7 +125,8 @@ fun buildWholeTree(
                     title = schedule.title,
                     subtitle = "${schedule.date.format(monthDayFormatter)} ${schedule.startTime}",
                     date = schedule.date,
-                    status = scheduleStatus(schedule)
+                    status = scheduleStatus(schedule),
+                    tagIds = schedule.tagIds
                 )
             }
         }
@@ -132,7 +137,8 @@ fun buildWholeTree(
             title = goal.title,
             subtitle = formatRangeSubtitle(goal.startDate, goal.endDate),
             date = goalDate(goal),
-            status = goalStatus(goal, milestoneStatuses)
+            status = goalStatus(goal, milestoneStatuses),
+            tagIds = goal.tagIds
         )
     }
 
@@ -143,7 +149,8 @@ fun buildWholeTree(
             title = schedule.title,
             subtitle = "${schedule.date.format(monthDayFormatter)} ${schedule.startTime}",
             date = schedule.date,
-            status = scheduleStatus(schedule)
+            status = scheduleStatus(schedule),
+            tagIds = schedule.tagIds
         )
     }
 
@@ -171,7 +178,7 @@ fun buildWholeTree(
             } else {
                 laneFreeFromDay[lane] = startDay + MIN_GAP_DAYS
             }
-            nodes += TreeNode(raw.id, raw.tier, raw.title, raw.subtitle, raw.date, lane, raw.status)
+            nodes += TreeNode(raw.id, raw.tier, raw.title, raw.subtitle, raw.date, lane, raw.status, raw.tagIds)
         }
     }
 

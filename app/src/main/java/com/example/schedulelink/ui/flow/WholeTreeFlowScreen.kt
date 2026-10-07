@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -66,6 +68,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.tag.LocalTagController
+import com.example.schedulelink.ui.tag.NO_TAG_FILTER
+import com.example.schedulelink.ui.tag.TagDots
+import com.example.schedulelink.ui.tag.TagFilterRow
+import com.example.schedulelink.ui.tag.matchesTagFilter
 import com.example.schedulelink.ui.theme.DarkOnError
 import com.example.schedulelink.ui.theme.GoalColorDark
 import com.example.schedulelink.ui.theme.GoalColorLight
@@ -95,6 +102,9 @@ private const val CONNECTOR_ALPHA = 0.9f
 private const val NEUTRAL_CONNECTOR_ALPHA = 0.7f
 /** 子カードの左端につける、親の線と同じ色の帯の幅。 */
 private val BRANCH_STRIPE_WIDTH = 5.dp
+
+/** タグの絞り込みに合わないカードの透明度。 */
+private const val DIMMED_CARD_ALPHA = 0.35f
 
 /** 選択中のノードと無関係な線を薄くする際の透明度。 */
 private const val DIMMED_LINE_ALPHA = 0.22f
@@ -145,6 +155,13 @@ fun WholeTreeFlowScreen(
     onBack: () -> Unit
 ) {
     val outline by viewModel.outline.collectAsState()
+    // タグでの絞り込み(ツリーとタイムラインで共通)。削除済みのタグが残っていても無視する。
+    val tagController = LocalTagController.current
+    var tagFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val knownTagIds = remember(tagController) { tagController?.byId?.keys.orEmpty() }
+    val activeTagFilter = remember(tagFilter, knownTagIds) {
+        tagFilter.filter { it == NO_TAG_FILTER || it in knownTagIds }.toSet()
+    }
     // 0 = ツリー(既定)、1 = タイムライン。
     var viewMode by rememberSaveable { mutableStateOf(0) }
     // 表示を切り替えて戻ったときも、ツリーの開閉やスクロール位置を保つ。
@@ -184,6 +201,11 @@ fun WholeTreeFlowScreen(
                     }
                 }
             }
+            TagFilterRow(
+                selected = activeTagFilter,
+                onChange = { tagFilter = it.toList() },
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
             AnimatedContent(
                 targetState = viewMode,
                 transitionSpec = { fadeThrough() },
@@ -193,14 +215,25 @@ fun WholeTreeFlowScreen(
                 viewStateHolder.SaveableStateProvider(mode) {
                     if (mode == 0) {
                         // 読み込み前(null)は何も出さない。
-                        outline?.let {
-                            WholeTreeOutlineView(
-                                outline = it,
-                                onGoalClick = onGoalClick,
-                                onMilestoneClick = onMilestoneClick,
-                                onScheduleClick = onScheduleClick,
-                                onAddGoalClick = onAddGoalClick
-                            )
+                        outline?.let { fullOutline ->
+                            val shown = remember(fullOutline, activeTagFilter, knownTagIds) {
+                                filterOutlineByTags(fullOutline, activeTagFilter, knownTagIds)
+                            }
+                            if (activeTagFilter.isNotEmpty() && shown.isEmpty) {
+                                EmptyState(
+                                    icon = Icons.Outlined.LocalOffer,
+                                    message = "選んだタグの予定はありません",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                WholeTreeOutlineView(
+                                    outline = shown,
+                                    onGoalClick = onGoalClick,
+                                    onMilestoneClick = onMilestoneClick,
+                                    onScheduleClick = onScheduleClick,
+                                    onAddGoalClick = onAddGoalClick
+                                )
+                            }
                         } ?: Box(modifier = Modifier.fillMaxSize())
                     } else {
                         // 配線の計算は重いので、タイムライン表示のときだけ購読する。
@@ -225,6 +258,8 @@ fun WholeTreeFlowScreen(
                                 } else {
                                     WholeTreeCanvas(
                                         state = current,
+                                        tagFilter = activeTagFilter,
+                                        knownTagIds = knownTagIds,
                                         onNodeClick = { node ->
                                             when (node.tier) {
                                                 TreeTier.GOAL -> onGoalClick(node.id)
@@ -328,7 +363,12 @@ private fun monthMarks(minDate: LocalDate, maxDate: LocalDate): List<Pair<LocalD
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Unit) {
+private fun WholeTreeCanvas(
+    state: TimelineState,
+    tagFilter: Set<String>,
+    knownTagIds: Set<String>,
+    onNodeClick: (TreeNode) -> Unit
+) {
     val tree = state.tree
     val layout = state.layout
     val gridModel = remember(tree) { GridModel(tree.minDate, tree.maxDate, monthMarks(tree.minDate, tree.maxDate)) }
@@ -477,6 +517,8 @@ private fun WholeTreeCanvas(state: TimelineState, onNodeClick: (TreeNode) -> Uni
                     node = node,
                     scale = scale,
                     isSelected = selectedNodeId == node.id,
+                    // タグで絞り込んでいるときは、合わないカードを薄くする(配置や線は変えない)。
+                    dimmed = tagFilter.isNotEmpty() && !matchesTagFilter(node.tagIds, tagFilter, knownTagIds),
                     branchColor = branchSlotByChild[node.id]?.let { connectorColor(it, isDark) },
                     modifier = Modifier.offset(x = box.left.dp, y = box.top.dp),
                     onClick = { onNodeClick(node) },
@@ -495,6 +537,7 @@ private fun TreeNodeCard(
     node: TreeNode,
     scale: Float,
     isSelected: Boolean,
+    dimmed: Boolean,
     /** 親から来る線の色。左端に同じ色の帯をつけて、どの線につながるカードかを分かりやすくする。 */
     branchColor: Color?,
     modifier: Modifier = Modifier,
@@ -520,6 +563,7 @@ private fun TreeNodeCard(
             .width(NODE_WIDTH.dp)
             .height(NODE_HEIGHT.dp)
             .counterScale(scale)
+            .alpha(if (dimmed) DIMMED_CARD_ALPHA else 1f)
             .clip(shape)
             .background(fillColor)
             .then(
@@ -561,8 +605,10 @@ private fun TreeNodeCard(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = textColor
+                color = textColor,
+                modifier = Modifier.weight(1f, fill = false)
             )
+            TagDots(node.tagIds)
         }
         if (node.subtitle.isNotBlank()) {
             Text(
