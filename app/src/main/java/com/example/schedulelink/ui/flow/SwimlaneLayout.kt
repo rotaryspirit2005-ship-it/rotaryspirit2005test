@@ -276,6 +276,7 @@ fun buildSwimlanes(
         }, { it.goal.title })
     )
 
+    val colorSlots = goalColorSlots(goals)
     val bands = mutableListOf<SwimBand>()
     var y = 0f
     ordered.forEachIndexed { index, d ->
@@ -300,7 +301,7 @@ fun buildSwimlanes(
             goal = goal,
             title = goal.title,
             subtitle = subtitle,
-            colorSlot = (index * 3) % 8,
+            colorSlot = colorSlots[goal.id] ?: 0,
             status = d.status,
             spanStart = spanStart,
             spanEnd = if (spanStart != null && spanEnd != null && spanEnd < spanStart) spanStart else spanEnd,
@@ -367,6 +368,16 @@ fun buildSwimlanes(
     }
     return SwimLayout(bands, links, minDate, maxDate, y, tier, headerDp, barDp, rowDp)
 }
+
+/**
+ * 大目的ごとの色の番号(接続線用パレットの番号)。ツリーとタイムラインで同じ色にするための共通の割り当て。
+ * 表示の並びや絞り込みに左右されないよう、全大目的を開始日(なければ後ろ)とIDの順に並べて決め、
+ * 隣どうしの色が離れるよう3つずつ進める。
+ */
+fun goalColorSlots(goals: List<GoalEntity>): Map<String, Int> =
+    goals.sortedWith(compareBy({ it.startDate ?: LocalDate.MAX }, { it.id }))
+        .withIndex()
+        .associate { (index, goal) -> goal.id to (index * 3) % 8 }
 
 /** 段の割り当てに使う1日の幅を段階的な値にする(ズーム中に何度も組み替わって揺れないように)。 */
 fun quantizeDayDp(dayDp: Float): Float {

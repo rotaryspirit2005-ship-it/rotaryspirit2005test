@@ -75,6 +75,16 @@ import com.example.schedulelink.ui.theme.PeerLinkColorDark
 import com.example.schedulelink.ui.theme.PeerLinkColorLight
 import com.example.schedulelink.ui.theme.TodayLineColorDark
 import com.example.schedulelink.ui.theme.TodayLineColorLight
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import com.example.schedulelink.ui.theme.connectorColor
+import com.example.schedulelink.ui.theme.SaturdayColorDark
+import com.example.schedulelink.ui.theme.SaturdayColorLight
+import com.example.schedulelink.ui.theme.SundayColorDark
+import com.example.schedulelink.ui.theme.SundayColorLight
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -102,7 +112,9 @@ data class OutlineGoal(
     val milestones: List<OutlineMilestone>,
     val doneMilestoneCount: Int,
     /** タグで絞り込む前の中日程の数(進み具合の分母)。 */
-    val totalMilestoneCount: Int = milestones.size
+    val totalMilestoneCount: Int = milestones.size,
+    /** 大目的の色の番号(タイムラインの帯の色と同じ。goalColorSlots)。 */
+    val colorSlot: Int = 0
 )
 
 data class TreeOutline(val goals: List<OutlineGoal>, val unassigned: List<OutlineSchedule>) {
@@ -140,6 +152,8 @@ fun buildTreeOutline(
 
     val schedulesByMilestone = schedules.filter { it.milestoneId != null }.groupBy { it.milestoneId!! }
     val milestonesByGoal = milestones.groupBy { it.goalId }
+    // 色はタイムラインと同じ割り当てにする(絞り込みや並べ替えで変わらないよう、全大目的から決める)。
+    val colorSlots = goalColorSlots(goals)
 
     val outlineGoals = goals.map { goal ->
         val goalMilestones = milestonesByGoal[goal.id].orEmpty().map { milestone ->
@@ -153,7 +167,8 @@ fun buildTreeOutline(
             goal = goal,
             status = goalNodeStatus(goal, goalMilestones.map { it.status }, today),
             milestones = goalMilestones,
-            doneMilestoneCount = goalMilestones.count { it.milestone.status == MilestoneStatus.DONE }
+            doneMilestoneCount = goalMilestones.count { it.milestone.status == MilestoneStatus.DONE },
+            colorSlot = colorSlots[goal.id] ?: 0
         )
     }
         // 済んだ大目的は下へ。それ以外は始まりの早い順(開始日のない目的は後ろ)。
@@ -221,13 +236,16 @@ fun sortOutlineByTags(outline: TreeOutline, tagOrder: Map<String, Int>): TreeOut
 private sealed interface OutlineRow {
     val key: String
     val level: Int
+    /** 左端に引く大目的の色のレールの色番号。[NO_RAIL]ならレールなし、-1は「中日程なし」(primary)。 */
+    val railSlot: Int
 
     data class Goal(val item: OutlineGoal, val expanded: Boolean) : OutlineRow {
         override val key = "g:${item.goal.id}"
         override val level = 0
+        override val railSlot = NO_RAIL
     }
 
-    data class Milestone(val item: OutlineMilestone, val expanded: Boolean) : OutlineRow {
+    data class Milestone(val item: OutlineMilestone, val expanded: Boolean, override val railSlot: Int) : OutlineRow {
         override val key = "m:${item.milestone.id}"
         override val level = 1
     }
@@ -235,29 +253,40 @@ private sealed interface OutlineRow {
     data class Unassigned(val count: Int, val expanded: Boolean) : OutlineRow {
         override val key = KEY_UNASSIGNED
         override val level = 0
+        override val railSlot = NO_RAIL
     }
 
-    data class Schedule(val item: OutlineSchedule, override val level: Int, val linksExpanded: Boolean) : OutlineRow {
+    data class Schedule(
+        val item: OutlineSchedule,
+        override val level: Int,
+        val linksExpanded: Boolean,
+        override val railSlot: Int
+    ) : OutlineRow {
         override val key = "s:${item.schedule.id}"
     }
 
-    data class Link(val scheduleId: String, val link: OutlineLink, override val level: Int) : OutlineRow {
+    data class Link(val scheduleId: String, val link: OutlineLink, override val level: Int, override val railSlot: Int) : OutlineRow {
         override val key = "l:$scheduleId:${link.schedule.id}"
     }
 
-    data class PastCollapsed(val groupId: String, val count: Int, override val level: Int, val expanded: Boolean) : OutlineRow {
+    data class PastCollapsed(
+        val groupId: String,
+        val count: Int,
+        override val level: Int,
+        val expanded: Boolean,
+        override val railSlot: Int
+    ) : OutlineRow {
         override val key = "p:$groupId"
     }
 
     /** [showLabel]: 直後の予定が今日なら、その行の「今日」と重ならないよう線だけにする。 */
-    data class TodayDivider(val groupId: String, override val level: Int, val showLabel: Boolean) : OutlineRow {
+    data class TodayDivider(val groupId: String, override val level: Int, val showLabel: Boolean, override val railSlot: Int) : OutlineRow {
         override val key = "t:$groupId"
     }
-
-    data class Empty(override val key: String, val text: String, override val level: Int) : OutlineRow
 }
 
 private const val KEY_UNASSIGNED = "u"
+private const val NO_RAIL = Int.MIN_VALUE
 /** 過去の小日程がこれより多いと「過去の予定 N件」の1行にたたむ。 */
 private const val PAST_COLLAPSE_THRESHOLD = 3
 
@@ -271,56 +300,48 @@ private fun flattenOutline(
 ): List<OutlineRow> {
     val rows = mutableListOf<OutlineRow>()
 
-    fun addSchedule(item: OutlineSchedule, level: Int) {
+    fun addSchedule(item: OutlineSchedule, level: Int, slot: Int) {
         val linksExpanded = item.links.isNotEmpty() && isExpanded(expansionKeyOfLinks(item.schedule.id), false)
-        rows += OutlineRow.Schedule(item, level, linksExpanded)
+        rows += OutlineRow.Schedule(item, level, linksExpanded, slot)
         if (linksExpanded) {
-            item.links.forEach { rows += OutlineRow.Link(item.schedule.id, it, level) }
+            item.links.forEach { rows += OutlineRow.Link(item.schedule.id, it, level, slot) }
         }
     }
 
-    fun addSchedules(groupId: String, schedules: List<OutlineSchedule>, level: Int) {
-        if (schedules.isEmpty()) {
-            rows += OutlineRow.Empty("e:$groupId", "小日程はまだありません", level)
-            return
-        }
+    fun addSchedules(groupId: String, schedules: List<OutlineSchedule>, level: Int, slot: Int) {
         val past = schedules.filter { it.schedule.date < today }
         val upcoming = schedules.filter { it.schedule.date >= today }
         if (past.size > PAST_COLLAPSE_THRESHOLD) {
             val expanded = isExpanded("p:$groupId", false)
-            rows += OutlineRow.PastCollapsed(groupId, past.size, level, expanded)
-            if (expanded) past.forEach { addSchedule(it, level) }
+            rows += OutlineRow.PastCollapsed(groupId, past.size, level, expanded, slot)
+            if (expanded) past.forEach { addSchedule(it, level, slot) }
         } else {
-            past.forEach { addSchedule(it, level) }
+            past.forEach { addSchedule(it, level, slot) }
         }
         // 過去と今後の境目に「今日」の線を引き、今どこにいるかを一目で分かるようにする。
         if (past.isNotEmpty() && upcoming.isNotEmpty()) {
-            rows += OutlineRow.TodayDivider(groupId, level, showLabel = upcoming.first().schedule.date != today)
+            rows += OutlineRow.TodayDivider(groupId, level, showLabel = upcoming.first().schedule.date != today, railSlot = slot)
         }
-        upcoming.forEach { addSchedule(it, level) }
+        upcoming.forEach { addSchedule(it, level, slot) }
     }
 
     for (goal in outline.goals) {
         val goalRow = OutlineRow.Goal(goal, isExpanded("g:${goal.goal.id}", goal.status != NodeStatus.DONE))
         rows += goalRow
         if (!goalRow.expanded) continue
-        if (goal.milestones.isEmpty()) {
-            rows += OutlineRow.Empty("e:${goal.goal.id}", "中日程はまだありません", 1)
-        }
         for (milestone in goal.milestones) {
-            val milestoneRow = OutlineRow.Milestone(
-                milestone,
+            // 小日程のない中日程は開閉できない1行にする(「小日程なし」は要約に出す)。
+            val expanded = milestone.schedules.isNotEmpty() &&
                 isExpanded("m:${milestone.milestone.id}", milestone.status != NodeStatus.DONE)
-            )
-            rows += milestoneRow
-            if (milestoneRow.expanded) addSchedules(milestone.milestone.id, milestone.schedules, 2)
+            rows += OutlineRow.Milestone(milestone, expanded, goal.colorSlot)
+            if (expanded) addSchedules(milestone.milestone.id, milestone.schedules, 2, goal.colorSlot)
         }
     }
 
     if (outline.unassigned.isNotEmpty()) {
         val header = OutlineRow.Unassigned(outline.unassigned.size, isExpanded(KEY_UNASSIGNED, false))
         rows += header
-        if (header.expanded) addSchedules(KEY_UNASSIGNED, outline.unassigned, 1)
+        if (header.expanded) addSchedules(KEY_UNASSIGNED, outline.unassigned, 1, -1)
     }
     return rows
 }
@@ -329,10 +350,16 @@ private fun flattenOutline(
 // 画面
 // ---------------------------------------------------------------------------
 
-/** 1段下げるごとの字下げ幅。 */
-private val INDENT = 20.dp
-/** 行頭の開閉ボタン(または日付)の枠。タップ領域として48dpを確保する。 */
-private val LEADING_SLOT = 48.dp
+// 横の位置。開閉の矢印は行の右端に置き、本文は 大目的 < 中日程 < 小日程 の順に必ず右へ下がる。
+/** 大目的の左のアクセント(4dp)と、本文の開始位置。 */
+private val GOAL_START = 16.dp
+/** 中日程の本文の開始位置。 */
+private val MILESTONE_START = 36.dp
+/** 小日程の日付の列の開始位置と幅(本文はその右から)。 */
+private val SCHEDULE_START = 52.dp
+private val DATE_COLUMN = 48.dp
+/** 大目的の色のレールの横位置(中日程の本文の少し左)。 */
+private val RAIL_X = 22.dp
 
 private val outlineDateFormatter = DateTimeFormatter.ofPattern("M/d", Locale.JAPAN)
 private val outlineWeekdayFormatter = DateTimeFormatter.ofPattern("E", Locale.JAPAN)
@@ -352,7 +379,8 @@ private val rowDisappearSpec = tween<Float>(Motion.DurationShort)
 
 /**
  * 全体マップの「ツリー」表示。大目的→中日程→小日程を字下げで並べ、開閉できる一覧にする。
- * タイムライン表示と違って線が交差せず、題名も省略されずに読める。
+ * タイムライン表示と違って線が交差せず、題名も省略されずに読める。色は「どの大目的か」を表し、
+ * タイムラインの帯の色と同じ。
  */
 @Composable
 fun WholeTreeOutlineView(
@@ -397,7 +425,10 @@ fun WholeTreeOutlineView(
     }
 
     val isDark = LocalIsDarkTheme.current
-    val guideColor = MaterialTheme.colorScheme.outlineVariant
+    val primary = MaterialTheme.colorScheme.primary
+    fun colorOf(slot: Int): Color = if (slot >= 0) connectorColor(slot, isDark) else primary
+    val linkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight
+    val todayColor = if (isDark) TodayLineColorDark else TodayLineColorLight
 
     LazyColumn(
         state = listState,
@@ -405,125 +436,80 @@ fun WholeTreeOutlineView(
         contentPadding = PaddingValues(bottom = Dimens.FabClearance)
     ) {
         items(rows, key = { it.key }, contentType = { it::class.simpleName }) { row ->
-            val itemModifier = Modifier.animateItem(
-                fadeInSpec = rowAppearSpec,
-                placementSpec = tween(Motion.DurationLong, easing = Motion.Emphasized),
-                fadeOutSpec = rowDisappearSpec
-            )
+            val itemModifier = Modifier
+                .animateItem(
+                    fadeInSpec = rowAppearSpec,
+                    placementSpec = tween(Motion.DurationLong, easing = Motion.Emphasized),
+                    fadeOutSpec = rowDisappearSpec
+                )
+                .rail(if (row.railSlot == NO_RAIL) null else colorOf(row.railSlot))
             when (row) {
                 is OutlineRow.Goal -> GoalOutlineRow(
                     row = row,
-                    color = TreeTier.GOAL.color(isDark),
+                    color = colorOf(row.item.colorSlot),
                     onClick = { onGoalClick(row.item.goal.id) },
                     onToggle = { toggle(row.key, row.item.status != NodeStatus.DONE) },
                     modifier = itemModifier
                 )
                 is OutlineRow.Milestone -> MilestoneOutlineRow(
                     row = row,
-                    color = TreeTier.MILESTONE.color(isDark),
-                    guideColor = guideColor,
+                    color = colorOf(row.railSlot),
                     onClick = { onMilestoneClick(row.item.milestone.id) },
                     onToggle = { toggle(row.key, row.item.status != NodeStatus.DONE) },
                     modifier = itemModifier
                 )
                 is OutlineRow.Unassigned -> UnassignedOutlineRow(
                     row = row,
-                    color = TreeTier.SCHEDULE.color(isDark),
+                    color = primary,
                     onToggle = { toggle(row.key, false) },
                     modifier = itemModifier
                 )
                 is OutlineRow.Schedule -> ScheduleOutlineRow(
                     row = row,
                     today = today,
-                    color = TreeTier.SCHEDULE.color(isDark),
-                    linkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight,
-                    guideColor = guideColor,
+                    linkColor = linkColor,
                     onClick = { onScheduleClick(row.item.schedule.id) },
                     onToggleLinks = { toggle(expansionKeyOfLinks(row.item.schedule.id), false) },
                     modifier = itemModifier
                 )
                 is OutlineRow.Link -> LinkOutlineRow(
                     row = row,
-                    linkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight,
-                    guideColor = guideColor,
+                    linkColor = linkColor,
                     onClick = { onScheduleClick(row.link.schedule.id) },
                     modifier = itemModifier
                 )
-                is OutlineRow.PastCollapsed -> OutlineRowFrame(
-                    level = row.level,
-                    guideColor = guideColor,
-                    onClick = { toggle(row.key, false) },
-                    modifier = itemModifier,
-                    leading = { ExpandChevron(expanded = row.expanded, label = "過去の予定", onToggle = { toggle(row.key, false) }) }
+                is OutlineRow.PastCollapsed -> Row(
+                    modifier = itemModifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .clickable(onClickLabel = if (row.expanded) "過去の予定をたたむ" else "過去の予定を表示") { toggle(row.key, false) }
+                        .padding(start = SCHEDULE_START, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = if (row.expanded) "過去の予定 ${row.count}件をたたむ" else "過去の予定 ${row.count}件",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
+                    ExpandChevron(expanded = row.expanded, label = "過去の予定", onToggle = { toggle(row.key, false) })
                 }
                 is OutlineRow.TodayDivider -> TodayDividerRow(
-                    level = row.level,
                     showLabel = row.showLabel,
-                    lineColor = if (isDark) TodayLineColorDark else TodayLineColorLight,
-                    guideColor = guideColor,
+                    lineColor = todayColor,
                     modifier = itemModifier
                 )
-                is OutlineRow.Empty -> OutlineRowFrame(
-                    level = row.level,
-                    guideColor = guideColor,
-                    onClick = null,
-                    minHeight = 40.dp,
-                    modifier = itemModifier,
-                    leading = {}
-                ) {
-                    Text(
-                        text = row.text,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
             }
         }
     }
 }
 
-/** 親の階層ごとに縦の字下げ線を引く(開閉ボタンの中心の位置)。線は交差しない。 */
-private fun Modifier.indentGuides(level: Int, color: Color): Modifier =
-    if (level == 0) this else drawBehind {
-        val stroke = 1.dp.toPx()
-        for (ancestor in 0 until level) {
-            val x = (INDENT * ancestor + LEADING_SLOT / 2).toPx()
-            drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth = stroke)
-        }
+/** 大目的の配下の行の左端に、その大目的の色の縦のレールを1本引く(どの大目的の中かが色で分かる)。 */
+private fun Modifier.rail(color: Color?): Modifier =
+    if (color == null) this else drawBehind {
+        val x = RAIL_X.toPx()
+        drawLine(color.copy(alpha = 0.75f), Offset(x, 0f), Offset(x, size.height), strokeWidth = 3.dp.toPx())
     }
-
-/** 字下げ・字下げ線・行頭の枠をそろえた、ツリーの1行の共通の形。 */
-@Composable
-private fun OutlineRowFrame(
-    level: Int,
-    guideColor: Color,
-    onClick: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-    minHeight: Dp = 56.dp,
-    leading: @Composable () -> Unit,
-    content: @Composable RowScope.() -> Unit
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = minHeight)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .indentGuides(level, guideColor)
-            .padding(start = INDENT * level, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(modifier = Modifier.size(LEADING_SLOT), contentAlignment = Alignment.Center) { leading() }
-        content()
-    }
-}
 
 @Composable
 private fun ExpandChevron(expanded: Boolean, label: String, onToggle: () -> Unit) {
@@ -542,6 +528,30 @@ private fun ExpandChevron(expanded: Boolean, label: String, onToggle: () -> Unit
     }
 }
 
+/** 進み具合の小さな丸。済んだら塗りつぶし、進行中は半分、未着手は輪郭だけ。 */
+@Composable
+private fun StatusDot(status: NodeStatus, color: Color) {
+    Box(
+        modifier = Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .border(1.5.dp, color, CircleShape)
+            .drawBehind {
+                when (status) {
+                    NodeStatus.DONE -> drawCircle(color)
+                    NodeStatus.ACTIVE -> drawRect(color, size = size.copy(width = size.width / 2f))
+                    NodeStatus.UPCOMING -> Unit
+                }
+            }
+    )
+}
+
+private fun statusLabelOf(status: NodeStatus): String = when (status) {
+    NodeStatus.DONE -> "完了"
+    NodeStatus.ACTIVE -> "進行中"
+    NodeStatus.UPCOMING -> "未着手"
+}
+
 @Composable
 private fun GoalOutlineRow(
     row: OutlineRow.Goal,
@@ -552,49 +562,69 @@ private fun GoalOutlineRow(
 ) {
     val goal = row.item.goal
     val total = row.item.totalMilestoneCount
+    val done = row.item.doneMilestoneCount
     val isDone = row.item.status == NodeStatus.DONE
     val summary = listOfNotNull(
         formatRangeSubtitle(goal.startDate, goal.endDate).ifBlank { null },
         when {
-            goal.type == GoalType.HABIT -> "継続中の習慣目的"
-            total > 0 -> "中日程 ${row.item.doneMilestoneCount}/$total 完了"
-            else -> null
-        }
+            goal.type == GoalType.HABIT -> "継続する習慣"
+            total > 0 -> "中日程 $total"
+            else -> "中日程なし"
+        },
+        if (isDone) "完了" else null
     ).joinToString(" · ")
 
-    OutlineRowFrame(
-        level = 0,
-        guideColor = Color.Transparent,
-        onClick = onClick,
-        minHeight = 64.dp,
-        // 大目的どうしの区切りが分かるよう、少し間を空けて一段沈んだ面に載せる。
-        modifier = modifier.padding(top = 8.dp).background(MaterialTheme.colorScheme.surfaceContainerLow),
-        leading = { ExpandChevron(expanded = row.expanded, label = goal.title, onToggle = onToggle) }
+    // 大目的どうしの区切りが分かるよう、上に間を空けて一段明るい面に載せ、左に大目的の色の印を付ける。
+    Row(
+        modifier = modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .drawBehind { drawRect(color, size = size.copy(width = 4.dp.toPx())) }
+            .padding(start = GOAL_START, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        TierIcon(Icons.Outlined.Flag, "大目的", color)
-        Column(modifier = Modifier.weight(1f).padding(vertical = 10.dp)) {
+        Column(modifier = Modifier.weight(1f).padding(vertical = 12.dp)) {
             Text(
                 text = goal.title,
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
             )
-            if (summary.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = summary,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                // 中日程の進み具合は、行末の小さなバーと数で示す(全幅のバーは使わない)。
+                if (goal.type == GoalType.PHASED && total > 0) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    LinearProgressIndicator(
+                        progress = { done.toFloat() / total },
+                        modifier = Modifier.width(56.dp).height(4.dp),
+                        color = color,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        strokeCap = StrokeCap.Round,
+                        gapSize = 0.dp,
+                        drawStopIndicator = {}
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "$done/$total",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             TagLabels(goal.tagIds, modifier = Modifier.padding(top = 2.dp))
-            if (goal.type == GoalType.PHASED && total > 0) {
-                AppProgressBar(
-                    ratio = row.item.doneMilestoneCount.toFloat() / total,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-            }
         }
+        ExpandChevron(expanded = row.expanded, label = goal.title, onToggle = onToggle)
     }
 }
 
@@ -602,115 +632,126 @@ private fun GoalOutlineRow(
 private fun MilestoneOutlineRow(
     row: OutlineRow.Milestone,
     color: Color,
-    guideColor: Color,
     onClick: () -> Unit,
     onToggle: () -> Unit,
     modifier: Modifier
 ) {
     val milestone = row.item.milestone
-    val (icon, statusLabel) = when (milestone.status) {
-        MilestoneStatus.DONE -> Icons.Default.CheckCircle to "完了"
-        MilestoneStatus.ACTIVE -> Icons.Default.Loop to "進行中"
-        MilestoneStatus.UPCOMING -> Icons.Outlined.RadioButtonUnchecked to "未着手"
-    }
-    val summary = listOfNotNull(
-        formatRangeSubtitle(milestone.startDate, milestone.endDate).ifBlank { null },
-        "小日程 ${row.item.totalScheduleCount}"
-    ).joinToString(" · ")
+    val count = row.item.totalScheduleCount
     val isDone = row.item.status == NodeStatus.DONE
+    val summary = listOfNotNull(
+        statusLabelOf(row.item.status),
+        formatRangeSubtitle(milestone.startDate, milestone.endDate).ifBlank { null },
+        if (count > 0) "小日程 $count" else "小日程なし"
+    ).joinToString(" · ")
+    val canExpand = row.item.schedules.isNotEmpty()
 
-    OutlineRowFrame(
-        level = row.level,
-        guideColor = guideColor,
-        onClick = onClick,
-        modifier = modifier,
-        leading = { ExpandChevron(expanded = row.expanded, label = milestone.title, onToggle = onToggle) }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(onClick = onClick)
+            .padding(start = MILESTONE_START, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        TierIcon(icon, "中日程・$statusLabel", color)
         Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
             Text(
                 text = milestone.title,
                 style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusDot(row.item.status, color)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             TagLabels(milestone.tagIds, modifier = Modifier.padding(top = 2.dp))
+        }
+        if (canExpand) {
+            ExpandChevron(expanded = row.expanded, label = milestone.title, onToggle = onToggle)
+        } else {
+            // 開くものがないときも、行の高さと右端の揃いを保つ。
+            Spacer(modifier = Modifier.size(48.dp))
         }
     }
 }
 
 @Composable
 private fun UnassignedOutlineRow(row: OutlineRow.Unassigned, color: Color, onToggle: () -> Unit, modifier: Modifier) {
-    OutlineRowFrame(
-        level = 0,
-        guideColor = Color.Transparent,
-        onClick = onToggle,
-        minHeight = 64.dp,
-        modifier = modifier.padding(top = 8.dp).background(MaterialTheme.colorScheme.surfaceContainerLow),
-        leading = { ExpandChevron(expanded = row.expanded, label = "中日程なしの小日程", onToggle = onToggle) }
+    Row(
+        modifier = modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onToggle)
+            .drawBehind { drawRect(color, size = size.copy(width = 4.dp.toPx())) }
+            .padding(start = GOAL_START, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        TierIcon(Icons.Outlined.EventNote, null, color)
-        Column(modifier = Modifier.weight(1f).padding(vertical = 10.dp)) {
-            Text("中日程なし", style = MaterialTheme.typography.titleMedium)
+        Column(modifier = Modifier.weight(1f).padding(vertical = 12.dp)) {
+            Text("中日程なしの予定", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(
                 text = "小日程 ${row.count}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        ExpandChevron(expanded = row.expanded, label = "中日程なしの予定", onToggle = onToggle)
     }
-}
-
-@Composable
-private fun TierIcon(icon: ImageVector, description: String?, color: Color) {
-    Icon(icon, contentDescription = description, tint = color, modifier = Modifier.size(20.dp))
-    Spacer(modifier = Modifier.width(12.dp))
 }
 
 @Composable
 private fun ScheduleOutlineRow(
     row: OutlineRow.Schedule,
     today: LocalDate,
-    color: Color,
     linkColor: Color,
-    guideColor: Color,
     onClick: () -> Unit,
     onToggleLinks: () -> Unit,
     modifier: Modifier
 ) {
     val schedule = row.item.schedule
     val isPast = schedule.date < today
+    val isDark = LocalIsDarkTheme.current
+    // 過ぎた予定は全体を一段薄い文字色にする(小日程には完了の印がないので「✓」は付けない)。
     val textColor = if (isPast) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-    val dateColor = if (isPast) MaterialTheme.colorScheme.onSurfaceVariant else color
+    val weekdayColor = when (schedule.date.dayOfWeek) {
+        java.time.DayOfWeek.SATURDAY -> if (isDark) SaturdayColorDark else SaturdayColorLight
+        java.time.DayOfWeek.SUNDAY -> if (isDark) SundayColorDark else SundayColorLight
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
-    OutlineRowFrame(
-        level = row.level,
-        guideColor = guideColor,
-        onClick = onClick,
-        modifier = modifier,
-        // 小日程は開閉するものがないので、行頭の枠に日付を置く。
-        leading = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = schedule.date.format(outlineDateFormatter),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = dateColor
-                )
-                Text(
-                    text = schedule.date.format(outlineWeekdayFormatter),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = dateColor
-                )
-            }
-        }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(onClick = onClick)
+            .semantics { if (isPast) stateDescription = "過去の予定" }
+            .padding(start = SCHEDULE_START, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // 日付の列。
+        Column(modifier = Modifier.width(DATE_COLUMN), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = schedule.date.format(outlineDateFormatter),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
+            Text(
+                text = schedule.date.format(outlineWeekdayFormatter),
+                style = MaterialTheme.typography.labelSmall,
+                color = weekdayColor
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -726,22 +767,18 @@ private fun ScheduleOutlineRow(
                     TodayBadge()
                 }
             }
+            // 時刻とタグは1行にまとめる。
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isPast) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = "済み",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp).padding(end = 2.dp)
-                    )
-                }
                 Text(
-                    text = "${schedule.startTime.format(outlineTimeFormatter)}〜${schedule.endTime.format(outlineTimeFormatter)}",
+                    text = "${schedule.startTime.format(outlineTimeFormatter)}–${schedule.endTime.format(outlineTimeFormatter)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (schedule.tagIds.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TagLabels(schedule.tagIds)
+                }
             }
-            TagLabels(schedule.tagIds, modifier = Modifier.padding(top = 2.dp))
         }
         val linkCount = row.item.links.size
         if (linkCount > 0) {
@@ -765,19 +802,20 @@ private fun ScheduleOutlineRow(
                     color = linkColor
                 )
             }
+        } else {
+            Spacer(modifier = Modifier.width(8.dp))
         }
     }
 }
 
 @Composable
-private fun LinkOutlineRow(row: OutlineRow.Link, linkColor: Color, guideColor: Color, onClick: () -> Unit, modifier: Modifier) {
+private fun LinkOutlineRow(row: OutlineRow.Link, linkColor: Color, onClick: () -> Unit, modifier: Modifier) {
     val link = row.link
     val shape = MaterialTheme.shapes.medium
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .indentGuides(row.level, guideColor)
-            .padding(start = INDENT * row.level + LEADING_SLOT, end = 12.dp, bottom = 6.dp)
+            .padding(start = SCHEDULE_START + DATE_COLUMN + 8.dp, end = 12.dp, bottom = 6.dp)
     ) {
         Column(
             modifier = Modifier
@@ -807,20 +845,33 @@ private fun LinkOutlineRow(row: OutlineRow.Link, linkColor: Color, guideColor: C
     }
 }
 
+/** 過去と今後の境目。タイムラインの今日の線と同じ色の破線と「今日」の文字。 */
 @Composable
-private fun TodayDividerRow(level: Int, showLabel: Boolean, lineColor: Color, guideColor: Color, modifier: Modifier) {
+private fun TodayDividerRow(showLabel: Boolean, lineColor: Color, modifier: Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(32.dp)
-            .indentGuides(level, guideColor)
-            .padding(start = INDENT * level + LEADING_SLOT, end = 12.dp),
+            .height(28.dp)
+            .padding(start = SCHEDULE_START, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (showLabel) {
-            TodayBadge()
+            Text("今日", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = lineColor)
             Spacer(modifier = Modifier.width(8.dp))
         }
-        Box(modifier = Modifier.weight(1f).height(1.dp).background(lineColor))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(2.dp)
+                .drawBehind {
+                    drawLine(
+                        lineColor,
+                        Offset(0f, size.height / 2f),
+                        Offset(size.width, size.height / 2f),
+                        strokeWidth = size.height,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
+                    )
+                }
+        )
     }
 }
