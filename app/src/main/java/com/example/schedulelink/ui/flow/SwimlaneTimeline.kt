@@ -31,6 +31,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -84,30 +86,30 @@ private class SwimGeometry(
     fun yOf(dp: Float): Float = top + dp * density
     fun px(dp: Float): Float = dp * density
 
-    fun headerRect(band: SwimBand, width: Float) = Rect(0f, yOf(band.top), width, yOf(band.top + SWIM_HEADER_DP))
+    fun headerRect(band: SwimBand, width: Float) = Rect(0f, yOf(band.top), width, yOf(band.top + layout.headerDp))
     fun bandRect(band: SwimBand, width: Float) = Rect(0f, yOf(band.top), width, yOf(band.top + band.height))
 
-    fun barTopDp(band: SwimBand, bar: SwimBar): Float = band.top + SWIM_HEADER_DP + band.trackTops[bar.track]
+    fun barTopDp(band: SwimBand, bar: SwimBar): Float = band.top + layout.headerDp + band.trackTops[bar.track]
 
     fun barRect(band: SwimBand, bar: SwimBar): Rect {
         val t = yOf(barTopDp(band, bar))
-        return Rect(xOf(bar.start), t, xOf(bar.end.plusDays(1)), t + px(SWIM_BAR_DP))
+        return Rect(xOf(bar.start), t, xOf(bar.end.plusDays(1)), t + px(layout.barDp))
     }
 
     fun chipCenter(band: SwimBand, bar: SwimBar?, chip: SwimChip): Offset {
         val rowTopDp = if (bar != null) {
-            barTopDp(band, bar) + SWIM_BAR_DP
+            barTopDp(band, bar) + layout.barDp
         } else {
-            band.top + SWIM_HEADER_DP
-        } + chip.row * SWIM_CHIP_ROW_DP
-        return Offset(xOf(chip.schedule.date) + dayPx / 2f, yOf(rowTopDp + SWIM_CHIP_ROW_DP / 2f))
+            band.top + layout.headerDp
+        } + chip.row * layout.rowDp
+        return Offset(xOf(chip.schedule.date) + dayPx / 2f, yOf(rowTopDp + layout.rowDp / 2f))
     }
 
     fun chipRect(center: Offset, chip: SwimChip): Rect = Rect(
         center.x - px(8f),
-        center.y - px(SWIM_CHIP_ROW_DP / 2f),
-        center.x + px(chipWidthDp(chip.label)),
-        center.y + px(SWIM_CHIP_ROW_DP / 2f)
+        center.y - px(layout.rowDp / 2f),
+        center.x + px(chip.widthDp),
+        center.y + px(layout.rowDp / 2f)
     )
 }
 
@@ -141,7 +143,13 @@ private fun hitTest(geometry: SwimGeometry, width: Float, position: Offset): Swi
             val hit = Rect(r.left - geometry.px(6f), r.top - geometry.px(4f), max(r.right, r.left + geometry.px(24f)), r.bottom + geometry.px(4f))
             if (hit.contains(position)) return SwimHit.Milestone(bar.milestone.id)
         }
-        if (band.goal != null && geometry.headerRect(band, width).contains(position)) return SwimHit.Goal(band.goal.id)
+        if (band.goal != null) {
+            // 見出しは名前のあたりだけを押せるようにする(右側の空いたところでは開かない)。
+            val header = geometry.headerRect(band, width)
+            val textScale = geometry.layout.headerDp / SWIM_HEADER_DP
+            val right = min(width, geometry.px(40f + estimateTextWidthDp(band.title, 15f) * textScale + 120f))
+            if (Rect(header.left, header.top, right, header.bottom).contains(position)) return SwimHit.Goal(band.goal.id)
+        }
     }
     return null
 }
@@ -163,9 +171,14 @@ fun SwimlaneTimeline(
     val today = remember { LocalDate.now() }
     // 段の割り当てはズームの段階が変わったときだけ組み直す(連続したズームでは組み替えない)。
     val layoutDayDp by remember { derivedStateOf { quantizeDayDp(PX_PER_DAY * zp.scale) } }
-    val layout = remember(goals, milestones, schedules, layoutDayDp) {
-        buildSwimlanes(goals, milestones, schedules, layoutDayDp, today)
+    // 文字を大きくする設定のときは、名前の幅や行の高さもその分広げる。
+    val textScale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val layout = remember(goals, milestones, schedules, layoutDayDp, textScale) {
+        buildSwimlanes(goals, milestones, schedules, layoutDayDp, textScale, today)
     }
+    val currentOnGoalClick by rememberUpdatedState(onGoalClick)
+    val currentOnMilestoneClick by rememberUpdatedState(onMilestoneClick)
+    val currentOnScheduleClick by rememberUpdatedState(onScheduleClick)
     val currentLayout by rememberUpdatedState(layout)
     val gridModel = remember(layout.minDate, layout.maxDate) {
         GridModel(layout.minDate, layout.maxDate, monthMarks(layout.minDate, layout.maxDate))
@@ -246,6 +259,23 @@ fun SwimlaneTimeline(
         return max(0f, content - viewSize.height)
     }
 
+    // データが変わって表示範囲の始まり(minDate)が動いたら、見ている日付が横に飛ばないよう補正する。
+    var lastMinDate by remember { mutableStateOf<LocalDate?>(null) }
+    LaunchedEffect(layout.minDate) {
+        val last = lastMinDate
+        if (last != null && last != layout.minDate) {
+            val shiftDays = ChronoUnit.DAYS.between(layout.minDate, last)
+            val dayPx = with(localDensity) { PX_PER_DAY.dp.toPx() } * zp.scale
+            zp.offset = Offset(zp.offset.x - shiftDays * dayPx, zp.offset.y)
+        }
+        lastMinDate = layout.minDate
+    }
+    // 帯が低くなった(段の組み直し・データの減少・回転)ときは、縦のスクロールを範囲に戻す。
+    LaunchedEffect(layout, viewSize) {
+        val limit = with(localDensity) { maxScrollPx() }
+        if (zp.offset.y < -limit) zp.offset = Offset(zp.offset.x, -limit)
+    }
+
     Canvas(
         modifier = modifier
             .fillMaxSize()
@@ -270,9 +300,9 @@ fun SwimlaneTimeline(
                 detectTapGestures(
                     onTap = { position ->
                         when (val hit = hitAt(position)) {
-                            is SwimHit.Goal -> onGoalClick(hit.id)
-                            is SwimHit.Milestone -> onMilestoneClick(hit.id)
-                            is SwimHit.Schedule -> onScheduleClick(hit.id)
+                            is SwimHit.Goal -> currentOnGoalClick(hit.id)
+                            is SwimHit.Milestone -> currentOnMilestoneClick(hit.id)
+                            is SwimHit.Schedule -> currentOnScheduleClick(hit.id)
                             null -> selectedId = null
                         }
                     },
@@ -325,14 +355,26 @@ fun SwimlaneTimeline(
             val bandRect = geometry.bandRect(band, width)
             if (bandRect.bottom < 0f || bandRect.top > size.height) return@forEachIndexed
             val color = bandColorOf(band)
-            val bandAlpha = alphaOf(band.id, band.goal?.tagIds.orEmpty())
+            // 見出しは、大目的自身か帯の中のどれかが絞り込みに合えば濃く出す。
+            val bandMatchesTags = tagFilter.isEmpty() ||
+                matchesTagFilter(band.goal?.tagIds.orEmpty(), tagFilter, knownTagIds) ||
+                band.bars.any { bar ->
+                    matchesTagFilter(bar.milestone.tagIds, tagFilter, knownTagIds) ||
+                        bar.chips.any { matchesTagFilter(it.schedule.tagIds, tagFilter, knownTagIds) }
+                } ||
+                band.looseChips.any { matchesTagFilter(it.schedule.tagIds, tagFilter, knownTagIds) }
+            val bandAlpha = when {
+                selectedId != null && band.id !in related -> DIMMED_ALPHA
+                !bandMatchesTags -> DIMMED_ALPHA
+                else -> 1f
+            }
 
             // 帯の地。1つおきにごく薄く色を敷き、帯の切れ目を分かりやすくする。
             if (index % 2 == 1) {
                 drawRect(colorScheme.onSurface.copy(alpha = 0.035f), bandRect.topLeft, bandRect.size)
             }
             // 大目的の期間を、帯の色で薄く塗る(習慣型は帯全体)。
-            val bodyTop = geometry.yOf(band.top + SWIM_HEADER_DP)
+            val bodyTop = geometry.yOf(band.top + layout.headerDp)
             val spanStart = band.spanStart
             val spanEnd = band.spanEnd
             if (band.kind == SwimBandKind.GOAL) {
@@ -359,9 +401,7 @@ fun SwimlaneTimeline(
                 val r = geometry.barRect(band, bar)
                 val visible = r.right > -geometry.px(200f) && r.left < width
                 if (!visible) return@forEach
-                val alpha = min(bandAlpha, alphaOf(bar.milestone.id, bar.milestone.tagIds)).let { a ->
-                    if (selectedId != null && bar.milestone.id in related) 1f else a
-                }
+                val alpha = alphaOf(bar.milestone.id, bar.milestone.tagIds)
                 val done = bar.status == NodeStatus.DONE
                 val barWidth = max(r.width, geometry.px(6f))
                 val radius = CornerRadius(geometry.px(6f))
@@ -391,7 +431,8 @@ fun SwimlaneTimeline(
                     val inkColor = when {
                         done -> colorScheme.onSurfaceVariant
                         bar.estimated -> colorScheme.onSurface
-                        color.luminance() > 0.5f -> Color(0xFF1A1C19)
+                        // 白と黒のどちらがよく見えるかの境目(輝度0.18前後)で切り替える。
+                        color.luminance() > 0.18f -> Color(0xFF1A1C19)
                         else -> Color.White
                     }
                     clipRect(r.left, r.top, r.left + barWidth, r.bottom) {
@@ -407,7 +448,7 @@ fun SwimlaneTimeline(
                 val center = geometry.chipCenter(band, bar, chip)
                 if (center.x < -geometry.px(220f) || center.x > width + geometry.px(10f)) return
                 val schedule = chip.schedule
-                val alpha = if (selectedId != null && schedule.id in related) 1f else min(bandAlpha, alphaOf(schedule.id, schedule.tagIds))
+                val alpha = alphaOf(schedule.id, schedule.tagIds)
                 val radius = geometry.px(4.5f)
                 if (chip.past) {
                     drawCircle(colorScheme.onSurfaceVariant.copy(alpha = alpha), radius, center, style = Stroke(width = geometry.px(1.5f)))
@@ -418,7 +459,14 @@ fun SwimlaneTimeline(
                     drawCircle(colorScheme.onSurface, radius + geometry.px(3f), center, style = Stroke(width = geometry.px(1.5f)))
                 }
                 if (chip.label.isNotEmpty()) {
-                    val text = measure(chip.label, chipStyle)
+                    val text = measurer.measure(
+                        chip.label,
+                        chipStyle,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        maxLines = 1,
+                        constraints = Constraints(maxWidth = geometry.px(SWIM_CHIP_LABEL_MAX_DP * textScale).toInt())
+                    )
                     val textX = center.x + geometry.px(9f)
                     drawText(
                         text,

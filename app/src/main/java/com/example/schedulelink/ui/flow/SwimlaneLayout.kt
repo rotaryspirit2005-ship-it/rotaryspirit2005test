@@ -28,9 +28,13 @@ fun zoomTierOf(dayDp: Float): ZoomTier = when {
 /** 帯の見出しの高さ。 */
 const val SWIM_HEADER_DP = 34f
 /** 中日程のバーの高さ。 */
-const val SWIM_BAR_DP = 22f
+const val SWIM_BAR_DP = 24f
 /** 小日程の点(と名前)の1行の高さ。 */
-const val SWIM_CHIP_ROW_DP = 22f
+const val SWIM_CHIP_ROW_DP = 24f
+/** 小日程の名前の最大の幅(これより長い名前は「…」で切る)。 */
+const val SWIM_CHIP_LABEL_MAX_DP = 170f
+/** 1つの中日程の下に並べる小日程の行の上限。超えた分は点だけにして最後の行に置く。 */
+private const val MAX_CHIP_ROWS = 4
 /** 中日程のまとまりどうしの縦の間隔。 */
 const val SWIM_GROUP_GAP_DP = 8f
 /** 帯の下の余白。 */
@@ -43,7 +47,9 @@ class SwimChip(
     val schedule: ScheduleEntity,
     val row: Int,
     val label: String,
-    val past: Boolean
+    val past: Boolean,
+    /** 点・名前・タグの点を合わせた幅の見積もり(dp)。当たり判定にも使う。 */
+    val widthDp: Float
 )
 
 /** 中日程のバー1本と、その下の小日程。[track]は帯の中の何段目か。 */
@@ -92,7 +98,11 @@ class SwimLayout(
     val minDate: LocalDate,
     val maxDate: LocalDate,
     val totalHeight: Float,
-    val tier: ZoomTier
+    val tier: ZoomTier,
+    /** 文字の大きさの設定に合わせた、見出し・バー・点の行の高さ(dp)。 */
+    val headerDp: Float,
+    val barDp: Float,
+    val rowDp: Float
 ) {
     val isEmpty: Boolean get() = bands.isEmpty()
 }
@@ -112,9 +122,13 @@ internal fun chipLabelOf(schedule: ScheduleEntity, tier: ZoomTier): String = whe
     ZoomTier.DAY -> "${schedule.title} ${schedule.startTime.format(chipTimeFormat)}"
 }
 
-/** 点(8dp)+間隔+文字の幅(dp)。 */
-internal fun chipWidthDp(label: String): Float =
-    if (label.isEmpty()) 10f else 14f + min(estimateTextWidthDp(label, 11f), 170f)
+/** 点(8dp)+間隔+文字の幅+タグの点の幅(dp)。[textScale]は文字の大きさの設定。 */
+internal fun chipWidthDp(label: String, tagCount: Int, textScale: Float): Float {
+    if (label.isEmpty()) return 10f
+    val text = min(estimateTextWidthDp(label, 11f) * textScale, SWIM_CHIP_LABEL_MAX_DP * textScale)
+    val tags = if (tagCount > 0) 4f + min(tagCount, 3) * 10f else 0f
+    return 14f + text + tags
+}
 
 /**
  * 区間の貪欲な割り当て(左から順に、空いている一番上の段へ入れる)。区間グラフなので段数は最少になる。
@@ -147,9 +161,13 @@ fun buildSwimlanes(
     milestones: List<MilestoneEntity>,
     schedules: List<ScheduleEntity>,
     dayDp: Float,
+    textScale: Float = 1f,
     today: LocalDate = LocalDate.now()
 ): SwimLayout {
     val tier = zoomTierOf(dayDp)
+    val headerDp = SWIM_HEADER_DP * textScale
+    val barDp = SWIM_BAR_DP * textScale
+    val rowDp = SWIM_CHIP_ROW_DP * textScale
     val goalIds = goals.map { it.id }.toSet()
     val knownMilestones = milestones.filter { it.goalId in goalIds }
     val knownMilestoneIds = knownMilestones.map { it.id }.toSet()
@@ -167,15 +185,27 @@ fun buildSwimlanes(
         if (list.isEmpty()) return emptyList<SwimChip>() to 0
         val sorted = list.sortedWith(scheduleOrder)
         val labels = sorted.map { chipLabelOf(it, tier) }
+        val widths = sorted.mapIndexed { i, s -> chipWidthDp(labels[i], s.tagIds.size, textScale) }
+        // 俯瞰(名前なし)のときは1行に点を並べるだけにする。
+        if (tier == ZoomTier.OVERVIEW) {
+            return sorted.mapIndexed { i, s -> SwimChip(s, 0, "", s.date.isBefore(today), widths[i]) } to 1
+        }
         val intervals = sorted.mapIndexed { i, s ->
             // 点は日付の枠の中央に置く。区間はその点の左端から文字の右端まで(+少しの余白)。
             val center = daysOf(s.date) + 0.5
             val left = center - widthDays(5f)
-            left to left + widthDays(chipWidthDp(labels[i]) + 8f)
+            left to left + widthDays(widths[i] + 8f)
         }
         val rows = assignRows(intervals)
-        val chips = sorted.mapIndexed { i, s -> SwimChip(s, rows[i], labels[i], s.date.isBefore(today)) }
-        return chips to (rows.maxOrNull() ?: -1) + 1
+        // 行が多くなりすぎる(毎日の習慣など)ときは、上限を超えた分を点だけにして最後の行に置く。
+        val chips = sorted.mapIndexed { i, s ->
+            if (rows[i] >= MAX_CHIP_ROWS) {
+                SwimChip(s, MAX_CHIP_ROWS - 1, "", s.date.isBefore(today), 10f)
+            } else {
+                SwimChip(s, rows[i], labels[i], s.date.isBefore(today), widths[i])
+            }
+        }
+        return chips to min((rows.maxOrNull() ?: -1) + 1, MAX_CHIP_ROWS)
     }
 
     /** 中日程の期間。日付がなければ配下の小日程から推定する。 */
@@ -208,10 +238,10 @@ fun buildSwimlanes(
             val barStart = daysOf(g.start)
             val barEnd = daysOf(g.end) + 1
             // バーに名前が入りきらないときは右の外に出すので、その分も範囲に含める。
-            val nameDays = widthDays(estimateTextWidthDp(g.m.title, 12f) + 16f)
+            val nameDays = widthDays(estimateTextWidthDp(g.m.title, 12f) * textScale + 16f)
             val nameEnd = if (nameDays > barEnd - barStart) barEnd + nameDays else barEnd
             val chipEnd = g.chips.maxOfOrNull { c ->
-                daysOf(c.schedule.date) + 0.5 - widthDays(5f) + widthDays(chipWidthDp(c.label) + 8f)
+                daysOf(c.schedule.date) + 0.5 - widthDays(5f) + widthDays(c.widthDp + 8f)
             } ?: barEnd
             val chipStart = g.chips.minOfOrNull { c -> daysOf(c.schedule.date) + 0.5 - widthDays(5f) } ?: barStart
             min(barStart, chipStart) to max(max(barEnd, nameEnd), chipEnd) + widthDays(12f)
@@ -220,7 +250,7 @@ fun buildSwimlanes(
         val trackCount = (tracks.maxOrNull() ?: -1) + 1
         val trackHeights = MutableList(trackCount) { 0f }
         groups.forEachIndexed { i, g ->
-            val h = SWIM_BAR_DP + g.rows * SWIM_CHIP_ROW_DP + SWIM_GROUP_GAP_DP
+            val h = barDp + g.rows * rowDp + SWIM_GROUP_GAP_DP
             trackHeights[tracks[i]] = max(trackHeights[tracks[i]], h)
         }
         val bars = groups.mapIndexed { i, g ->
@@ -253,7 +283,7 @@ fun buildSwimlanes(
         val trackTops = mutableListOf<Float>()
         var t = 0f
         d.trackHeights.forEach { h -> trackTops += t; t += h }
-        val height = SWIM_HEADER_DP + t + SWIM_BAND_PAD_DP
+        val height = headerDp + t + SWIM_BAND_PAD_DP
         val habit = goal.type == GoalType.HABIT
         val childStart = d.bars.minOfOrNull { it.start }
         val childEnd = d.bars.maxOfOrNull { it.end }
@@ -287,7 +317,7 @@ fun buildSwimlanes(
 
     if (loose.isNotEmpty()) {
         val (chips, rows) = layoutChips(loose)
-        val height = SWIM_HEADER_DP + rows * SWIM_CHIP_ROW_DP + SWIM_GROUP_GAP_DP + SWIM_BAND_PAD_DP
+        val height = headerDp + rows * rowDp + SWIM_GROUP_GAP_DP + SWIM_BAND_PAD_DP
         bands += SwimBand(
             id = "__unassigned__",
             kind = SwimBandKind.UNASSIGNED,
@@ -310,6 +340,8 @@ fun buildSwimlanes(
     }
 
     val allDates = buildList {
+        // 今日も範囲に含める(予定がすべて先・すべて過去でも、最初の画面に目盛りと今日が出るように)。
+        add(today)
         bands.forEach { b ->
             b.spanStart?.let { add(it) }
             b.spanEnd?.let { add(it) }
@@ -333,7 +365,7 @@ fun buildSwimlanes(
             }
         }
     }
-    return SwimLayout(bands, links, minDate, maxDate, y, tier)
+    return SwimLayout(bands, links, minDate, maxDate, y, tier, headerDp, barDp, rowDp)
 }
 
 /** 段の割り当てに使う1日の幅を段階的な値にする(ズーム中に何度も組み替わって揺れないように)。 */
