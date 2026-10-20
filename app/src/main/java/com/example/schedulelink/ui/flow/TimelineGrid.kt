@@ -277,3 +277,7 @@ fun DrawScope.drawGridRuler(
         }
     }
 }
+
+/** 上端に固定するルーラーの高さ(px)。文字を大きくする設定では、ルーラーと同じ割合で広げる。 */
+fun androidx.compose.ui.unit.Density.timelineRulerHeightPx(): Float =
+    RULER_HEIGHT_DP.dp.toPx() * fontScale.coerceIn(1f, 1.5f)

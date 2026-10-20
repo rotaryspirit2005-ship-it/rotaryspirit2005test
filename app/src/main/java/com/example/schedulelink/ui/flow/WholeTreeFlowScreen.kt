@@ -93,22 +93,6 @@ import com.example.schedulelink.ui.theme.connectorColor
 import com.example.schedulelink.ui.theme.fadeThrough
 import java.time.LocalDate
 
-/** カードの塗りに階層色をどれだけ混ぜるか(0=無地、1=階層色そのまま)。 */
-private const val CARD_TINT_RATIO = 0.12f
-
-/** 接続線の色の濃さ(親ごとの色をこの透明度で使う。暗い背景でも濁らないよう高めにする)。 */
-private const val CONNECTOR_ALPHA = 0.9f
-/** 色を付けない線(子が1つだけの親から出る線)の濃さ。 */
-private const val NEUTRAL_CONNECTOR_ALPHA = 0.7f
-/** 子カードの左端につける、親の線と同じ色の帯の幅。 */
-private val BRANCH_STRIPE_WIDTH = 5.dp
-
-/** タグの絞り込みに合わないカードの透明度。 */
-private const val DIMMED_CARD_ALPHA = 0.35f
-
-/** 選択中のノードと無関係な線を薄くする際の透明度。 */
-private const val DIMMED_LINE_ALPHA = 0.22f
-
 /**
  * 階層ごとのアクセント色。白背景では明るい色は文字として読みにくくなるため、
  * ライト/ダークで別の濃さを使う([isDark]は[LocalIsDarkTheme]から取得する)。
@@ -120,28 +104,8 @@ internal fun TreeTier.color(isDark: Boolean): Color = when (this) {
 }
 
 /**
- * 標準の大きさ(scale=1)より拡大されている分だけを打ち消す係数。
- * 縮小方向(scale<1、俯瞰して見るとき)はそのまま自然に小さくなってよいので触らず、
- * 拡大方向(scale>1、日の目盛りを出すためにつまんで拡大したとき)だけ、
- * カードや文字・線が際限なく大きくならないよう抑える。
- */
-private fun capScale(scale: Float): Float = if (scale <= 1f) 1f else 1f / scale
-
-/**
- * 地図のピンのように、大きく拡大しても画面上の見た目のサイズが際限なく
- * 大きくならないようにする。実際の位置はズームに合わせて広がるが、
- * カードや文字自体は標準の大きさ以上には育たない。
- */
-private fun Modifier.counterScale(scale: Float): Modifier {
-    val factor = capScale(scale)
-    return this.graphicsLayer(scaleX = factor, scaleY = factor)
-}
-
-/**
- * 大目的〜小日程までを1本の木として、実際の日付に沿ったタイムライン上に描画し、
- * さらに小日程どうしの横のリンクも同じキャンバス上に重ねて表示する「全体マップ」。
- * [ZoomPanBox]でピンチズーム・パンできるので、全体を俯瞰しても、
- * 指でつまんで特定の時期・枝を拡大しても見られる。
+ * 大目的〜小日程までを見渡す「全体マップ」。ツリー(字下げの一覧)と、タイムライン
+ * (大目的ごとの帯に中日程の期間のバーと予定の点を並べたもの。[SwimlaneTimeline])を切り替えられる。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -249,18 +213,18 @@ fun WholeTreeFlowScreen(
                             }
                         } ?: Box(modifier = Modifier.fillMaxSize())
                     } else {
-                        // 配線の計算は重いので、タイムライン表示のときだけ購読する。
-        val state by viewModel.timeline.collectAsState()
+                        // タイムライン表示のときだけ購読する。
+                        val data by viewModel.timelineData.collectAsState()
                         Column(modifier = Modifier.fillMaxSize()) {
-                            val current = state
-                            if (current != null && current.tree.nodes.isNotEmpty()) {
+                            val current = data
+                            if (current != null && !current.isEmpty) {
                                 TreeLegend()
                             }
                             Box(modifier = Modifier.weight(1f)) {
                                 if (current == null) {
-                                    // 配線を計算している間(バックグラウンド)。
-                                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                                } else if (current.tree.nodes.isEmpty()) {
+                                    // 読み込み前は何も出さない。
+                                    Box(modifier = Modifier.fillMaxSize())
+                                } else if (current.isEmpty) {
                                     EmptyState(
                                         icon = Icons.Outlined.Flag,
                                         message = "まだ大目的がありません",
@@ -269,17 +233,15 @@ fun WholeTreeFlowScreen(
                                         onAction = onAddGoalClick
                                     )
                                 } else {
-                                    WholeTreeCanvas(
-                                        state = current,
+                                    SwimlaneTimeline(
+                                        goals = current.goals,
+                                        milestones = current.milestones,
+                                        schedules = current.schedules,
                                         tagFilter = activeTagFilter,
                                         knownTagIds = knownTagIds,
-                                        onNodeClick = { node ->
-                                            when (node.tier) {
-                                                TreeTier.GOAL -> onGoalClick(node.id)
-                                                TreeTier.MILESTONE -> onMilestoneClick(node.id)
-                                                TreeTier.SCHEDULE -> onScheduleClick(node.id)
-                                            }
-                                        }
+                                        onGoalClick = onGoalClick,
+                                        onMilestoneClick = onMilestoneClick,
+                                        onScheduleClick = onScheduleClick
                                     )
                                 }
                             }
@@ -291,24 +253,30 @@ fun WholeTreeFlowScreen(
     }
 }
 
-/** 色の意味(階層)が初見でも分かるよう、目的マップ上部に出す簡易凡例。 */
+/** タイムラインの見方の簡易凡例(1行に収まる量にする)。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TreeLegend() {
     val isDark = LocalIsDarkTheme.current
     FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        TreeLegendItem("大目的") { LegendDot(TreeTier.GOAL.color(isDark)) }
-        TreeLegendItem("中日程") { LegendDot(TreeTier.MILESTONE.color(isDark)) }
-        TreeLegendItem("小日程") { LegendDot(TreeTier.SCHEDULE.color(isDark)) }
-        // 線の色は階層ではなく「どの親か」を表す。
-        TreeLegendItem("同じ色の線=同じ親") {
-            LegendLine(listOf(connectorColor(2, isDark), connectorColor(5, isDark)), dashed = false)
+        TreeLegendItem("帯=大目的") {
+            Box(modifier = Modifier.width(14.dp).height(10.dp).background(connectorColor(0, isDark).copy(alpha = 0.25f)))
         }
-        TreeLegendItem("予定どうしのリンク") {
+        TreeLegendItem("中日程の期間") {
+            Box(
+                modifier = Modifier
+                    .width(18.dp)
+                    .height(8.dp)
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(connectorColor(0, isDark))
+            )
+        }
+        TreeLegendItem("予定") { LegendDot(connectorColor(0, isDark)) }
+        TreeLegendItem("リンク") {
             LegendLine(listOf(if (isDark) PeerLinkColorDark else PeerLinkColorLight), dashed = true)
         }
         TreeLegendItem("今日") {
@@ -361,7 +329,7 @@ private fun LegendLine(colors: List<Color>, dashed: Boolean) {
     }
 }
 
-private fun monthMarks(minDate: LocalDate, maxDate: LocalDate): List<Pair<LocalDate, String>> {
+internal fun monthMarks(minDate: LocalDate, maxDate: LocalDate): List<Pair<LocalDate, String>> {
     val marks = mutableListOf<Pair<LocalDate, String>>()
     var cursor = minDate.withDayOfMonth(1)
     var first = true
@@ -372,273 +340,4 @@ private fun monthMarks(minDate: LocalDate, maxDate: LocalDate): List<Pair<LocalD
         cursor = cursor.plusMonths(1)
     }
     return marks
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun WholeTreeCanvas(
-    state: TimelineState,
-    tagFilter: Set<String>,
-    knownTagIds: Set<String>,
-    onNodeClick: (TreeNode) -> Unit
-) {
-    val tree = state.tree
-    val layout = state.layout
-    val gridModel = remember(tree) { GridModel(tree.minDate, tree.maxDate, monthMarks(tree.minDate, tree.maxDate)) }
-    // 長押しで選んだノードに関わる線だけをくっきり見せ、他は薄くして見やすくする。
-    var selectedNodeId by remember(tree) { mutableStateOf<String?>(null) }
-
-    val isDark = LocalIsDarkTheme.current
-    val peerLinkColor = if (isDark) PeerLinkColorDark else PeerLinkColorLight
-    // 背景の月日の線と上端のルーラーは、画面の座標で描く(TimelineGrid.kt)。
-    val colorScheme = MaterialTheme.colorScheme
-    val typography = MaterialTheme.typography
-    val gridColors = remember(isDark, colorScheme) {
-        GridColors(
-            isDark = isDark,
-            onSurface = colorScheme.onSurface,
-            onSurfaceVariant = colorScheme.onSurfaceVariant,
-            surface = colorScheme.surface,
-            outlineVariant = colorScheme.outlineVariant,
-            today = if (isDark) TodayLineColorDark else TodayLineColorLight,
-            onToday = if (isDark) DarkOnError else Color.White,
-            saturday = if (isDark) SaturdayColorDark else SaturdayColorLight,
-            sunday = if (isDark) SundayColorDark else SundayColorLight
-        )
-    }
-    val rulerStyles = remember(typography) {
-        RulerStyles(
-            month = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-            day = typography.labelSmall,
-            pill = typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-        )
-    }
-    val textMeasurer = rememberTextMeasurer(cacheSize = 64)
-
-    fun dateToX(date: LocalDate): Dp = timelineX(tree.minDate, date).dp
-
-    // 同じ親から出る線は途中で重なる。1本ずつ半透明で塗ると重なりが濃くなるので、
-    // 親ごと(強調する/しないごと)に1つの経路にまとめて塗る。強調する線は最後に描く。
-    val routeGroups = remember(layout, selectedNodeId) {
-        layout.routes.filter { it.points.size >= 2 }.groupBy { route ->
-            val highlighted = selectedNodeId == null ||
-                selectedNodeId == route.fromId ||
-                selectedNodeId == route.toId
-            Triple(
-                if (route.kind == RouteKind.PEER) "peer:${route.fromId}|${route.toId}" else "tree:${route.fromId}",
-                route.kind,
-                highlighted
-            )
-        }.entries.sortedBy { it.key.third }
-    }
-    // 子カードの左端につける帯の色(色を付けた線の子だけ)。
-    val branchSlotByChild = remember(layout) {
-        layout.routes.filter { it.kind == RouteKind.TREE && it.colorSlot >= 0 }.associate { it.toId to it.colorSlot }
-    }
-    val neutralLineColor = MaterialTheme.colorScheme.onSurfaceVariant
-
-    val contentWidth = layout.width.dp
-    val contentHeight = layout.height.dp
-    val today = remember { LocalDate.now() }
-    val todayInRange = !today.isBefore(tree.minDate) && !today.isAfter(tree.maxDate)
-
-    ZoomPanBox(
-        modifier = Modifier.fillMaxSize(),
-        initialFocusX = if (todayInRange) dateToX(today) else null,
-        backdrop = { zoomPan ->
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawGridBackdrop(zoomPan, gridModel, gridColors, if (todayInRange) today else null)
-            }
-        },
-        overlay = { zoomPan ->
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawGridRuler(zoomPan, gridModel, gridColors, if (todayInRange) today else null, textMeasurer, rulerStyles)
-            }
-        }
-    ) { scale ->
-        Box(modifier = Modifier.width(contentWidth).height(contentHeight)) {
-            Canvas(modifier = Modifier.width(contentWidth).height(contentHeight)) {
-                // 線の太さも、拡大しすぎたときだけ際限なく太くならないよう抑える。
-                val strokeFactor = capScale(scale)
-                val edgeStroke = (1.5.dp * strokeFactor).toPx()
-
-                // 接続線。配置のときに、カードを避けて別の線と重ならない道を計算してある。
-                // 木の線は親ごとの色(子が1つだけの親は無彩色)、予定どうしのリンクは破線で描く。
-                routeGroups.forEach { (key, routes) ->
-                    val isPeer = key.second == RouteKind.PEER
-                    val highlighted = key.third
-                    val slot = routes.first().colorSlot
-                    val baseColor = when {
-                        isPeer -> peerLinkColor
-                        slot >= 0 -> connectorColor(slot, isDark)
-                        else -> neutralLineColor
-                    }
-                    val color = when {
-                        !highlighted -> baseColor.copy(alpha = DIMMED_LINE_ALPHA)
-                        selectedNodeId != null || isPeer -> baseColor
-                        slot >= 0 -> baseColor.copy(alpha = CONNECTOR_ALPHA)
-                        else -> baseColor.copy(alpha = NEUTRAL_CONNECTOR_ALPHA)
-                    }
-                    val path = Path().apply {
-                        routes.forEach { route ->
-                            val first = route.points.first()
-                            moveTo(first.x.dp.toPx(), first.y.dp.toPx())
-                            for (i in 1 until route.points.size) {
-                                val p = route.points[i]
-                                lineTo(p.x.dp.toPx(), p.y.dp.toPx())
-                            }
-                        }
-                    }
-                    drawPath(
-                        path = path,
-                        color = color,
-                        style = Stroke(
-                            width = if (selectedNodeId != null && highlighted) edgeStroke * 1.6f else edgeStroke,
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round,
-                            pathEffect = if (isPeer) {
-                                PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx() * strokeFactor, 5.dp.toPx() * strokeFactor))
-                            } else {
-                                null
-                            }
-                        )
-                    )
-                    // 線の両端に丸をつけ、どのカードのどこから出てどこへ入るのかを分かりやすくする。
-                    if (!isPeer) {
-                        val radius = (if (selectedNodeId != null && highlighted) 4.dp else 2.5.dp).toPx() * strokeFactor
-                        // 拡大するとカードは中心に向かって縮むので、丸もカードの縁に合わせて中心へ寄せる。
-                        fun edgeOf(anchor: Offset, id: String): Offset {
-                            val box = layout.boxes[id] ?: return Offset(anchor.x.dp.toPx(), anchor.y.dp.toPx())
-                            return Offset(
-                                (box.centerX + (anchor.x - box.centerX) * strokeFactor).dp.toPx(),
-                                (box.centerY + (anchor.y - box.centerY) * strokeFactor).dp.toPx()
-                            )
-                        }
-                        routes.distinctBy { it.startAnchor }.forEach { route ->
-                            drawCircle(color, radius, edgeOf(route.startAnchor, route.fromId))
-                        }
-                        routes.forEach { route ->
-                            drawCircle(color, radius, edgeOf(route.endAnchor, route.toId))
-                        }
-                    }
-                }
-            }
-
-            tree.nodes.forEach { node ->
-                val box = layout.boxes[node.id] ?: return@forEach
-                TreeNodeCard(
-                    node = node,
-                    scale = scale,
-                    isSelected = selectedNodeId == node.id,
-                    // タグで絞り込んでいるときは、合わないカードを薄くする(配置や線は変えない)。
-                    dimmed = tagFilter.isNotEmpty() && !matchesTagFilter(node.tagIds, tagFilter, knownTagIds),
-                    branchColor = branchSlotByChild[node.id]?.let { connectorColor(it, isDark) },
-                    modifier = Modifier.offset(x = box.left.dp, y = box.top.dp),
-                    onClick = { onNodeClick(node) },
-                    onLongClick = {
-                        selectedNodeId = if (selectedNodeId == node.id) null else node.id
-                    }
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun TreeNodeCard(
-    node: TreeNode,
-    scale: Float,
-    isSelected: Boolean,
-    dimmed: Boolean,
-    /** 親から来る線の色。左端に同じ色の帯をつけて、どの線につながるカードかを分かりやすくする。 */
-    branchColor: Color?,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    val isDark = LocalIsDarkTheme.current
-    val tierColor = node.tier.color(isDark)
-    val isDone = node.status == NodeStatus.DONE
-    // 背景の線を完全に隠すため、透過なしで塗る。階層色はごく薄く混ぜる程度にして
-    // フラットな印象を保つ。完了したものは透明度で薄くすると文字が読みにくくなるため、
-    // 一段沈んだ面の色と控えめな枠線で「済んだ」ことを表す。
-    val fillColor = if (isDone) {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    } else {
-        lerp(MaterialTheme.colorScheme.surface, tierColor, CARD_TINT_RATIO)
-    }
-    val borderColor = (if (isDone && !isSelected) MaterialTheme.colorScheme.outlineVariant else tierColor)
-        .copy(alpha = if (dimmed) DIMMED_CARD_ALPHA else 1f)
-    val textColor = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-    val shape = MaterialTheme.shapes.medium
-    Column(
-        modifier = modifier
-            .width(NODE_WIDTH.dp)
-            .height(NODE_HEIGHT.dp)
-            .counterScale(scale)
-            .clip(shape)
-            .background(fillColor)
-            .then(
-                if (branchColor == null) {
-                    Modifier
-                } else {
-                    Modifier.drawBehind {
-                        drawRect(color = branchColor, size = Size(BRANCH_STRIPE_WIDTH.toPx(), size.height))
-                    }
-                }
-            )
-            // 長押しで選ぶと、そのノードに関わる線だけが強調されるので、
-            // 選択中であることが分かるよう枠を太くする。
-            .border(if (isSelected) 3.dp else 1.5.dp, borderColor, shape)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 14.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-        // 配線は高さNODE_HEIGHTのカードとして計算しているので、副題がなくても高さは変えない。
-        verticalArrangement = Arrangement.Center
-    ) {
-        // 絞り込みに合わないカードは、塗りは不透明のまま(裏の線を隠したまま)中身だけ薄くする。
-        val contentAlpha = if (dimmed) DIMMED_CARD_ALPHA else 1f
-        Row(
-            modifier = Modifier.alpha(contentAlpha),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isDone) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "完了",
-                    tint = tierColor,
-                    modifier = Modifier.size(10.dp)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(tierColor)
-                )
-            }
-            Text(
-                text = node.title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = textColor,
-                modifier = Modifier.weight(1f, fill = false)
-            )
-            TagDots(node.tagIds, max = 2)
-        }
-        if (node.subtitle.isNotBlank()) {
-            Text(
-                text = node.subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else tierColor,
-                modifier = Modifier.alpha(contentAlpha).padding(start = 14.dp)
-            )
-        }
-    }
 }

@@ -2,8 +2,11 @@ package com.example.schedulelink.ui.flow
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalRepository
+import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneRepository
+import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,20 +33,21 @@ class WholeTreeViewModel(
         .distinctUntilChanged()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
-    /**
-     * タイムライン表示の内容(配置と、カードを避ける配線を含む)。配線の探索は重いので、
-     * バックグラウンドで計算する。計算が終わる前はnull。
-     */
-    val timeline: StateFlow<TimelineState?> = source
-        .map { (goals, milestones, schedules) ->
-            val tree = buildWholeTree(goals, milestones, schedules)
-            TimelineState(tree, layoutTimeline(tree))
-        }
-        .flowOn(Dispatchers.Default)
+    /** タイムライン表示の元データ(配置は画面側で、ズームの段階に合わせて計算する)。読み込み前はnull。 */
+    val timelineData: StateFlow<TimelineData?> = source
+        .map { (goals, milestones, schedules) -> TimelineData(goals, milestones, schedules) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** 読み込み前はnull(「まだ大目的がありません」が一瞬見えるのを避けるため)。 */
     val outline: StateFlow<TreeOutline?> = source
         .map { (goals, milestones, schedules) -> buildTreeOutline(goals, milestones, schedules) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+}
+
+class TimelineData(
+    val goals: List<GoalEntity>,
+    val milestones: List<MilestoneEntity>,
+    val schedules: List<ScheduleEntity>
+) {
+    val isEmpty: Boolean get() = goals.isEmpty() && schedules.isEmpty()
 }
