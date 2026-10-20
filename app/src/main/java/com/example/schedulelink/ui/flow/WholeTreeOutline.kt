@@ -581,7 +581,7 @@ private fun GoalOutlineRow(
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(onClick = onClick)
+            .clickable(onClickLabel = "大目的の詳細を開く", onClick = onClick)
             .drawBehind { drawRect(color, size = size.copy(width = 4.dp.toPx())) }
             .padding(start = GOAL_START, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -650,7 +650,7 @@ private fun MilestoneOutlineRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .clickable(onClick = onClick)
+            .clickable(onClickLabel = "中日程の詳細を開く", onClick = onClick)
             .padding(start = MILESTONE_START, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -722,7 +722,7 @@ private fun ScheduleOutlineRow(
     val isDark = LocalIsDarkTheme.current
     // 過ぎた予定は全体を一段薄い文字色にする(小日程には完了の印がないので「✓」は付けない)。
     val textColor = if (isPast) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-    val weekdayColor = when (schedule.date.dayOfWeek) {
+    val weekdayColor = if (isPast) MaterialTheme.colorScheme.onSurfaceVariant else when (schedule.date.dayOfWeek) {
         java.time.DayOfWeek.SATURDAY -> if (isDark) SaturdayColorDark else SaturdayColorLight
         java.time.DayOfWeek.SUNDAY -> if (isDark) SundayColorDark else SundayColorLight
         else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -770,7 +770,7 @@ private fun ScheduleOutlineRow(
             // 時刻とタグは1行にまとめる。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "${schedule.startTime.format(outlineTimeFormatter)}–${schedule.endTime.format(outlineTimeFormatter)}",
+                    text = "${schedule.startTime.format(outlineTimeFormatter)}〜${schedule.endTime.format(outlineTimeFormatter)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

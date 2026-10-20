@@ -279,7 +279,7 @@ fun buildSwimlanes(
     val colorSlots = goalColorSlots(goals)
     val bands = mutableListOf<SwimBand>()
     var y = 0f
-    ordered.forEachIndexed { index, d ->
+    ordered.forEach { d ->
         val goal = d.goal
         val trackTops = mutableListOf<Float>()
         var t = 0f
