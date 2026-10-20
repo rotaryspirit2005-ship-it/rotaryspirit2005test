@@ -402,10 +402,20 @@ private fun bulkExpandKeys(outline: TreeOutline): List<Pair<String, Boolean>> = 
 fun isOutlineFullyExpanded(outline: TreeOutline, expansion: Map<String, Boolean>, expandMatches: Boolean): Boolean =
     bulkExpandKeys(outline).all { (key, default) -> expansion[key] ?: defaultExpanded(key, default, expandMatches) }
 
-/** 対象をまとめて開く/閉じる。既定値に任せず、明示的に書き込む(後から個別に変えられる)。 */
-fun setOutlineExpanded(outline: TreeOutline, expansion: SnapshotStateMap<String, Boolean>, expanded: Boolean) {
+/**
+ * 対象をまとめて開く/閉じる。既定値と違うものだけを書き込み、既定値と同じになるものは記憶を消す
+ * (ユーザーが変えたものだけを覚える方針のまま。完了した中日程が既定で閉じる動きも残る)。
+ */
+fun setOutlineExpanded(
+    outline: TreeOutline,
+    expansion: SnapshotStateMap<String, Boolean>,
+    expanded: Boolean,
+    expandMatches: Boolean
+) {
     Snapshot.withMutableSnapshot {
-        bulkExpandKeys(outline).forEach { (key, _) -> expansion[key] = expanded }
+        bulkExpandKeys(outline).forEach { (key, default) ->
+            if (defaultExpanded(key, default, expandMatches) == expanded) expansion.remove(key) else expansion[key] = expanded
+        }
     }
 }
 

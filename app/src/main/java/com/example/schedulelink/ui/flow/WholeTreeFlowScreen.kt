@@ -161,7 +161,7 @@ fun WholeTreeFlowScreen(
                     val treeForBulk = shownOutline
                     if (viewMode == 0 && treeForBulk != null && !treeForBulk.isEmpty) {
                         val allOpen = isOutlineFullyExpanded(treeForBulk, expansion, activeTagFilter.isNotEmpty())
-                        IconButton(onClick = { setOutlineExpanded(treeForBulk, expansion, !allOpen) }) {
+                        IconButton(onClick = { setOutlineExpanded(treeForBulk, expansion, !allOpen, activeTagFilter.isNotEmpty()) }) {
                             Icon(
                                 if (allOpen) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
                                 contentDescription = if (allOpen) "すべて閉じる" else "すべて開く"
