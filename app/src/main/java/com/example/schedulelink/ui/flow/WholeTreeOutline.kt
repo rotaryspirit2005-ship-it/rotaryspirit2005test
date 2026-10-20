@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -374,6 +375,40 @@ private val ExpansionSaver = Saver<SnapshotStateMap<String, Boolean>, ArrayList<
     }
 )
 
+/** ツリーの開閉状態(ユーザーが変えたものだけ)。画面回転やプロセス再生成でも保つ。 */
+@Composable
+fun rememberOutlineExpansion(): SnapshotStateMap<String, Boolean> =
+    rememberSaveable(saver = ExpansionSaver) { mutableStateMapOf<String, Boolean>() }
+
+/** 開閉の既定値。タグで絞り込み中は、大目的・中日程・中日程なしの予定を既定で開く。 */
+private fun defaultExpanded(key: String, default: Boolean, expandMatches: Boolean): Boolean =
+    default || (expandMatches && (key.startsWith("g:") || key.startsWith("m:") || key == KEY_UNASSIGNED))
+
+/**
+ * まとめて開閉する対象のキーと、その既定値。大目的・小日程のある中日程・中日程なしの予定。
+ * 過去の予定のたたみ(p:)とつながる予定(l:)は個別の操作に任せ、対象にしない。
+ */
+private fun bulkExpandKeys(outline: TreeOutline): List<Pair<String, Boolean>> = buildList {
+    outline.goals.forEach { goal ->
+        add("g:${goal.goal.id}" to (goal.status != NodeStatus.DONE))
+        goal.milestones.filter { it.schedules.isNotEmpty() }.forEach { m ->
+            add("m:${m.milestone.id}" to (m.status != NodeStatus.DONE))
+        }
+    }
+    if (outline.unassigned.isNotEmpty()) add(KEY_UNASSIGNED to false)
+}
+
+/** 対象がすべて開いているか(ボタンを「すべて閉じる」にするか「すべて開く」にするかの判定)。 */
+fun isOutlineFullyExpanded(outline: TreeOutline, expansion: Map<String, Boolean>, expandMatches: Boolean): Boolean =
+    bulkExpandKeys(outline).all { (key, default) -> expansion[key] ?: defaultExpanded(key, default, expandMatches) }
+
+/** 対象をまとめて開く/閉じる。既定値に任せず、明示的に書き込む(後から個別に変えられる)。 */
+fun setOutlineExpanded(outline: TreeOutline, expansion: SnapshotStateMap<String, Boolean>, expanded: Boolean) {
+    Snapshot.withMutableSnapshot {
+        bulkExpandKeys(outline).forEach { (key, _) -> expansion[key] = expanded }
+    }
+}
+
 private val rowAppearSpec = tween<Float>(Motion.DurationMedium)
 private val rowDisappearSpec = tween<Float>(Motion.DurationShort)
 
@@ -389,6 +424,8 @@ fun WholeTreeOutlineView(
     onMilestoneClick: (String) -> Unit,
     onScheduleClick: (String) -> Unit,
     onAddGoalClick: () -> Unit,
+    /** 開閉状態。画面側で[rememberOutlineExpansion]で持つ(まとめて開閉するボタンと共有するため)。 */
+    expansion: SnapshotStateMap<String, Boolean>,
     modifier: Modifier = Modifier,
     /** タグで絞り込み中は、合う項目が閉じた大目的・中日程の中に隠れないよう、既定で開く。 */
     expandMatches: Boolean = false
@@ -404,10 +441,8 @@ fun WholeTreeOutlineView(
         return
     }
 
-    val expansion = rememberSaveable(saver = ExpansionSaver) { mutableStateMapOf<String, Boolean>() }
     val today = remember { LocalDate.now() }
-    fun defaultOf(key: String, default: Boolean): Boolean =
-        default || (expandMatches && (key.startsWith("g:") || key.startsWith("m:") || key == KEY_UNASSIGNED))
+    fun defaultOf(key: String, default: Boolean): Boolean = defaultExpanded(key, default, expandMatches)
     val rows = flattenOutline(outline, today) { key, default -> expansion[key] ?: defaultOf(key, default) }
     fun toggle(key: String, default: Boolean) {
         expansion[key] = !(expansion[key] ?: defaultOf(key, default))

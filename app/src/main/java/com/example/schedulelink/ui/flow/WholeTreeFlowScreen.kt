@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,6 +132,18 @@ fun WholeTreeFlowScreen(
     }
     // 0 = ツリー(既定)、1 = タイムライン。
     var viewMode by rememberSaveable { mutableStateOf(0) }
+    // ツリーに出す内容(タグで絞り込み・並べ替え済み)と開閉状態。まとめて開閉するボタンと共有する。
+    val shownOutline = remember(outline, activeTagFilter, knownTagIds, sortByTag, tagController) {
+        outline?.let { fullOutline ->
+            val filtered = filterOutlineByTags(fullOutline, activeTagFilter, knownTagIds)
+            if (sortByTag && tagController != null) {
+                sortOutlineByTags(filtered, tagController.tags.withIndex().associate { (index, tag) -> tag.id to index })
+            } else {
+                filtered
+            }
+        }
+    }
+    val expansion = rememberOutlineExpansion()
     // 表示を切り替えて戻ったときも、ツリーの開閉やスクロール位置を保つ。
     val viewStateHolder = rememberSaveableStateHolder()
 
@@ -143,6 +157,17 @@ fun WholeTreeFlowScreen(
                     }
                 },
                 actions = {
+                    // ツリー表示のときだけ、まとめて開く/閉じるボタンを出す。
+                    val treeForBulk = shownOutline
+                    if (viewMode == 0 && treeForBulk != null && !treeForBulk.isEmpty) {
+                        val allOpen = isOutlineFullyExpanded(treeForBulk, expansion, activeTagFilter.isNotEmpty())
+                        IconButton(onClick = { setOutlineExpanded(treeForBulk, expansion, !allOpen) }) {
+                            Icon(
+                                if (allOpen) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                                contentDescription = if (allOpen) "すべて閉じる" else "すべて開く"
+                            )
+                        }
+                    }
                     IconButton(onClick = onGoalListClick) {
                         Icon(Icons.Default.FormatListBulleted, contentDescription = "大目的をリストで見る")
                     }
@@ -183,18 +208,7 @@ fun WholeTreeFlowScreen(
                 viewStateHolder.SaveableStateProvider(mode) {
                     if (mode == 0) {
                         // 読み込み前(null)は何も出さない。
-                        outline?.let { fullOutline ->
-                            val shown = remember(fullOutline, activeTagFilter, knownTagIds, sortByTag, tagController) {
-                                val filtered = filterOutlineByTags(fullOutline, activeTagFilter, knownTagIds)
-                                if (sortByTag && tagController != null) {
-                                    sortOutlineByTags(
-                                        filtered,
-                                        tagController.tags.withIndex().associate { (index, tag) -> tag.id to index }
-                                    )
-                                } else {
-                                    filtered
-                                }
-                            }
+                        shownOutline?.let { shown ->
                             if (activeTagFilter.isNotEmpty() && shown.isEmpty) {
                                 EmptyState(
                                     icon = Icons.Outlined.LocalOffer,
@@ -204,6 +218,7 @@ fun WholeTreeFlowScreen(
                             } else {
                                 WholeTreeOutlineView(
                                     outline = shown,
+                                    expansion = expansion,
                                     expandMatches = activeTagFilter.isNotEmpty(),
                                     onGoalClick = onGoalClick,
                                     onMilestoneClick = onMilestoneClick,
