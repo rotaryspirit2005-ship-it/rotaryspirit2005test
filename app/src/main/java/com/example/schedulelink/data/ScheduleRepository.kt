@@ -95,6 +95,10 @@ class ScheduleRepository(
             .get().await()
             .documents.map { it.toSchedule() }.sortedWith(byDateTime)
 
+    /** すべての予定の単発取得(ウィジェットのタイムライン用)。 */
+    suspend fun allSchedulesOnce(): List<ScheduleEntity> =
+        collection.get().await().documents.map { it.toSchedule() }.sortedWith(byDateTime)
+
     suspend fun schedulesForDateWithLinksOnce(date: LocalDate): List<ScheduleWithLinks> {
         val dayList = collection.whereEqualTo("date", date.toString()).get().await()
             .documents.map { it.toSchedule() }.sortedWith(byDateTime)

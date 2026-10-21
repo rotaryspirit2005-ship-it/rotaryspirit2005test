@@ -121,6 +121,9 @@ fun ScheduleNavHost(
         if (pendingDestination == DeepLinks.TODOS) {
             DeepLinks.pending.value = null
             navController.navigate(ROUTE_TODOS) { launchSingleTop = true }
+        } else if (pendingDestination == DeepLinks.WHOLE_MAP) {
+            DeepLinks.pending.value = null
+            navController.navigate(ROUTE_WHOLE_TREE) { launchSingleTop = true }
         }
     }
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository, todoRepository) }

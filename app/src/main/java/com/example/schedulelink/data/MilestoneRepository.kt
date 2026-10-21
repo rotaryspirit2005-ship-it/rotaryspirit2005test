@@ -60,6 +60,10 @@ class MilestoneRepository(
             GoalProgress(doneCount = list.count { it.status == MilestoneStatus.DONE }, totalCount = list.size)
         }
 
+    /** 単発取得(ウィジェット用)。購読ではなくget()でサーバーから取る(CLAUDE.md参照)。 */
+    suspend fun allMilestonesOnce(): List<MilestoneEntity> =
+        collection.get().await().documents.map { it.toMilestone() }.sortedWith(byOrder)
+
     suspend fun saveMilestone(milestone: MilestoneEntity): String {
         val docRef = if (milestone.id.isBlank()) collection.document() else collection.document(milestone.id)
         docRef.set(milestone.toMap()).await()

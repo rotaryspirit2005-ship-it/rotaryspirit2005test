@@ -1,5 +1,6 @@
 package com.example.schedulelink.ui.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
@@ -7,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.ColorFilter
@@ -20,6 +22,7 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
@@ -34,6 +37,7 @@ import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -52,6 +56,8 @@ import androidx.glance.text.TextStyle
 import com.example.schedulelink.MainActivity
 import com.example.schedulelink.R
 import com.example.schedulelink.ScheduleLinkApplication
+import com.example.schedulelink.data.GoalRepository
+import com.example.schedulelink.data.MilestoneRepository
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.ScheduleWithLinks
@@ -83,6 +89,8 @@ private val SELECTED_ON_KEY = stringPreferencesKey("selected_on")
 /** 「更新」やアプリ側からの再取得要求のたびに書き換え、表示中のセッションにも再取得させるための値。 */
 private val REFRESH_TOKEN_KEY = longPreferencesKey("refresh_token")
 private val DATE_PARAM = ActionParameters.Key<String>("date")
+/** 下のタイムラインを隠しているか(ウィジェットごと)。 */
+private val TIMELINE_HIDDEN_KEY = booleanPreferencesKey("timeline_hidden")
 
 /** ウィジェット1回分の表示内容。どの選択日・どの再取得要求に対して取得したものかも持つ。 */
 private data class MonthWidgetData(
@@ -98,7 +106,10 @@ private data class MonthWidgetData(
     /** 未完了のやること(アプリと同じ並び)。 */
     val openTodos: List<TodoEntity>,
     /** やることの取得に失敗した場合の理由(予定の取得とは別に扱う)。 */
-    val todoError: String?
+    val todoError: String?,
+    /** 下に出す縮小版のタイムライン(期間内に何もなければnull)。 */
+    val timeline: WidgetTimeline?,
+    val timelineError: String?
 )
 
 /**
@@ -129,7 +140,9 @@ private suspend fun loadMonthWidgetData(
     context: Context,
     selectedDate: LocalDate,
     refreshToken: Long,
-    timeoutMillis: Long
+    timeoutMillis: Long,
+    /** タイムラインを描く幅(dp)。ウィジェットの中身の実際の幅。 */
+    timelineWidthDp: Float
 ): MonthWidgetData {
     val month = YearMonth.from(selectedDate)
     var scheduleCounts: Map<LocalDate, Int> = emptyMap()
@@ -139,6 +152,9 @@ private suspend fun loadMonthWidgetData(
     var monthSchedulesById: Map<String, ScheduleEntity> = emptyMap()
     var openTodos: List<TodoEntity> = emptyList()
     var todoError: String? = null
+    var timeline: WidgetTimeline? = null
+    var timelineError: String? = null
+    var timelineLoaded = false
     var schedulesLoaded = false
     var todosLoaded = false
     try {
@@ -161,6 +177,21 @@ private suspend fun loadMonthWidgetData(
                             WidgetErrorLog.record(context, "MonthMiniWidget.fetchTodos", e)
                         }
                     }
+                    // 下の縮小版タイムライン(全大目的・中日程・予定を単発取得して画像に描く)。
+                    val timelineJob = async {
+                        try {
+                            val goals = GoalRepository(app.firestore, familyId).allGoalsOnce()
+                            val milestones = MilestoneRepository(app.firestore, familyId).allMilestonesOnce()
+                            val allSchedules = ScheduleRepository(app.firestore, familyId).allSchedulesOnce()
+                            timeline = renderWidgetTimeline(context, timelineWidthDp, goals, milestones, allSchedules)
+                            timelineLoaded = true
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            timelineError = "${e::class.simpleName}: ${e.message}"
+                            WidgetErrorLog.record(context, "MonthMiniWidget.fetchTimeline", e)
+                        }
+                    }
                     try {
                         val repo = ScheduleRepository(app.firestore, familyId)
                         val monthSchedules = repo.schedulesInRangeOnce(month.atDay(1), month.atEndOfMonth())
@@ -175,6 +206,7 @@ private suspend fun loadMonthWidgetData(
                         WidgetErrorLog.record(context, "MonthMiniWidget.fetch", e)
                     }
                     todosJob.await()
+                    timelineJob.await()
                 }
                 true
             }
@@ -183,6 +215,7 @@ private suspend fun loadMonthWidgetData(
                 val timeoutMessage = "データ取得がタイムアウトしました(通信状況をご確認ください)"
                 if (!schedulesLoaded && fetchError == null) fetchError = timeoutMessage
                 if (!todosLoaded && todoError == null) todoError = timeoutMessage
+                if (!timelineLoaded && timelineError == null) timelineError = timeoutMessage
                 WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "データ取得タイムアウト")
             }
         }
@@ -199,7 +232,7 @@ private suspend fun loadMonthWidgetData(
     }
     return MonthWidgetData(
         month, selectedDate, refreshToken, scheduleCounts, selectedDaySchedules, fetchError, isSignedIn,
-        monthSchedulesById, openTodos, todoError
+        monthSchedulesById, openTodos, todoError, timeline, timelineError
     )
 }
 
@@ -218,11 +251,13 @@ class MonthMiniWidget : GlanceAppWidget() {
 
         // 最初の描画ですぐ中身が出るよう、表示前に一度取得しておく。
         val prefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+        val timelineWidthDp = widgetContentWidthDp(context, id)
         val initial = loadMonthWidgetData(
             context,
             resolveSelectedDate(prefs[SELECTED_DATE_KEY], prefs[SELECTED_ON_KEY]),
             prefs[REFRESH_TOKEN_KEY] ?: 0L,
-            timeoutMillis = 8_000
+            timeoutMillis = 8_000,
+            timelineWidthDp = timelineWidthDp
         )
 
         provideContent {
@@ -235,12 +270,39 @@ class MonthMiniWidget : GlanceAppWidget() {
                 if (value.selectedDate != selectedDate || value.refreshToken != refreshToken) {
                     // 表示中のセッションはタップ後しばらくで閉じられるため、ここでは短めに打ち切る
                     // (取得中にセッションが閉じて「読み込み中…」のまま残るのを避ける)。
-                    value = loadMonthWidgetData(context, selectedDate, refreshToken, timeoutMillis = 4_000)
+                    value = loadMonthWidgetData(context, selectedDate, refreshToken, timeoutMillis = 4_000, timelineWidthDp = timelineWidthDp)
                 }
             }
-            MonthMiniWidgetContent(data = data, selectedDate = selectedDate)
+            val timelineHidden = currentState(TIMELINE_HIDDEN_KEY) ?: false
+            MonthMiniWidgetContent(data = data, selectedDate = selectedDate, timelineHidden = timelineHidden)
         }
         WidgetErrorLog.recordInfo(context, "MonthMiniWidget", "provideGlance完了(provideContent呼び出し済み)")
+    }
+}
+
+/** ウィジェットの中身の幅(dp)。ホーム画面での幅から左右の余白(12dp×2)を引く。取れなければ300dp。 */
+private suspend fun widgetContentWidthDp(context: Context, id: GlanceId): Float = try {
+    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+    val minWidth = AppWidgetManager.getInstance(context).getAppWidgetOptions(appWidgetId)
+        .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+    if (minWidth > 0) (minWidth - 24).toFloat() else 300f
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    300f
+}
+
+/** 下のタイムラインの「隠す/表示」。 */
+class ToggleTimelineAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        try {
+            updateAppWidgetState(context, glanceId) { prefs ->
+                prefs[TIMELINE_HIDDEN_KEY] = !(prefs[TIMELINE_HIDDEN_KEY] ?: false)
+            }
+            MonthMiniWidget().update(context, glanceId)
+        } catch (e: Throwable) {
+            WidgetErrorLog.record(context, "ToggleTimelineAction", e)
+        }
     }
 }
 
@@ -300,7 +362,7 @@ private fun buildMonthGrid(month: YearMonth): List<List<LocalDate?>> {
 // 以前はルート直下に「タイトル・曜日・週×5〜6・見出し・一覧…」を並べていたため、一覧が
 // 11個目以降になって常に消えていた。直下の子は3つのまとまりにし、一覧はLazyColumnにする。
 @Composable
-private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDate) {
+private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDate, timelineHidden: Boolean) {
     // 表示する月は選択日の月。取得が追いつくまでは、別の月の件数を点として出さない。
     val displayedMonth = YearMonth.from(selectedDate)
     val weeks = buildMonthGrid(displayedMonth)
@@ -467,6 +529,13 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                             today = today,
                             onClick = actionStartActivity(DeepLinks.todosIntent(context))
                         )
+                        timelineSection(
+                            data = data,
+                            isLoading = isLoading,
+                            hidden = timelineHidden,
+                            onToggle = actionRunCallback<ToggleTimelineAction>(),
+                            onOpen = actionStartActivity(DeepLinks.wholeMapIntent(context))
+                        )
                         item { Spacer(modifier = GlanceModifier.height(4.dp)) }
                     }
                 }
@@ -490,6 +559,71 @@ private fun MonthNavIcon(resId: Int, description: String, onClick: Action) {
 private const val WIDGET_TODO_LIMIT = 8
 
 private val todoDueWidgetFormatter = DateTimeFormatter.ofPattern("M/d", Locale.JAPAN)
+
+/**
+ * やることの下に続く、縮小版のタイムライン(先週の日曜から8週間)。見出しの右端で隠す/表示を切り替え、
+ * 画像をタップするとアプリの全体マップを開く。
+ */
+private fun androidx.glance.appwidget.lazy.LazyListScope.timelineSection(
+    data: MonthWidgetData,
+    isLoading: Boolean,
+    hidden: Boolean,
+    onToggle: Action,
+    onOpen: Action
+) {
+    item {
+        Column(modifier = GlanceModifier.fillMaxWidth().padding(top = 8.dp)) {
+            Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(WidgetOutlineVariant)) {}
+            Row(
+                modifier = GlanceModifier.fillMaxWidth().height(40.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (hidden) "タイムライン(非表示)" else "タイムライン",
+                    style = TextStyle(color = WidgetOnBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                    modifier = GlanceModifier.defaultWeight().clickable(onOpen)
+                )
+                Text(
+                    text = if (hidden) "表示" else "隠す",
+                    style = TextStyle(color = WidgetAccent, fontWeight = FontWeight.Medium, fontSize = 12.sp),
+                    modifier = GlanceModifier.fillMaxHeight().padding(horizontal = 12.dp, vertical = 12.dp).clickable(onToggle)
+                )
+            }
+        }
+    }
+    if (hidden) return
+    val timeline = data.timeline
+    item {
+        if (timeline != null && !isLoading) {
+            Column(modifier = GlanceModifier.fillMaxWidth()) {
+                Image(
+                    provider = ImageProvider(timeline.bitmap),
+                    contentDescription = timeline.description,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = GlanceModifier.fillMaxWidth().height(timeline.heightDp.dp).clickable(onOpen)
+                )
+                if (timeline.hiddenBandCount > 0) {
+                    Text(
+                        text = "ほか ${timeline.hiddenBandCount}件 — 全体マップで見る",
+                        style = TextStyle(color = WidgetSubText, fontSize = 12.sp),
+                        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onOpen)
+                    )
+                }
+            }
+        } else {
+            Text(
+                text = when {
+                    isLoading -> "読み込み中…"
+                    data.timelineError != null -> "取得エラー: ${data.timelineError}"
+                    else -> "この8週間の中日程・予定はありません"
+                },
+                style = TextStyle(color = WidgetSubText, fontSize = 13.sp),
+                maxLines = 2,
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onOpen)
+            )
+        }
+    }
+}
 
 /** 予定の下に続く「やること」欄(見出し・行・「ほか N件」)。どこをタップしてもやること一覧を開く。 */
 private fun androidx.glance.appwidget.lazy.LazyListScope.todoSection(

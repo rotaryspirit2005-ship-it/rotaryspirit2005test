@@ -40,6 +40,9 @@ class GoalRepository(
     fun goalById(id: String): Flow<GoalEntity?> =
         collection.document(id).observeAsFlow().endOnPermissionDenied().map { snap -> if (snap.exists()) snap.toGoal() else null }
 
+    /** 単発取得(ウィジェット用)。購読ではなくget()でサーバーから取る(CLAUDE.md参照)。 */
+    suspend fun allGoalsOnce(): List<GoalEntity> = collection.get().await().documents.map { it.toGoal() }
+
     suspend fun saveGoal(goal: GoalEntity): String {
         val docRef = if (goal.id.isBlank()) collection.document() else collection.document(goal.id)
         docRef.set(goal.toMap()).await()

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  */
 object DeepLinks {
     const val TODOS = "todos"
+    const val WHOLE_MAP = "wholeMap"
 
     val pending = MutableStateFlow<String?>(null)
 
@@ -23,6 +24,12 @@ object DeepLinks {
     fun todosIntent(context: Context): Intent =
         Intent(context, MainActivity::class.java)
             .setData(Uri.parse("schedulelink://$TODOS"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+    /** 全体マップを開くIntent(ウィジェットのタイムラインから)。 */
+    fun wholeMapIntent(context: Context): Intent =
+        Intent(context, MainActivity::class.java)
+            .setData(Uri.parse("schedulelink://$WHOLE_MAP"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     fun destinationOf(intent: Intent?): String? = intent?.data?.takeIf { it.scheme == "schedulelink" }?.host
