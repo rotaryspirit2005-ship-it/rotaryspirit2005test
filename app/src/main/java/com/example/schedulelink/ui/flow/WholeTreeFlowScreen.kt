@@ -113,6 +113,8 @@ internal fun TreeTier.color(isDark: Boolean): Color = when (this) {
 @Composable
 fun WholeTreeFlowScreen(
     viewModel: WholeTreeViewModel,
+    /** 最初に開く表示(0 = ツリー、1 = タイムライン)。 */
+    initialMode: Int = 0,
     onGoalClick: (String) -> Unit,
     onMilestoneClick: (String) -> Unit,
     onScheduleClick: (String) -> Unit,
@@ -131,7 +133,7 @@ fun WholeTreeFlowScreen(
         tagFilter.filter { it == NO_TAG_FILTER || it in knownTagIds }.toSet()
     }
     // 0 = ツリー(既定)、1 = タイムライン。
-    var viewMode by rememberSaveable { mutableStateOf(0) }
+    var viewMode by rememberSaveable { mutableStateOf(initialMode) }
     // ツリーに出す内容(タグで絞り込み・並べ替え済み)と開閉状態。まとめて開閉するボタンと共有する。
     val shownOutline = remember(outline, activeTagFilter, knownTagIds, sortByTag, tagController) {
         outline?.let { fullOutline ->

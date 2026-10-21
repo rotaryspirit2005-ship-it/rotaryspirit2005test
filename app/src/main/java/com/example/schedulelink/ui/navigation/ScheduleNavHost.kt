@@ -69,6 +69,8 @@ private const val ROUTE_DETAIL = "detail/{id}"
 private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}&date={date}"
 private const val ROUTE_GOALS = "goals"
 private const val ROUTE_WHOLE_TREE = "wholeTree"
+/** 全体マップをタイムライン表示で開く(ウィジェットのタイムラインから)。 */
+private const val ROUTE_WHOLE_TREE_TIMELINE = "wholeTreeTimeline"
 private const val ROUTE_GOAL_EDIT = "goalEdit?id={id}"
 private const val ROUTE_GOAL_DETAIL = "goalDetail/{id}"
 private const val ROUTE_MILESTONE_EDIT = "milestoneEdit/{goalId}?id={id}"
@@ -123,7 +125,7 @@ fun ScheduleNavHost(
             navController.navigate(ROUTE_TODOS) { launchSingleTop = true }
         } else if (pendingDestination == DeepLinks.WHOLE_MAP) {
             DeepLinks.pending.value = null
-            navController.navigate(ROUTE_WHOLE_TREE) { launchSingleTop = true }
+            navController.navigate(ROUTE_WHOLE_TREE_TIMELINE) { launchSingleTop = true }
         }
     }
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository, todoRepository) }
@@ -246,6 +248,20 @@ fun ScheduleNavHost(
             TodoListScreen(
                 viewModel = vm,
                 onScheduleClick = { id -> navController.navigate("detail/$id") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(ROUTE_WHOLE_TREE_TIMELINE) {
+            val vm: WholeTreeViewModel = viewModel(factory = factory)
+            WholeTreeFlowScreen(
+                viewModel = vm,
+                initialMode = 1,
+                onGoalClick = { id -> navController.navigate("goalDetail/$id") },
+                onMilestoneClick = { id -> navController.navigate("milestoneDetail/$id") },
+                onScheduleClick = { id -> navController.navigate("detail/$id") },
+                onAddGoalClick = { navController.navigate("goalEdit") },
+                onGoalListClick = { navController.navigate(ROUTE_GOALS) },
                 onBack = { navController.popBackStack() }
             )
         }
