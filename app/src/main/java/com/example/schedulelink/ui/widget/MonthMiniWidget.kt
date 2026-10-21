@@ -394,6 +394,10 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
     val scheduleCounts = if (data.month == displayedMonth) data.scheduleCounts else emptyMap()
     val today = LocalDate.now()
     val context = LocalContext.current
+    // LazyColumnの中身は@Composableではないので、状態はここで読んでおく。
+    val currentRefreshToken = currentState(REFRESH_TOKEN_KEY) ?: 0L
+    val timelineLoading = data.timeline == null && data.timelineError == null &&
+        !timelineHidden && data.refreshToken != currentRefreshToken
     val openAppAction = actionStartActivity(Intent(context, MainActivity::class.java))
     // 選択日を変えた直後は、新しい日の予定を取り終えるまで前の日の予定を出さない。
     val isLoading = data.selectedDate != selectedDate
@@ -556,7 +560,7 @@ private fun MonthMiniWidgetContent(data: MonthWidgetData, selectedDate: LocalDat
                         )
                         timelineSection(
                             data = data,
-                            isLoading = data.timeline == null && data.timelineError == null && !timelineHidden && data.refreshToken != (currentState(REFRESH_TOKEN_KEY) ?: 0L),
+                            isLoading = timelineLoading,
                             hidden = timelineHidden,
                             onToggle = actionRunCallback<ToggleTimelineAction>(),
                             onOpen = actionStartActivity(DeepLinks.wholeMapIntent(context))
