@@ -151,15 +151,83 @@ class PlanTableViewModel(
     fun insertAfter(afterId: String, level: PlanLevel): String {
         val list = _rows.value.toMutableList()
         val index = list.indexOfFirst { it.id == afterId }
-        val row = PlanRow(level = level, tagIds = if (level == PlanLevel.What) list.getOrNull(index)?.tagIds.orEmpty() else emptyList())
         // 行の下に子の行が続いているときは、子の後ろに足す(同じ段の次の行として)
         var insertAt = index + 1
         if (index >= 0) {
             while (insertAt < list.size && list[insertAt].level.depth > level.depth) insertAt++
         }
-        list.add(insertAt.coerceIn(0, list.size), row)
+        insertAt = insertAt.coerceIn(0, list.size)
+        val previous = list.getOrNull(insertAt - 1)
+        // 予定を続けて書くときは、すぐ上の予定の翌日を先に入れておく(違えば直すだけで済む)
+        val start = if (level == PlanLevel.What && previous?.level == PlanLevel.What) previous.start?.plusDays(1) else null
+        val row = PlanRow(
+            level = level,
+            start = start,
+            tagIds = if (level == PlanLevel.What) list.getOrNull(index)?.tagIds.orEmpty() else emptyList()
+        )
+        list.add(insertAt, row)
         setRows(list)
         return row.id
+    }
+
+    /**
+     * タイトル欄のひと言入力を読み取り、空いている欄にだけ入れる(手で決めた値は上書きしない)。
+     * 入れなかった語はタイトルに残す。
+     */
+    fun applyShorthand(id: String, tags: List<ShorthandTag>) {
+        val row = _rows.value.firstOrNull { it.id == id } ?: return
+        if (row.existingId != null) return
+        val parsed = parseShorthand(row.title, tags)
+        if (!parsed.foundAnything) return
+        var next = row.copy(title = parsed.title)
+        val leftover = mutableListOf<String>()
+        val tokens = row.autoTokens.toMutableMap()
+        if (parsed.start != null && parsed.dateText != null) {
+            if (row.start == null) {
+                next = next.copy(start = parsed.start, end = if (row.level == PlanLevel.What) null else parsed.end ?: parsed.start)
+                tokens["when"] = parsed.dateText
+            } else {
+                leftover += parsed.dateText
+            }
+        }
+        if (parsed.location != null && parsed.locationText != null) {
+            if (row.level == PlanLevel.What && row.location.isBlank()) {
+                next = next.copy(location = parsed.location)
+                tokens["where"] = parsed.locationText
+            } else {
+                leftover += parsed.locationText
+            }
+        }
+        if (parsed.tagIds.isNotEmpty() && parsed.tagText != null) {
+            if (row.tagIds.isEmpty()) {
+                next = next.copy(tagIds = parsed.tagIds)
+                tokens["who"] = parsed.tagText
+            } else {
+                leftover += parsed.tagText
+            }
+        }
+        next = next.copy(
+            title = (listOf(next.title) + leftover).filter { it.isNotBlank() }.joinToString(" "),
+            autoTokens = tokens
+        )
+        if (next != row) update(next)
+    }
+
+    /** ひと言入力で入れた欄を消し、元の語をタイトルに戻す。 */
+    fun undoShorthand(id: String, field: String) {
+        val row = _rows.value.firstOrNull { it.id == id } ?: return
+        val token = row.autoTokens[field] ?: return
+        val cleared = when (field) {
+            "when" -> row.copy(start = null, end = null)
+            "who" -> row.copy(tagIds = emptyList())
+            else -> row.copy(location = "")
+        }
+        update(
+            cleared.copy(
+                title = listOf(row.title, token).filter { it.isNotBlank() }.joinToString(" "),
+                autoTokens = row.autoTokens - field
+            )
+        )
     }
 
     fun append(level: PlanLevel): String {

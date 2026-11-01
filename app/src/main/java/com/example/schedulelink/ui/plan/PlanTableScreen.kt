@@ -1,6 +1,20 @@
 package com.example.schedulelink.ui.plan
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.example.schedulelink.ui.theme.Motion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -165,13 +179,18 @@ fun PlanTableScreen(
     var tagRowId by remember { mutableStateOf<String?>(null) }
     var locationRowId by remember { mutableStateOf<String?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    // いま入力中の行(見える化で強調する)
+    var editingId by remember { mutableStateOf<String?>(null) }
+    val shorthandTags = LocalTagController.current?.tags?.map { ShorthandTag(it.id, it.name) }.orEmpty()
+    val fillSummary = remember(rows) { summarizeFill(rows) }
+    val displayItems = remember(rows) { planListItems(rows) }
 
     // 書きかけはViewModelが変更のたびに端末へ残す
     LaunchedEffect(Unit) { viewModel.initialize(store, goalId) }
     val listState = rememberLazyListState()
     // 足した行が画面の外なら、そこまで送ってから入力欄を移す(先頭の凡例の分だけ1つずらす)
     LaunchedEffect(focusId) {
-        val index = rows.indexOfFirst { it.id == focusId }
+        val index = displayItems.indexOfFirst { it is PlanListItem.RowItem && it.row.id == focusId }
         if (index >= 0) listState.animateScrollToItem(index + 1)
     }
 
@@ -286,53 +305,95 @@ fun PlanTableScreen(
                 )
             }
         } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),
-                contentPadding = PaddingValues(horizontal = Dimens.ScreenPadding, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                item(key = "legend") { FiveW1HLegend() }
-                items(rows, key = { it.id }) { row ->
-                    val index = rows.indexOf(row)
-                    PlanRowCard(
-                        row = row,
-                        requestFocus = focusId == row.id,
-                        onFocused = { if (focusId == row.id) focusId = null },
-                        canMoveUp = index > 0,
-                        canMoveDown = index < rows.lastIndex,
-                        onChange = viewModel::update,
-                        onNext = { focusId = viewModel.insertAfter(row.id, row.level) },
-                        onAddBelow = { level -> focusId = viewModel.insertAfter(row.id, level) },
-                        onDate = { dateRowId = row.id },
-                        onTags = { tagRowId = row.id },
-                        onLocation = { locationRowId = row.id },
-                        onIndent = { delta -> viewModel.indent(row.id, delta) },
-                        onMove = { delta -> viewModel.move(row.id, delta) },
-                        onDelete = {
-                            val removed = viewModel.delete(row.id) ?: return@PlanRowCard
-                            scope.launch {
-                                val result = snackbarHostState.showSnackbar(
-                                    "行を削除しました",
-                                    actionLabel = "元に戻す",
-                                    duration = SnackbarDuration.Short
+            Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+                FillBand(
+                    summary = fillSummary,
+                    onHintClick = { hint ->
+                        val id = hint.rowId ?: return@FillBand
+                        scope.launch {
+                            val index = displayItems.indexOfFirst { it is PlanListItem.RowItem && it.row.id == id }
+                            if (index >= 0) listState.animateScrollToItem(index + 1)
+                        }
+                        when (hint.slot) {
+                            FillSlot.When -> dateRowId = id
+                            FillSlot.Who -> tagRowId = id
+                            FillSlot.Where -> locationRowId = id
+                            else -> focusId = id
+                        }
+                    }
+                )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = Dimens.ScreenPadding, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    item(key = "legend") { FiveW1HLegend() }
+                    items(displayItems, key = { it.key }) { item ->
+                        when (item) {
+                            is PlanListItem.Ghost -> GhostRow(
+                                text = "最初にやることは？",
+                                onClick = { focusId = viewModel.insertAfter(item.afterId, PlanLevel.What) }
+                            )
+                            is PlanListItem.RowItem -> {
+                                val row = item.row
+                                val index = rows.indexOf(row)
+                                PlanRowCard(
+                                    row = row,
+                                    requestFocus = focusId == row.id,
+                                    onFocused = { if (focusId == row.id) focusId = null },
+                                    canMoveUp = index > 0,
+                                    canMoveDown = index < rows.lastIndex,
+                                    onChange = viewModel::update,
+                                    onNext = {
+                                        viewModel.applyShorthand(row.id, shorthandTags)
+                                        focusId = viewModel.insertAfter(row.id, row.level)
+                                    },
+                                    onAddBelow = { level -> focusId = viewModel.insertAfter(row.id, level) },
+                                    onDate = { dateRowId = row.id },
+                                    onTags = { tagRowId = row.id },
+                                    onLocation = { locationRowId = row.id },
+                                    onIndent = { delta -> viewModel.indent(row.id, delta) },
+                                    onMove = { delta -> viewModel.move(row.id, delta) },
+                                    onDelete = {
+                                        val removed = viewModel.delete(row.id) ?: return@PlanRowCard
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                "行を削除しました",
+                                                actionLabel = "元に戻す",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) viewModel.restore(removed.first, removed.second)
+                                        }
+                                    },
+                                    fill = fillSummary.fills[row.id],
+                                    highlighted = editingId == row.id,
+                                    onFocusChange = { focused ->
+                                        if (focused) {
+                                            editingId = row.id
+                                        } else if (editingId == row.id) {
+                                            // 入力欄を離れたら、ひと言入力を読み取る
+                                            editingId = null
+                                            viewModel.applyShorthand(row.id, shorthandTags)
+                                        }
+                                    },
+                                    onUndoAuto = { field -> viewModel.undoShorthand(row.id, field) }
                                 )
-                                if (result == SnackbarResult.ActionPerformed) viewModel.restore(removed.first, removed.second)
                             }
                         }
-                    )
-                }
-                item(key = "add") {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        PlanLevel.entries.forEach { level ->
-                            OutlinedButton(onClick = { focusId = viewModel.append(level) }) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("${level.label}(${level.hint})")
+                    }
+                    item(key = "add") {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            PlanLevel.entries.forEach { level ->
+                                OutlinedButton(onClick = { focusId = viewModel.append(level) }) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("${level.label}(${level.hint})")
+                                }
                             }
                         }
                     }
@@ -354,7 +415,9 @@ fun PlanTableScreen(
                 hintDate = hintDate,
                 onDismiss = { dateRowId = null },
                 onConfirm = { start, end ->
-                    viewModel.update(row.copy(start = start, end = if (row.level == PlanLevel.What) null else end))
+                    viewModel.update(
+                        row.copy(start = start, end = if (row.level == PlanLevel.What) null else end, autoTokens = row.autoTokens - "when")
+                    )
                     dateRowId = null
                 }
             )
@@ -371,7 +434,7 @@ fun PlanTableScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("誰が「${row.title.ifBlank { row.level.label }}」をしますか？", style = MaterialTheme.typography.titleMedium)
-                    TagPickerSection(selectedIds = row.tagIds, onChange = { viewModel.update(row.copy(tagIds = it)) })
+                    TagPickerSection(selectedIds = row.tagIds, onChange = { viewModel.update(row.copy(tagIds = it, autoTokens = row.autoTokens - "who")) })
                     Button(onClick = { tagRowId = null }, modifier = Modifier.fillMaxWidth()) { Text("決定") }
                 }
             }
@@ -396,7 +459,7 @@ fun PlanTableScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        viewModel.update(row.copy(location = text.trim()))
+                        viewModel.update(row.copy(location = text.trim(), autoTokens = row.autoTokens - "where"))
                         locationRowId = null
                     }) { Text("決定") }
                 },
@@ -462,7 +525,11 @@ private fun PlanRowCard(
     onLocation: () -> Unit,
     onIndent: (Int) -> Unit,
     onMove: (Int) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    fill: RowFill?,
+    highlighted: Boolean,
+    onFocusChange: (Boolean) -> Unit,
+    onUndoAuto: (String) -> Unit
 ) {
     val color = levelColor(row.level)
     val focusRequester = remember { FocusRequester() }
@@ -480,6 +547,9 @@ private fun PlanRowCard(
             .padding(start = 18.dp * row.level.depth)
             .height(IntrinsicSize.Min)
             .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(12.dp))
+            .then(
+                if (highlighted) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier
+            )
     ) {
         Box(
             Modifier
@@ -508,7 +578,8 @@ private fun PlanRowCard(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 40.dp)
-                        .focusRequester(focusRequester),
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { onFocusChange(it.isFocused) },
                     decorationBox = { inner ->
                         Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.heightIn(min = 40.dp)) {
                             if (row.title.isEmpty()) {
@@ -536,6 +607,7 @@ private fun PlanRowCard(
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
+                if (fill != null) FillDots(fill)
                 RowMenu(
                     row = row,
                     canMoveUp = canMoveUp,
@@ -552,20 +624,26 @@ private fun PlanRowCard(
                         icon = Icons.Outlined.CalendarMonth,
                         value = whenText(row.level, row.start, row.end),
                         placeholder = "いつ？",
-                        onClick = onDate
+                        onClick = onDate,
+                        auto = "when" in row.autoTokens,
+                        onUndoAuto = { onUndoAuto("when") }
                     )
                     CellChip(
                         icon = Icons.Outlined.Person,
                         value = tagNames(row.tagIds),
                         placeholder = "誰が？",
-                        onClick = onTags
+                        onClick = onTags,
+                        auto = "who" in row.autoTokens,
+                        onUndoAuto = { onUndoAuto("who") }
                     )
                     if (row.level == PlanLevel.What) {
                         CellChip(
                             icon = Icons.Outlined.Place,
                             value = row.location.ifBlank { null },
                             placeholder = "どこで？",
-                            onClick = onLocation
+                            onClick = onLocation,
+                            auto = "where" in row.autoTokens,
+                            onUndoAuto = { onUndoAuto("where") }
                         )
                     }
                 }
@@ -580,19 +658,84 @@ private fun tagNames(tagIds: List<String>): String? {
     return controller.resolve(tagIds).takeIf { it.isNotEmpty() }?.joinToString("・") { it.name }
 }
 
+/**
+ * いつ・誰が・どこでの1欄。ひと言入力で入った値([auto])は✨と色で示し、×で元の語をタイトルに戻せる。
+ */
 @Composable
-private fun CellChip(icon: androidx.compose.ui.graphics.vector.ImageVector, value: String?, placeholder: String, onClick: () -> Unit) {
+private fun CellChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String?,
+    placeholder: String,
+    onClick: () -> Unit,
+    auto: Boolean = false,
+    onUndoAuto: () -> Unit = {}
+) {
+    val container by animateColorAsState(
+        if (auto && value != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        animationSpec = tween(Motion.DurationSelect),
+        label = "autoChip"
+    )
     AssistChip(
         onClick = onClick,
         label = {
             Text(
                 value ?: placeholder,
                 maxLines = 1,
-                color = if (value == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                color = when {
+                    value == null -> MaterialTheme.colorScheme.outline
+                    auto -> MaterialTheme.colorScheme.onPrimaryContainer
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
             )
         },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize)) }
+        leadingIcon = {
+            Icon(
+                if (auto && value != null) Icons.Outlined.AutoAwesome else icon,
+                contentDescription = if (auto && value != null) "ひと言入力から読み取り" else null,
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        },
+        trailingIcon = if (auto && value != null) {
+            {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(AssistChipDefaults.IconSize)
+                        .clickable(onClickLabel = "読み取りを取り消す", onClick = onUndoAuto)
+                )
+            }
+        } else {
+            null
+        },
+        colors = AssistChipDefaults.assistChipColors(containerColor = container)
     )
+}
+
+/** 行の5W1Hの埋まり具合(6つの点)。対象外の欄は輪だけにする。 */
+@Composable
+private fun FillDots(fill: RowFill) {
+    val description = "具体度 " + FillSlot.entries.filter { fill.slots[it] != null }
+        .joinToString("、") { "${it.label}${if (fill.slots[it] == true) "済み" else "未定"}" }
+    Row(
+        modifier = Modifier.padding(horizontal = 4.dp).semantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        FillSlot.entries.forEach { slot ->
+            val state = fill.slots[slot]
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .then(
+                        when (state) {
+                            true -> Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
+                            false -> Modifier.border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                            null -> Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        }
+                    )
+            )
+        }
+    }
 }
 
 @Composable
@@ -805,6 +948,93 @@ private fun ConfirmList(
                     }
                 }
             }
+        }
+    }
+}
+
+/** 表に並べる項目。行と、予定のない中日程の下に出す「最初にやることは？」の薄い行。 */
+private sealed interface PlanListItem {
+    val key: String
+
+    data class RowItem(val row: PlanRow) : PlanListItem {
+        override val key: String get() = row.id
+    }
+
+    data class Ghost(val afterId: String) : PlanListItem {
+        override val key: String get() = "ghost-$afterId"
+    }
+}
+
+private fun planListItems(rows: List<PlanRow>): List<PlanListItem> = buildList {
+    rows.forEachIndexed { index, row ->
+        add(PlanListItem.RowItem(row))
+        val next = rows.getOrNull(index + 1)
+        if (row.level == PlanLevel.How && row.title.isNotBlank() && next?.level != PlanLevel.What) {
+            add(PlanListItem.Ghost(row.id))
+        }
+    }
+}
+
+/** 次に書くとよい行の誘い(押すとその行ができて入力できる)。 */
+@Composable
+private fun GhostRow(text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 18.dp * PlanLevel.What.depth)
+            .heightIn(min = 48.dp)
+            .dashedBorder(MaterialTheme.colorScheme.outline, 12.dp)
+            .clickable(onClickLabel = "予定の行を足す", onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+    }
+}
+
+/** 点線の角丸の枠。 */
+private fun Modifier.dashedBorder(color: Color, radius: androidx.compose.ui.unit.Dp): Modifier = drawBehind {
+    drawRoundRect(
+        color = color,
+        cornerRadius = CornerRadius(radius.toPx()),
+        style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+    )
+}
+
+/** 常に出す「計画の具体度」の帯。リングと、次に埋めるとよい所のひと言。 */
+@Composable
+private fun FillBand(summary: PlanFillSummary, onHintClick: (FillHint) -> Unit) {
+    val progress by animateFloatAsState(summary.ratio, animationSpec = tween(Motion.DurationLong), label = "fillRing")
+    val percent = (summary.ratio * 100).toInt()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(enabled = summary.hint.rowId != null, onClickLabel = "その行へ移動") { onHintClick(summary.hint) }
+            .padding(horizontal = Dimens.ScreenPadding, vertical = 8.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "計画の具体度 ${percent}%、${summary.hint.text}" },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxSize(),
+                color = if (percent >= 50) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                strokeWidth = 4.dp
+            )
+            if (percent >= 100) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            } else {
+                Text("$percent%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("計画の具体度", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(summary.hint.text, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

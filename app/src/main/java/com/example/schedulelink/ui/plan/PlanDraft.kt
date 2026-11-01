@@ -34,7 +34,9 @@ data class PlanRow(
     /** どこで(予定だけ) */
     val location: String = "",
     /** 登録済みの大目的・中日程を指すとき、そのID(この行は新しく作らず、下に追加する先になる)。 */
-    val existingId: String? = null
+    val existingId: String? = null,
+    /** ひと言入力で読み取った欄と、その元の語(キーは "when" / "who" / "where")。チップに✨を出し、×で元に戻す。 */
+    val autoTokens: Map<String, String> = emptyMap()
 )
 
 /** 行の問題(登録前の確認で赤く出す)。 */
@@ -99,6 +101,7 @@ class PlanDraftStore(context: Context) {
         .put("tagIds", JSONArray(tagIds))
         .put("location", location)
         .put("existingId", existingId ?: "")
+        .put("autoTokens", JSONObject(autoTokens))
 
     private fun JSONObject.toRow(): PlanRow {
         val tags = optJSONArray("tagIds")
@@ -110,7 +113,10 @@ class PlanDraftStore(context: Context) {
             end = optString("end").takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) },
             tagIds = if (tags == null) emptyList() else (0 until tags.length()).map { tags.getString(it) },
             location = optString("location"),
-            existingId = optString("existingId").takeIf { it.isNotBlank() }
+            existingId = optString("existingId").takeIf { it.isNotBlank() },
+            autoTokens = optJSONObject("autoTokens")?.let { obj ->
+                obj.keys().asSequence().associateWith { obj.optString(it) }
+            }.orEmpty()
         )
     }
 
