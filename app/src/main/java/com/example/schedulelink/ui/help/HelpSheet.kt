@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.AssistChip
@@ -88,6 +91,8 @@ fun HelpSheet(topic: HelpTopic, onDismiss: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // 横向きや分割画面でも「次へ」まで届くようにする
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = Dimens.ScreenPadding)
                     .padding(bottom = Dimens.ScreenPadding)
             ) {
@@ -106,7 +111,8 @@ fun HelpSheet(topic: HelpTopic, onDismiss: () -> Unit) {
                     } else if (topic != HelpTopic.Intro) {
                         AssistChip(
                             onClick = { shownName = topic.name },
-                            label = { Text("${topic.label}に戻る") }
+                            label = { Text("戻る") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                     }
                 }
@@ -202,7 +208,8 @@ private fun HelpPageCard(page: HelpPage, number: Int, total: Int, appear: Float)
 @Composable
 private fun PageDots(count: Int, current: Int, modifier: Modifier = Modifier) {
     Row(
-        modifier = modifier.clearAndSetSemantics { contentDescription = "${count}ページ中${current + 1}ページ目" },
+        // ページ数はカード側で読み上げるので、点は読み上げない
+        modifier = modifier.clearAndSetSemantics { },
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {

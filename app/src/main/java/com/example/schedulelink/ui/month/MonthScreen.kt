@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Checklist
@@ -80,7 +81,7 @@ import androidx.compose.ui.unit.dp
 import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.WidgetErrorLog
-import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpSheet
 import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.TodayBadge
@@ -148,6 +149,8 @@ fun MonthScreen(
     // タグでの絞り込み(「パパの予定だけ」など)。削除済みのタグが残っていても無視する。
     val tagController = LocalTagController.current
     var tagFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var showHelp by rememberSaveable { mutableStateOf(false) }
+    if (showHelp) HelpSheet(topic = HelpTopic.Month, onDismiss = { showHelp = false })
     val knownTagIds = remember(tagController) { tagController?.byId?.keys.orEmpty() }
     val activeTagFilter = remember(tagFilter, knownTagIds) {
         tagFilter.filter { it == NO_TAG_FILTER || it in knownTagIds }.toSet()
@@ -230,11 +233,17 @@ fun MonthScreen(
                     IconButton(onClick = onGoalMapClick) {
                         Icon(Icons.Default.Flag, contentDescription = "目的マップ")
                     }
-                    HelpAction(HelpTopic.Month)
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "その他")
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        // 上部バーは月の見出しと3つのボタンで埋まっているので、使い方ガイドはここに置く
+                        DropdownMenuItem(
+                            text = { Text("この画面の使い方") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null) },
+                            onClick = { showMenu = false; showHelp = true }
+                        )
+                        HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("やることリスト") },
                             leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null) },

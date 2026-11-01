@@ -39,7 +39,7 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
         listOf(
             HelpPage(
                 "左右にスワイプで月を移動",
-                "日付をタップすると、その日の予定とやることが下に出ます。赤い丸が今日です。",
+                "日付をタップすると、その日の予定とやることが下に出ます。塗りつぶした丸が今日です。",
                 HelpArt.MonthSwipe
             ),
             HelpPage(
@@ -48,8 +48,8 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
                 HelpArt.Fab
             ),
             HelpPage(
-                "旗マークで目的マップへ",
-                "旗のボタンで目的の一覧へ。右上の︙メニューには、やること・家族・タグ・読み込みがあります。",
+                "旗マークで全体マップへ",
+                "旗のボタンで、目的・中日程・予定をまとめて見渡せる全体マップへ。右上の︙メニューには、やること・家族・タグ・読み込み・この使い方ガイドがあります。",
                 HelpArt.MapMenu
             )
         )
@@ -239,7 +239,7 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
         listOf(
             HelpPage(
                 "家族ひとりに1つのタグ",
-                "名前と色を決めて、予定や目的に付けます。並び順も変えられます。",
+                "名前と色を決めて、予定や目的に付けます。",
                 HelpArt.Tags
             ),
             HelpPage(

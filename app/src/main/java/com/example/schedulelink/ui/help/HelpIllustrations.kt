@@ -418,14 +418,18 @@ private fun MonthSwipeArt(c: ArtColors) {
                         Box(
                             modifier = Modifier
                                 .size(18.dp)
-                                .then(if (isToday) Modifier.border(2.dp, c.today, CircleShape) else Modifier),
+                                .then(if (isToday) Modifier.background(MaterialTheme.colorScheme.primary, CircleShape) else Modifier),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 Modifier
                                     .size(if (hasEvent) 8.dp else 5.dp)
                                     .background(
-                                        if (hasEvent) c.schedule else MaterialTheme.colorScheme.outlineVariant,
+                                        when {
+                                            isToday -> MaterialTheme.colorScheme.onPrimary
+                                            hasEvent -> c.schedule
+                                            else -> MaterialTheme.colorScheme.outlineVariant
+                                        },
                                         CircleShape
                                     )
                             )
