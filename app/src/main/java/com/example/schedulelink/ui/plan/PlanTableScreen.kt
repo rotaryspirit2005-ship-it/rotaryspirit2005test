@@ -8,6 +8,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
@@ -135,7 +137,7 @@ private fun LocalDate.toMillis(): Long = atStartOfDay(ZoneOffset.UTC).toInstant(
 private fun Long.toLocalDate(): LocalDate = Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
 
 @Composable
-private fun levelColor(level: PlanLevel): Color {
+internal fun levelColor(level: PlanLevel): Color {
     val dark = LocalIsDarkTheme.current
     return when (level) {
         PlanLevel.Why -> if (dark) GoalColorDark else GoalColorLight
@@ -145,7 +147,7 @@ private fun levelColor(level: PlanLevel): Color {
 }
 
 /** 「いつ」の表示。予定は1日、大目的・中日程は期間。 */
-private fun whenText(level: PlanLevel, start: LocalDate?, end: LocalDate?): String? = when {
+internal fun whenText(level: PlanLevel, start: LocalDate?, end: LocalDate?): String? = when {
     start == null -> null
     level == PlanLevel.What || end == null || end == start -> start.format(shortDate)
     else -> "${start.format(shortDate)}〜${end.format(shortDate)}"
@@ -181,6 +183,8 @@ fun PlanTableScreen(
     var showClearConfirm by remember { mutableStateOf(false) }
     // いま入力中の行(見える化で強調する)
     var editingId by remember { mutableStateOf<String?>(null) }
+    // 見える化パネル(構造・日程・分担)を開いているか
+    var panelOpen by rememberSaveable { mutableStateOf(true) }
     val shorthandTags = LocalTagController.current?.tags?.map { ShorthandTag(it.id, it.name) }.orEmpty()
     val fillSummary = remember(rows) { summarizeFill(rows) }
     val displayItems = remember(rows) { planListItems(rows) }
@@ -308,6 +312,8 @@ fun PlanTableScreen(
             Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                 FillBand(
                     summary = fillSummary,
+                    panelOpen = panelOpen,
+                    onTogglePanel = { panelOpen = !panelOpen },
                     onHintClick = { hint ->
                         val id = hint.rowId ?: return@FillBand
                         scope.launch {
@@ -322,6 +328,27 @@ fun PlanTableScreen(
                         }
                     }
                 )
+                if (panelOpen) {
+                    PlanVisualPanel(
+                        rows = rows,
+                        editingId = editingId,
+                        onRowTap = { id -> focusId = id },
+                        onGhostTap = { howId -> focusId = viewModel.insertAfter(howId, PlanLevel.What) },
+                        onDateRequest = { id -> dateRowId = id },
+                        onRowDragged = { before, after ->
+                            viewModel.update(after)
+                            scope.launch {
+                                val result = snackbarHostState.showSnackbar(
+                                    "「${after.title.ifBlank { after.level.label }}」の日付を変えました",
+                                    actionLabel = "元に戻す",
+                                    duration = SnackbarDuration.Short
+                                )
+                                if (result == SnackbarResult.ActionPerformed) viewModel.update(before)
+                            }
+                        }
+                    )
+                    HorizontalDivider()
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -1005,7 +1032,7 @@ private fun Modifier.dashedBorder(color: Color, radius: androidx.compose.ui.unit
 
 /** 常に出す「計画の具体度」の帯。リングと、次に埋めるとよい所のひと言。 */
 @Composable
-private fun FillBand(summary: PlanFillSummary, onHintClick: (FillHint) -> Unit) {
+private fun FillBand(summary: PlanFillSummary, panelOpen: Boolean, onTogglePanel: () -> Unit, onHintClick: (FillHint) -> Unit) {
     val progress by animateFloatAsState(summary.ratio, animationSpec = tween(Motion.DurationLong), label = "fillRing")
     val percent = (summary.ratio * 100).toInt()
     Row(
@@ -1014,7 +1041,7 @@ private fun FillBand(summary: PlanFillSummary, onHintClick: (FillHint) -> Unit) 
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(enabled = summary.hint.rowId != null, onClickLabel = "その行へ移動") { onHintClick(summary.hint) }
             .padding(horizontal = Dimens.ScreenPadding, vertical = 8.dp)
-            .semantics(mergeDescendants = true) { contentDescription = "計画の具体度 ${percent}%、${summary.hint.text}" },
+            .padding(end = 0.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
@@ -1032,9 +1059,15 @@ private fun FillBand(summary: PlanFillSummary, onHintClick: (FillHint) -> Unit) 
             }
         }
         Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = "計画の具体度 ${percent}%、${summary.hint.text}" }) {
             Text("計画の具体度", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(summary.hint.text, style = MaterialTheme.typography.bodyMedium)
+        }
+        IconButton(onClick = onTogglePanel) {
+            Icon(
+                if (panelOpen) Icons.Default.ExpandLess else Icons.Default.Insights,
+                contentDescription = if (panelOpen) "見える化を閉じる" else "見える化を開く"
+            )
         }
     }
 }
