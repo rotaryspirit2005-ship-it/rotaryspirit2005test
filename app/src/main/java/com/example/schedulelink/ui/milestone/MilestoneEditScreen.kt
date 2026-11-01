@@ -47,9 +47,9 @@ import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SelectableChip
-import com.example.schedulelink.ui.common.ShiftLinkedRow
-import com.example.schedulelink.ui.common.periodShiftHint
-import com.example.schedulelink.ui.common.ShiftScheduleChecklist
+import com.example.schedulelink.ui.common.ShiftDialogGroup
+import com.example.schedulelink.ui.common.ShiftLinkedDialog
+import com.example.schedulelink.ui.common.toShiftDialogItem
 import com.example.schedulelink.ui.common.rangeShiftDays
 import com.example.schedulelink.ui.common.signedDays
 import kotlinx.coroutines.flow.flowOf
@@ -85,21 +85,18 @@ fun MilestoneEditScreen(
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val context = LocalContext.current
 
-    // 期間を平行移動したときに、この中日程の予定も同じ日数ずらすオプション。元の日付は
+    // 期間を平行移動して保存するときに、この中日程の予定も同じ日数ずらすかをダイアログで聞く。元の日付は
     // 「もともと日付がなかった」かどうかも区別するため、画面の初期値とは別に持つ。
     var originalStart by remember { mutableStateOf<LocalDate?>(null) }
     var originalEnd by remember { mutableStateOf<LocalDate?>(null) }
-    var shiftLinked by remember { mutableStateOf(false) }
-    var excludedScheduleIds by remember { mutableStateOf(setOf<String>()) }
+    var shiftDialog by remember { mutableStateOf<List<ShiftDialogGroup>?>(null) }
+    var saving by remember { mutableStateOf(false) }
     val schedulesFlow = remember(milestoneId) {
         if (milestoneId != null) viewModel.schedulesOfMilestone(milestoneId) else flowOf(emptyList())
     }
     val milestoneSchedules by schedulesFlow.collectAsState(initial = emptyList())
     val dayShift = rangeShiftDays(originalStart, originalEnd, startDate, endDate)
     val canShiftLinked = milestoneId != null && dayShift != null && milestoneSchedules.isNotEmpty()
-    val activeShift = if (shiftLinked && canShiftLinked) dayShift ?: 0L else 0L
-    // 最初は全件チェック済み。外したものだけ除く(あとから増えた予定も自動でチェック済みになる)。
-    val selectedSchedules = milestoneSchedules.filter { it.id !in excludedScheduleIds }
 
     LaunchedEffect(milestoneId) {
         if (milestoneId != null) {
@@ -120,6 +117,32 @@ fun MilestoneEditScreen(
     // 入力を直したら、固定バーに出ている検証エラーを消す(直したのに赤いまま残らないように)。
     LaunchedEffect(title, startDate, endDate) { errorMessage = null }
 
+    // 保存の本体。ダイアログの各ボタンと、ダイアログを出さないときの両方から呼ぶ。
+    fun save(shiftScheduleIds: Set<String>, shiftDays: Long) {
+        saving = true
+        val milestone = MilestoneEntity(
+            id = milestoneId ?: "",
+            goalId = goalId,
+            title = title.trim(),
+            memo = memo.trim(),
+            startDate = startDate,
+            endDate = endDate,
+            status = status,
+            photoUrls = existingPhotoUrls,
+            tagIds = tagIds
+        )
+        viewModel.save(milestone, pendingPhotoUris, removedPhotoUrls, shiftScheduleIds, shiftDays) {
+            if (shiftDays != 0L && shiftScheduleIds.isNotEmpty()) {
+                Toast.makeText(
+                    context,
+                    "この中日程の予定 ${shiftScheduleIds.size}件の日付を${signedDays(shiftDays)}ずらしました",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            onSaved()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.imePadding(),
         bottomBar = {
@@ -128,37 +151,14 @@ fun MilestoneEditScreen(
                         errorMessage = "タイトルを入力してください"
                     } else if (!endDate.isAfter(startDate)) {
                         errorMessage = "終了日は開始日より後にしてください"
+                    } else if (canShiftLinked && dayShift != null) {
+                        errorMessage = null
+                        shiftDialog = listOf(ShiftDialogGroup(null, milestoneSchedules.map { it.toShiftDialogItem(dayShift) }))
                     } else {
                         errorMessage = null
-                        val milestone = MilestoneEntity(
-                            id = milestoneId ?: "",
-                            goalId = goalId,
-                            title = title.trim(),
-                            memo = memo.trim(),
-                            startDate = startDate,
-                            endDate = endDate,
-                            status = status,
-                            photoUrls = existingPhotoUrls,
-                            tagIds = tagIds
-                        )
-                        viewModel.save(
-                            milestone,
-                            pendingPhotoUris,
-                            removedPhotoUrls,
-                            shiftScheduleIds = if (activeShift != 0L) selectedSchedules.map { it.id }.toSet() else emptySet(),
-                            shiftDays = activeShift
-                        ) {
-                            if (activeShift != 0L && selectedSchedules.isNotEmpty()) {
-                                Toast.makeText(
-                                    context,
-                                    "リンクした予定の日付を${signedDays(activeShift)}ずらしました",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            onSaved()
-                        }
+                        save(emptySet(), 0L)
                     }
-        }, errorMessage = errorMessage)
+        }, errorMessage = errorMessage, enabled = !saving)
         },
         topBar = {
             TopAppBar(
@@ -237,32 +237,6 @@ fun MilestoneEditScreen(
                 )
             }
 
-            // スイッチは常に出して操作できる(選んだ状態は保たれ、期間を平行移動した時点で効く)。
-            ShiftLinkedRow(
-                checked = shiftLinked,
-                onCheckedChange = { shiftLinked = it },
-                label = if (canShiftLinked && dayShift != null) {
-                    "この中日程の予定 ${selectedSchedules.size}件も ${signedDays(dayShift)}ずらす"
-                } else {
-                    "この中日程の予定も同じ日数ずらす"
-                },
-                hint = when {
-                    canShiftLinked -> null
-                    milestoneId == null -> "新しい中日程には、ずらす予定がまだありません"
-                    milestoneSchedules.isEmpty() -> "この中日程にはずらす予定がありません"
-                    else -> periodShiftHint(originalStart, originalEnd, startDate, endDate, "この中日程の予定")
-                }
-            )
-            if (shiftLinked && canShiftLinked && dayShift != null) {
-                ShiftScheduleChecklist(
-                    header = "ずらす予定",
-                    schedules = milestoneSchedules,
-                    excludedIds = excludedScheduleIds,
-                    onExcludedChange = { excludedScheduleIds = it },
-                    days = dayShift
-                )
-            }
-
             if (isPhotoFeatureEnabled) {
                 PhotoAttachmentSection(
                     existingUrls = existingPhotoUrls,
@@ -277,6 +251,25 @@ fun MilestoneEditScreen(
             }
 
         }
+    }
+
+    shiftDialog?.let { groups ->
+        val days = dayShift ?: 0L
+        ShiftLinkedDialog(
+            title = "この中日程の予定もずらしますか？",
+            days = days,
+            groups = groups,
+            saveOnlyLabel = "中日程だけ保存",
+            onShiftAndSave = { selected ->
+                shiftDialog = null
+                save(selected.first(), days)
+            },
+            onSaveOnly = {
+                shiftDialog = null
+                save(emptySet(), 0L)
+            },
+            onCancel = { shiftDialog = null }
+        )
     }
 
     if (showStartDatePicker) {

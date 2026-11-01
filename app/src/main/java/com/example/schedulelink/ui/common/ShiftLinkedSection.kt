@@ -1,6 +1,18 @@
 package com.example.schedulelink.ui.common
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,7 +36,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
-// 予定・中日程・大日程の編集で、日付を変えたときに「リンクした予定も同じ日数ずらす」ための共通部品。
+// 予定・中日程・大日程の編集で、日付を変えて保存するときに「リンクした予定も同じ日数ずらすか」を聞くための共通部品。
 
 val shortDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)
 val monthDayFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日", Locale.JAPAN)
@@ -43,46 +54,6 @@ fun rangeShiftDays(oldStart: LocalDate?, oldEnd: LocalDate?, newStart: LocalDate
     val startShift = ChronoUnit.DAYS.between(oldStart, newStart)
     val endShift = ChronoUnit.DAYS.between(oldEnd, newEnd)
     return if (startShift == endShift && startShift != 0L) startShift else null
-}
-
-/**
- * 「期間をずらしても使えない」ときの案内文。期間(開始・終了)が元から無い・習慣型になった・
- * まだ動かしていない・長さが変わった、のどれなのかを書き分ける。[targets]は「中日程・予定」など。
- */
-fun periodShiftHint(
-    oldStart: LocalDate?,
-    oldEnd: LocalDate?,
-    newStart: LocalDate?,
-    newEnd: LocalDate?,
-    targets: String
-): String = when {
-    oldStart == null || oldEnd == null -> "もともと期間が未設定のため、ずらせません"
-    newStart == null || newEnd == null -> "継続する習慣には期間がないため、ずらせません"
-    newStart == oldStart && newEnd == oldEnd -> "日付を変えると、${targets}も同じ日数ずらせます"
-    else -> "開始日と終了日を同じ日数だけ動かすと使えます(いまは期間の長さが変わっています)"
-}
-
-/**
- * ずらすかどうかを選ぶ行。行全体を1つのスイッチとして操作できる(読み上げでも対象が重ならない)。
- * スイッチは常に操作できる。ずらせる状態でない間は、[hint]で理由を見せる(選んだ状態は保たれ、
- * 条件がそろった時点で効く)。[hint]がnullならずらせる状態。
- */
-@Composable
-fun ShiftLinkedRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String, hint: String? = null) {
-    val supporting = hint ?: "日付だけを同じ日数ずらします(時刻はそのまま)"
-    InfoPanel(modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    supporting,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(checked = checked, onCheckedChange = null)
-        }
-    }
 }
 
 /** ずらす対象を選ぶ1行。[highlighted]のとき([detail]がずらした後の日付のとき)は強調する。 */
@@ -124,74 +95,102 @@ fun ShiftSectionHeader(text: String, allSelected: Boolean, onToggleAll: () -> Un
     }
 }
 
-/**
- * ずらす予定の一覧。最初は全件チェック済みで、外したものだけを[excludedIds]に持つ
- * (あとから増えた予定も自動でチェック済みになる)。ずらした後の日付を先に見せる。
- * [prefixOf]は日付の前に付ける補足(所属の中日程名など)。
- */
-@Composable
-fun ShiftScheduleChecklist(
-    header: String,
-    schedules: List<ScheduleEntity>,
-    excludedIds: Set<String>,
-    onExcludedChange: (Set<String>) -> Unit,
-    days: Long,
-    prefixOf: (ScheduleEntity) -> String? = { null }
-) {
-    val allSelected = schedules.all { it.id !in excludedIds }
-    ShiftSectionHeader(
-        text = header,
-        allSelected = allSelected,
-        onToggleAll = { onExcludedChange(if (allSelected) schedules.map { it.id }.toSet() else emptySet()) }
-    )
-    schedules.forEach { schedule ->
-        val checked = schedule.id !in excludedIds
-        val prefix = prefixOf(schedule)?.let { "$it ・ " }.orEmpty()
-        ShiftTargetRow(
-            title = schedule.title,
-            detail = prefix + if (checked) {
-                "${schedule.date.format(shortDateFormatter)} → ${schedule.date.plusDays(days).format(shortDateFormatter)}"
-            } else {
-                schedule.date.format(shortDateFormatter)
-            },
-            highlighted = checked,
-            checked = checked,
-            onCheckedChange = { isChecked ->
-                onExcludedChange(if (isChecked) excludedIds - schedule.id else excludedIds + schedule.id)
-            }
-        )
-    }
+/** 確認ダイアログに並べる1件(ずらす前・後の日付の表示文字列つき)。 */
+data class ShiftDialogItem(val id: String, val title: String, val before: String, val after: String)
+
+/** 確認ダイアログの見出しごとのまとまり(大目的の「中日程」「予定」など)。[header]がnullなら見出しなし。 */
+data class ShiftDialogGroup(val header: String?, val items: List<ShiftDialogItem>)
+
+fun ScheduleEntity.toShiftDialogItem(days: Long, prefix: String? = null): ShiftDialogItem = ShiftDialogItem(
+    id = id,
+    title = title,
+    before = prefix?.let { "$it ・ " }.orEmpty() + date.format(shortDateFormatter),
+    after = prefix?.let { "$it ・ " }.orEmpty() + "${date.format(shortDateFormatter)} → ${date.plusDays(days).format(shortDateFormatter)}"
+)
+
+fun MilestoneEntity.toShiftDialogItem(days: Long): ShiftDialogItem {
+    fun range(offset: Long): String =
+        "${startDate?.plusDays(offset)?.format(monthDayFormatter).orEmpty()}〜" +
+            endDate?.plusDays(offset)?.format(monthDayFormatter).orEmpty()
+    return ShiftDialogItem(id = id, title = title, before = range(0), after = "${range(0)} → ${range(days)}")
 }
 
-/** 大目的でずらす中日程の一覧(期間は「開始〜終了」の形で、ずらした後を先に見せる)。 */
+/**
+ * 日付を変えて保存するとき、リンクした項目も同じ日数ずらすかを聞くダイアログ。
+ * 最初は全件チェック済みで、外したものはずらさない。[onShiftAndSave]には見出しごとに選ばれたidを
+ * [groups]と同じ順で渡す。「〜だけ保存」は本体だけ保存し、キャンセル(戻る・枠外タップ)は保存しない。
+ * 一覧は開いた時点の内容で固定する(呼び出し側で作って渡す)ので、操作中に並びが変わらない。
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ShiftMilestoneChecklist(
-    header: String,
-    milestones: List<MilestoneEntity>,
-    excludedIds: Set<String>,
-    onExcludedChange: (Set<String>) -> Unit,
-    days: Long
+fun ShiftLinkedDialog(
+    title: String,
+    days: Long,
+    groups: List<ShiftDialogGroup>,
+    saveOnlyLabel: String,
+    onShiftAndSave: (List<Set<String>>) -> Unit,
+    onSaveOnly: () -> Unit,
+    onCancel: () -> Unit
 ) {
-    fun range(milestone: MilestoneEntity, offset: Long): String =
-        "${milestone.startDate?.plusDays(offset)?.format(monthDayFormatter).orEmpty()}〜" +
-            milestone.endDate?.plusDays(offset)?.format(monthDayFormatter).orEmpty()
-
-    val allSelected = milestones.all { it.id !in excludedIds }
-    ShiftSectionHeader(
-        text = header,
-        allSelected = allSelected,
-        onToggleAll = { onExcludedChange(if (allSelected) milestones.map { it.id }.toSet() else emptySet()) }
-    )
-    milestones.forEach { milestone ->
-        val checked = milestone.id !in excludedIds
-        ShiftTargetRow(
-            title = milestone.title,
-            detail = if (checked) "${range(milestone, 0)} → ${range(milestone, days)}" else range(milestone, 0),
-            highlighted = checked,
-            checked = checked,
-            onCheckedChange = { isChecked ->
-                onExcludedChange(if (isChecked) excludedIds - milestone.id else excludedIds + milestone.id)
-            }
-        )
+    // 外したものを「見出しの番号:id」で持つ(中日程と予定でidが重なっても混ざらないように)
+    var excluded by remember(groups) { mutableStateOf(setOf<String>()) }
+    fun key(groupIndex: Int, id: String) = "$groupIndex:$id"
+    val selected = groups.mapIndexed { index, group ->
+        group.items.map { it.id }.filter { key(index, it) !in excluded }.toSet()
     }
+    val selectedCount = selected.sumOf { it.size }
+    val totalCount = groups.sumOf { it.items.size }
+    val direction = if (days > 0) "${days}日後へ" else "${-days}日前へ"
+
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(title, modifier = Modifier.semantics { heading() }) },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    "日付を${signedDays(days)}変更しました。次の${totalCount}件も同じ日数ずらせます(時刻はそのまま)。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.semantics {
+                        contentDescription = "日付を${direction}変更しました。次の${totalCount}件も同じ日数ずらせます。時刻はそのままです。"
+                    }
+                )
+                groups.forEachIndexed { index, group ->
+                    if (group.header != null || group.items.size > 3) {
+                        val allSelected = group.items.all { key(index, it.id) !in excluded }
+                        ShiftSectionHeader(
+                            text = group.header ?: "対象",
+                            allSelected = allSelected,
+                            onToggleAll = {
+                                val keys = group.items.map { key(index, it.id) }.toSet()
+                                excluded = if (allSelected) excluded + keys else excluded - keys
+                            }
+                        )
+                    }
+                    group.items.forEach { item ->
+                        val itemKey = key(index, item.id)
+                        val checked = itemKey !in excluded
+                        ShiftTargetRow(
+                            title = item.title,
+                            detail = if (checked) item.after else item.before,
+                            highlighted = checked,
+                            checked = checked,
+                            onCheckedChange = { isChecked ->
+                                excluded = if (isChecked) excluded - itemKey else excluded + itemKey
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        // ボタンが3つあるので、狭い画面では折り返す
+        confirmButton = {
+            FlowRow(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onCancel) { Text("キャンセル") }
+                TextButton(onClick = onSaveOnly) { Text(saveOnlyLabel) }
+                TextButton(onClick = { onShiftAndSave(selected) }, enabled = selectedCount > 0) {
+                    Text("${selectedCount}件ずらして保存")
+                }
+            }
+        }
+    )
 }

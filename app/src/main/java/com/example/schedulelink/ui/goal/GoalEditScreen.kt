@@ -47,10 +47,9 @@ import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SelectableChip
-import com.example.schedulelink.ui.common.ShiftLinkedRow
-import com.example.schedulelink.ui.common.periodShiftHint
-import com.example.schedulelink.ui.common.ShiftMilestoneChecklist
-import com.example.schedulelink.ui.common.ShiftScheduleChecklist
+import com.example.schedulelink.ui.common.ShiftDialogGroup
+import com.example.schedulelink.ui.common.ShiftLinkedDialog
+import com.example.schedulelink.ui.common.toShiftDialogItem
 import com.example.schedulelink.ui.common.rangeShiftDays
 import com.example.schedulelink.ui.common.signedDays
 import kotlinx.coroutines.flow.flowOf
@@ -85,13 +84,12 @@ fun GoalEditScreen(
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val context = LocalContext.current
 
-    // 期間を平行移動したときに、この大目的の中日程・予定も同じ日数ずらすオプション。
+    // 期間を平行移動して保存するときに、この大目的の中日程・予定も同じ日数ずらすかをダイアログで聞く。
     // 元の日付は「もともと日付がなかった(習慣型)」かどうかも区別するため別に持つ。
     var originalStart by remember { mutableStateOf<LocalDate?>(null) }
     var originalEnd by remember { mutableStateOf<LocalDate?>(null) }
-    var shiftLinked by remember { mutableStateOf(false) }
-    var excludedMilestoneIds by remember { mutableStateOf(setOf<String>()) }
-    var excludedScheduleIds by remember { mutableStateOf(setOf<String>()) }
+    var shiftDialog by remember { mutableStateOf<List<ShiftDialogGroup>?>(null) }
+    var saving by remember { mutableStateOf(false) }
     val milestonesFlow = remember(goalId) {
         if (goalId != null) viewModel.milestonesOfGoal(goalId) else flowOf(emptyList())
     }
@@ -111,10 +109,6 @@ fun GoalEditScreen(
     )
     val canShiftLinked = goalId != null && dayShift != null &&
         (shiftableMilestones.isNotEmpty() || goalSchedules.isNotEmpty())
-    val activeShift = if (shiftLinked && canShiftLinked) dayShift ?: 0L else 0L
-    // 最初は全件チェック済み。外したものだけ除く(あとから増えた項目も自動でチェック済みになる)。
-    val selectedMilestones = shiftableMilestones.filter { it.id !in excludedMilestoneIds }
-    val selectedSchedules = goalSchedules.filter { it.id !in excludedScheduleIds }
 
     LaunchedEffect(goalId) {
         if (goalId != null) {
@@ -135,6 +129,35 @@ fun GoalEditScreen(
     // 入力を直したら、固定バーに出ている検証エラーを消す(直したのに赤いまま残らないように)。
     LaunchedEffect(title, startDate, endDate, type) { errorMessage = null }
 
+    // 保存の本体。ダイアログの各ボタンと、ダイアログを出さないときの両方から呼ぶ。
+    fun save(shiftMilestoneIds: Set<String>, shiftScheduleIds: Set<String>, shiftDays: Long) {
+        saving = true
+        val goal = GoalEntity(
+            id = goalId ?: "",
+            title = title.trim(),
+            memo = memo.trim(),
+            type = type,
+            startDate = if (type == GoalType.PHASED) startDate else null,
+            endDate = if (type == GoalType.PHASED) endDate else null,
+            photoUrls = existingPhotoUrls,
+            tagIds = tagIds
+        )
+        val parts = listOfNotNull(
+            if (shiftMilestoneIds.isNotEmpty()) "中日程 ${shiftMilestoneIds.size}件" else null,
+            if (shiftScheduleIds.isNotEmpty()) "予定 ${shiftScheduleIds.size}件" else null
+        )
+        viewModel.save(goal, pendingPhotoUris, removedPhotoUrls, shiftMilestoneIds, shiftScheduleIds, shiftDays) {
+            if (shiftDays != 0L && parts.isNotEmpty()) {
+                Toast.makeText(
+                    context,
+                    "${parts.joinToString("・")}の日付を${signedDays(shiftDays)}ずらしました",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            onSaved()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.imePadding(),
         bottomBar = {
@@ -143,35 +166,23 @@ fun GoalEditScreen(
                         errorMessage = "タイトルを入力してください"
                     } else if (type == GoalType.PHASED && !endDate.isAfter(startDate)) {
                         errorMessage = "終了日は開始日より後にしてください"
+                    } else if (canShiftLinked && dayShift != null) {
+                        errorMessage = null
+                        // 中日程の期間をずらしても、その中の予定は動かないので両方を並べる
+                        shiftDialog = listOf(
+                            ShiftDialogGroup("中日程の期間", shiftableMilestones.map { it.toShiftDialogItem(dayShift) }),
+                            ShiftDialogGroup(
+                                "予定の日付",
+                                goalSchedules.map { schedule ->
+                                    schedule.toShiftDialogItem(dayShift, schedule.milestoneId?.let { milestoneTitleById[it] })
+                                }
+                            )
+                        ).filter { it.items.isNotEmpty() }
                     } else {
                         errorMessage = null
-                        val goal = GoalEntity(
-                            id = goalId ?: "",
-                            title = title.trim(),
-                            memo = memo.trim(),
-                            type = type,
-                            startDate = if (type == GoalType.PHASED) startDate else null,
-                            endDate = if (type == GoalType.PHASED) endDate else null,
-                            photoUrls = existingPhotoUrls,
-                            tagIds = tagIds
-                        )
-                        val shiftsAnything = activeShift != 0L &&
-                            (selectedMilestones.isNotEmpty() || selectedSchedules.isNotEmpty())
-                        val toastText = (if (selectedMilestones.isNotEmpty()) "リンクした中日程・予定" else "リンクした予定") +
-                            "の日付を${signedDays(activeShift)}ずらしました"
-                        viewModel.save(
-                            goal,
-                            pendingPhotoUris,
-                            removedPhotoUrls,
-                            shiftMilestoneIds = if (activeShift != 0L) selectedMilestones.map { it.id }.toSet() else emptySet(),
-                            shiftScheduleIds = if (activeShift != 0L) selectedSchedules.map { it.id }.toSet() else emptySet(),
-                            shiftDays = activeShift
-                        ) {
-                            if (shiftsAnything) Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
-                            onSaved()
-                        }
+                        save(emptySet(), emptySet(), 0L)
                     }
-        }, errorMessage = errorMessage)
+        }, errorMessage = errorMessage, enabled = !saving)
         },
         topBar = {
             TopAppBar(
@@ -247,55 +258,6 @@ fun GoalEditScreen(
                 }
             }
 
-            // スイッチは常に出して操作できる(選んだ状態は保たれ、期間を平行移動した時点で効く)。
-            val shiftParts = listOfNotNull(
-                if (selectedMilestones.isNotEmpty()) "中日程 ${selectedMilestones.size}件" else null,
-                if (selectedSchedules.isNotEmpty()) "予定 ${selectedSchedules.size}件" else null
-            )
-            ShiftLinkedRow(
-                checked = shiftLinked,
-                onCheckedChange = { shiftLinked = it },
-                label = if (canShiftLinked && dayShift != null) {
-                    (if (shiftParts.isEmpty()) "リンクした項目" else shiftParts.joinToString("・")) +
-                        "も ${signedDays(dayShift)}ずらす"
-                } else {
-                    "中日程・予定も同じ日数ずらす"
-                },
-                hint = when {
-                    canShiftLinked -> null
-                    goalId == null -> "新しい目的には、ずらす中日程・予定がまだありません"
-                    shiftableMilestones.isEmpty() && goalSchedules.isEmpty() -> "ずらす中日程・予定がありません"
-                    else -> periodShiftHint(
-                        originalStart,
-                        originalEnd,
-                        if (type == GoalType.PHASED) startDate else null,
-                        if (type == GoalType.PHASED) endDate else null,
-                        "中日程・予定"
-                    )
-                }
-            )
-            if (shiftLinked && canShiftLinked && dayShift != null) {
-                if (shiftableMilestones.isNotEmpty()) {
-                    ShiftMilestoneChecklist(
-                        header = "ずらす中日程",
-                        milestones = shiftableMilestones,
-                        excludedIds = excludedMilestoneIds,
-                        onExcludedChange = { excludedMilestoneIds = it },
-                        days = dayShift
-                    )
-                }
-                if (goalSchedules.isNotEmpty()) {
-                    ShiftScheduleChecklist(
-                        header = "ずらす予定",
-                        schedules = goalSchedules,
-                        excludedIds = excludedScheduleIds,
-                        onExcludedChange = { excludedScheduleIds = it },
-                        days = dayShift,
-                        prefixOf = { schedule -> schedule.milestoneId?.let { milestoneTitleById[it] } }
-                    )
-                }
-            }
-
             if (isPhotoFeatureEnabled) {
                 PhotoAttachmentSection(
                     existingUrls = existingPhotoUrls,
@@ -310,6 +272,31 @@ fun GoalEditScreen(
             }
 
         }
+    }
+
+    shiftDialog?.let { groups ->
+        val days = dayShift ?: 0L
+        ShiftLinkedDialog(
+            title = "中日程・予定もずらしますか？",
+            days = days,
+            groups = groups,
+            saveOnlyLabel = "目的だけ保存",
+            onShiftAndSave = { selected ->
+                shiftDialog = null
+                val milestoneIndex = groups.indexOfFirst { it.header == "中日程の期間" }
+                val scheduleIndex = groups.indexOfFirst { it.header == "予定の日付" }
+                save(
+                    selected.getOrNull(milestoneIndex).orEmpty(),
+                    selected.getOrNull(scheduleIndex).orEmpty(),
+                    days
+                )
+            },
+            onSaveOnly = {
+                shiftDialog = null
+                save(emptySet(), emptySet(), 0L)
+            },
+            onCancel = { shiftDialog = null }
+        )
     }
 
     if (showStartDatePicker) {

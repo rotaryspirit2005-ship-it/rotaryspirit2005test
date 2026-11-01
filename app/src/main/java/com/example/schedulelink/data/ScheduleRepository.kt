@@ -132,15 +132,20 @@ class ScheduleRepository(
     fun linkedIds(id: String): Flow<List<String>> = scheduleById(id).map { it?.linkedIds.orEmpty() }
 
     /**
-     * 予定を保存する。[shiftLinkedByDays]が0以外なら、保存後にリンクしている予定([linkedIds])の
-     * 日付も同じ日数だけずらす(時刻はそのまま)。
+     * 予定を保存する。[shiftDays]が0以外なら、[shiftIds]の予定(リンクした予定のうち利用者が
+     * 選んだもの)の日付も同じ日数だけずらす(時刻はそのまま)。
      */
-    suspend fun saveSchedule(schedule: ScheduleEntity, linkedIds: Set<String>, shiftLinkedByDays: Long = 0): String {
+    suspend fun saveSchedule(
+        schedule: ScheduleEntity,
+        linkedIds: Set<String>,
+        shiftIds: Set<String> = emptySet(),
+        shiftDays: Long = 0
+    ): String {
         val docRef = if (schedule.id.isBlank()) collection.document() else collection.document(schedule.id)
         val id = docRef.id
         // 本体の保存より先にずらす: 本体の保存はオフラインだと応答待ちになり、その間に画面を
         // 離れると後のずらし処理が実行されず、リンク先だけ元の日付に残ってしまうため。
-        if (shiftLinkedByDays != 0L) shiftSchedulesByDays(linkedIds - id, shiftLinkedByDays)
+        if (shiftDays != 0L && shiftIds.isNotEmpty()) shiftSchedulesByDays(shiftIds - id, shiftDays)
         // 上書きしてしまう前に、差分を取るための「変更前のリンク」を読んでおく。
         val previousLinkedIds = if (schedule.id.isBlank()) {
             emptySet()

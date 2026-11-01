@@ -55,7 +55,9 @@ import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.SectionHeader
-import com.example.schedulelink.ui.common.ShiftLinkedRow
+import com.example.schedulelink.ui.common.ShiftDialogGroup
+import com.example.schedulelink.ui.common.ShiftLinkedDialog
+import com.example.schedulelink.ui.common.toShiftDialogItem
 import com.example.schedulelink.ui.common.shortDateFormatter
 import com.example.schedulelink.ui.common.signedDays
 import com.example.schedulelink.ui.common.commonTimeFormatter
@@ -87,7 +89,9 @@ fun ScheduleEditScreen(
     var date by remember { mutableStateOf(initialDate ?: LocalDate.now()) }
     // 編集を始めた時点の日付。ここからの日数の差を、リンクした予定をずらす日数にする。
     var originalDate by remember { mutableStateOf<LocalDate?>(null) }
-    var shiftLinked by remember { mutableStateOf(false) }
+    // 保存時に「リンクした予定もずらすか」を聞くダイアログの中身(開いた時点の一覧で固定)。nullなら閉じている
+    var shiftDialog by remember { mutableStateOf<List<ShiftDialogGroup>?>(null) }
+    var saving by remember { mutableStateOf(false) }
     var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var linkedIds by remember { mutableStateOf(setOf<String>()) }
@@ -127,17 +131,41 @@ fun ScheduleEditScreen(
     val candidateLinks = allSchedules.filter { it.id != scheduleId }
     val allMilestones by viewModel.allMilestones.collectAsState()
 
-    // リンクした予定も一緒にずらすオプション。スイッチは常に出して操作できる。編集時に日付を変え、
-    // ずらす対象(いまチェックが入っている予定)が1件以上あるときだけ実際に効く
-    // (先にスイッチを入れてから日付を変えてもよい)。
+    // 編集時に日付を変え、リンクした予定(いまチェックが入っている予定)があれば、保存時に
+    // 同じ日数ずらすかをダイアログで聞く。
     val dayShift = originalDate?.let { ChronoUnit.DAYS.between(it, date) } ?: 0L
     val shiftTargets = candidateLinks.filter { it.id in linkedIds }
     val canShiftLinked = scheduleId != null && dayShift != 0L && shiftTargets.isNotEmpty()
-    val shiftActive = shiftLinked && canShiftLinked
     val selectedMilestoneTitle = allMilestones.firstOrNull { it.id == milestoneId }?.title ?: "なし"
 
     // 入力を直したら、固定バーに出ている検証エラーを消す(直したのに赤いまま残らないように)。
     LaunchedEffect(title, date, startTime, endTime) { errorMessage = null }
+
+    // 保存の本体。ダイアログの各ボタンと、ダイアログを出さないときの両方から呼ぶ。
+    fun save(shiftIds: Set<String>, shiftDays: Long) {
+        saving = true
+        val schedule = ScheduleEntity(
+            id = scheduleId ?: "",
+            title = title.trim(),
+            memo = memo.trim(),
+            date = date,
+            startTime = startTime,
+            endTime = endTime,
+            milestoneId = milestoneId,
+            photoUrls = existingPhotoUrls,
+            tagIds = tagIds
+        )
+        viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftIds, shiftDays) {
+            if (shiftDays != 0L && shiftIds.isNotEmpty()) {
+                Toast.makeText(
+                    context,
+                    "リンクした予定 ${shiftIds.size}件の日付を${signedDays(shiftDays)}ずらしました",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            onSaved()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -147,33 +175,16 @@ fun ScheduleEditScreen(
                         when {
                             title.isBlank() -> errorMessage = "タイトルを入力してください"
                             !endTime.isAfter(startTime) -> errorMessage = "終了時刻は開始時刻より後にしてください"
+                            canShiftLinked -> {
+                                errorMessage = null
+                                shiftDialog = listOf(ShiftDialogGroup(null, shiftTargets.map { it.toShiftDialogItem(dayShift) }))
+                            }
                             else -> {
                                 errorMessage = null
-                                val schedule = ScheduleEntity(
-                                    id = scheduleId ?: "",
-                                    title = title.trim(),
-                                    memo = memo.trim(),
-                                    date = date,
-                                    startTime = startTime,
-                                    endTime = endTime,
-                                    milestoneId = milestoneId,
-                                    photoUrls = existingPhotoUrls,
-                                    tagIds = tagIds
-                                )
-                                val shiftDays = if (shiftActive) dayShift else 0L
-                                viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftDays) {
-                                    if (shiftDays != 0L) {
-                                        Toast.makeText(
-                                            context,
-                                            "リンクした予定の日付を${signedDays(shiftDays)}ずらしました",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                    onSaved()
-                                }
+                                save(emptySet(), 0L)
                             }
                         }
-        }, errorMessage = errorMessage)
+        }, errorMessage = errorMessage, enabled = !saving)
         }
         },
         topBar = {
@@ -272,23 +283,6 @@ fun ScheduleEditScreen(
 
                 SectionHeader("関連する行動予定")
 
-                ShiftLinkedRow(
-                    checked = shiftLinked,
-                    onCheckedChange = { shiftLinked = it },
-                    label = if (canShiftLinked) {
-                        "リンクした予定 ${shiftTargets.size}件も ${signedDays(dayShift)}ずらす"
-                    } else {
-                        "リンクした予定も同じ日数ずらす"
-                    },
-                    hint = when {
-                        canShiftLinked -> null
-                        scheduleId == null -> "保存したあとの編集で、リンクした予定を一緒にずらせます"
-                        candidateLinks.isEmpty() -> "リンクできる予定がありません"
-                        dayShift == 0L -> "日付を変えると、リンクした予定も同じ日数ずらせます"
-                        else -> "下の一覧でリンクする予定を選ぶと対象になります"
-                    }
-                )
-
                 if (candidateLinks.isEmpty()) {
                     Text(
                         text = "リンクできる予定がありません",
@@ -315,7 +309,7 @@ fun ScheduleEditScreen(
                                 )
                                 Column {
                                     Text(candidate.title, style = MaterialTheme.typography.bodyLarge)
-                                    val willShift = shiftActive && checked
+                                    val willShift = canShiftLinked && checked
                                     Text(
                                         text = if (willShift) {
                                             // 保存するとどの日になるかを先に見せる。
@@ -337,6 +331,24 @@ fun ScheduleEditScreen(
 
             }
         }
+    }
+
+    shiftDialog?.let { groups ->
+        ShiftLinkedDialog(
+            title = "リンクした予定もずらしますか？",
+            days = dayShift,
+            groups = groups,
+            saveOnlyLabel = "この予定だけ保存",
+            onShiftAndSave = { selected ->
+                shiftDialog = null
+                save(selected.first(), dayShift)
+            },
+            onSaveOnly = {
+                shiftDialog = null
+                save(emptySet(), 0L)
+            },
+            onCancel = { shiftDialog = null }
+        )
     }
 
     if (showDatePicker) {
