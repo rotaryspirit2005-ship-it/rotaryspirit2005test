@@ -4,6 +4,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,12 +27,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import com.example.schedulelink.ui.theme.Motion
 
 /**
@@ -52,16 +56,29 @@ fun CollapsibleMemo(
     // メモが編集されたら、たたんだ状態からやり直す
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
     var hasOverflow by rememberSaveable(text) { mutableStateOf(false) }
+    // 初回表示で切り替え行が現れるときは動かさず、利用者が切り替えたときだけ伸び縮みさせる
+    var userToggled by rememberSaveable(text) { mutableStateOf(false) }
+    val toggle = {
+        userToggled = true
+        expanded = !expanded
+    }
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = tween(Motion.DurationMedium),
         label = "memoChevron"
     )
 
-    Column(modifier = modifier.animateContentSize(tween(Motion.DurationLong, easing = Motion.Emphasized))) {
+    val animation = if (userToggled) {
+        Modifier.animateContentSize(tween(Motion.DurationLong, easing = Motion.Emphasized))
+    } else {
+        Modifier
+    }
+    Column(modifier = modifier.then(animation)) {
         if (expanded) {
             val scrollModifier = if (expandedMaxHeight != null) {
-                Modifier.heightIn(max = expandedMaxHeight).verticalScroll(rememberScrollState())
+                // 横向きなど画面が低いときも「たたむ」と下の一覧が画面に残るよう、画面の高さの4割までにする
+                val screenCap = LocalConfiguration.current.screenHeightDp.dp * 0.4f
+                Modifier.heightIn(max = min(expandedMaxHeight, screenCap)).verticalScroll(rememberScrollState())
             } else {
                 Modifier
             }
@@ -75,8 +92,10 @@ fun CollapsibleMemo(
                 maxLines = collapsedLines,
                 overflow = TextOverflow.Ellipsis,
                 onTextLayout = { hasOverflow = it.hasVisualOverflow },
+                // 本文のタップでも開ける。読み上げでは下の切り替え行だけを操作対象にするため、
+                // semanticsを持たないpointerInputで受ける
                 modifier = if (hasOverflow) {
-                    Modifier.clickable(onClickLabel = "メモの続きを表示") { expanded = true }
+                    Modifier.pointerInput(Unit) { detectTapGestures { toggle() } }
                 } else {
                     Modifier
                 }
@@ -91,7 +110,7 @@ fun CollapsibleMemo(
                     .clickable(
                         onClickLabel = if (expanded) "メモをたたむ" else "メモの続きを表示",
                         role = Role.Button
-                    ) { expanded = !expanded }
+                    ) { toggle() }
                     .semantics { stateDescription = if (expanded) "展開中" else "折りたたみ中" },
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
