@@ -8,7 +8,7 @@ enum class HelpArt {
     LinkChain, DateShift, Tags, TagRemove,
     MonthSwipe, Fab, MapMenu, WeekCols, WeekMore, DayList, Tap,
     Checklist, ChecklistDone, Progress, Status, Form, Swimlane, CollapseMemo,
-    FamilyCreate, FamilyJoin, ImportFile, ImportCalendar
+    FamilyCreate, FamilyJoin, ImportFile, ImportCalendar, PlanTable
 }
 
 data class HelpPage(val title: String, val body: String, val art: HelpArt)
@@ -184,7 +184,7 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
         listOf(
             HelpPage(
                 "タイトルと日時を決めるだけ",
-                "メモ・タグ・写真はあとからでも大丈夫です。",
+                "場所・メモ・タグ・写真はあとからでも大丈夫です。",
                 HelpArt.Form
             ),
             HelpPage(
@@ -261,6 +261,26 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
                 "コードで参加",
                 "家族からもらったコードを入れるだけで、予定が共有されます。",
                 HelpArt.FamilyJoin
+            )
+        )
+    ),
+    PlanTable(
+        "表で計画",
+        listOf(
+            HelpPage(
+                "紙に書くように、表で一気に",
+                "なぜ(大目的)・どう進める(中日程)・何を(予定)を字下げで並べます。キーボードの「次へ」で同じ段の行がすぐ増えます。",
+                HelpArt.PlanTable
+            ),
+            HelpPage(
+                "いつ・誰が・どこでを付ける",
+                "「いつ？」を押すとカレンダーが開きます。中日程は始まりと終わりをまとめて選べます。「誰が？」でタグ、「どこで？」で場所を入れます。",
+                HelpArt.Tags
+            ),
+            HelpPage(
+                "確かめてから登録",
+                "「確認へ」でツリーの形で確かめ、チェックした行だけを登録します。同じ名前の大目的・中日程があれば、そこに追加します。書きかけは自動で残ります。",
+                HelpArt.Hierarchy
             )
         )
     ),

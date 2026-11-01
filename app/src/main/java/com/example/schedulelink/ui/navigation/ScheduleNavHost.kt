@@ -29,6 +29,8 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.TagRepository
 import com.example.schedulelink.data.TodoRepository
 import com.example.schedulelink.ui.AppViewModelFactory
+import com.example.schedulelink.ui.plan.PlanTableScreen
+import com.example.schedulelink.ui.plan.PlanTableViewModel
 import com.example.schedulelink.ui.auth.FamilySettingsScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailViewModel
@@ -80,6 +82,7 @@ private const val ROUTE_IMPORT_ICS = "importIcs"
 private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
 private const val ROUTE_TODOS = "todos"
 private const val ROUTE_TAGS = "tags"
+private const val ROUTE_PLAN_TABLE = "planTable?goalId={goalId}"
 
 // 画面遷移(Material 3の「Z軸」モーション)。階層を深く進むときは新しい画面が少し小さい所から
 // 手前に出てきて、前の画面は少し拡大しながら消える。戻るときはその逆向きに動かす。
@@ -155,6 +158,7 @@ fun ScheduleNavHost(
                     onAddScheduleClick = { date -> navController.navigate("edit?date=$date") },
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onTodoListClick = { navController.navigate(ROUTE_TODOS) },
+                    onPlanTableClick = { navController.navigate("planTable") },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onTagManageClick = { navController.navigate(ROUTE_TAGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
@@ -279,6 +283,28 @@ fun ScheduleNavHost(
             )
         }
 
+        composable(
+            ROUTE_PLAN_TABLE,
+            arguments = listOf(navArgument("goalId") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { backStackEntry ->
+            val planGoalId = backStackEntry.arguments?.getString("goalId")
+            val vm: PlanTableViewModel = viewModel(factory = factory)
+            PlanTableScreen(
+                goalId = planGoalId,
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onFinished = { goalIds ->
+                    navController.popBackStack()
+                    // 1つの大目的に登録したらその詳細へ、複数なら全体マップで見渡す
+                    if (goalIds.size == 1) {
+                        if (goalIds.single() != planGoalId) navController.navigate("goalDetail/${goalIds.single()}")
+                    } else {
+                        navController.navigate(ROUTE_WHOLE_TREE)
+                    }
+                }
+            )
+        }
+
         composable(ROUTE_GOALS) {
             val vm: GoalListViewModel = viewModel(factory = factory)
             GoalListScreen(
@@ -316,6 +342,7 @@ fun ScheduleNavHost(
                 goalId = id,
                 viewModel = vm,
                 onEdit = { editId -> navController.navigate("goalEdit?id=$editId") },
+                onPlanTable = { planGoalId -> navController.navigate("planTable?goalId=$planGoalId") },
                 onBack = { navController.popBackStack() },
                 onAddMilestone = { goalId -> navController.navigate("milestoneEdit/$goalId") },
                 onMilestoneClick = { milestoneId -> navController.navigate("milestoneDetail/$milestoneId") },

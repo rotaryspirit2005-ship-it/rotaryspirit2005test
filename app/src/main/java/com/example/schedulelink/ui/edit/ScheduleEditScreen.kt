@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -86,6 +87,7 @@ fun ScheduleEditScreen(
 ) {
     var title by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(initialDate ?: LocalDate.now()) }
     // 編集を始めた時点の日付。ここからの日数の差を、リンクした予定をずらす日数にする。
     var originalDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -114,6 +116,7 @@ fun ScheduleEditScreen(
             viewModel.loadForEdit(scheduleId) { schedule, links ->
                 title = schedule.title
                 memo = schedule.memo
+                location = schedule.location
                 date = schedule.date
                 originalDate = schedule.date
                 startTime = schedule.startTime
@@ -148,6 +151,7 @@ fun ScheduleEditScreen(
             id = scheduleId ?: "",
             title = title.trim(),
             memo = memo.trim(),
+            location = location.trim(),
             date = date,
             startTime = startTime,
             endTime = endTime,
@@ -218,6 +222,14 @@ fun ScheduleEditScreen(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("タイトル") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text("場所(どこで)") },
+                    leadingIcon = { Icon(Icons.Outlined.Place, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )

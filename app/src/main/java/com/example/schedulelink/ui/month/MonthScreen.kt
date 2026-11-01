@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MoreVert
@@ -136,6 +137,7 @@ fun MonthScreen(
     onAddScheduleClick: (LocalDate) -> Unit,
     onGoalMapClick: () -> Unit,
     onTodoListClick: () -> Unit,
+    onPlanTableClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
     onTagManageClick: () -> Unit,
     onImportIcsClick: () -> Unit,
@@ -248,6 +250,11 @@ fun MonthScreen(
                             text = { Text("やることリスト") },
                             leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null) },
                             onClick = { showMenu = false; onTodoListClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("表で計画する") },
+                            leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) },
+                            onClick = { showMenu = false; onPlanTableClick() }
                         )
                         HorizontalDivider()
                         DropdownMenuItem(

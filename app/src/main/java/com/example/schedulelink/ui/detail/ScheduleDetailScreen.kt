@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -136,6 +137,21 @@ fun ScheduleDetailScreen(
                         style = MaterialTheme.typography.bodyLarge.tabularNums(),
                         color = MaterialTheme.colorScheme.primary
                     )
+                    if (current.location.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Outlined.Place,
+                                contentDescription = "場所",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                current.location,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(start = 6.dp)
+                            )
+                        }
+                    }
                     if (current.memo.isNotBlank()) {
                         CollapsibleMemo(current.memo)
                     }

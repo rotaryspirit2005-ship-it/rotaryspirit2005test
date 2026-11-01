@@ -127,6 +127,7 @@ fun HelpIllustration(art: HelpArt, modifier: Modifier = Modifier) {
             HelpArt.FamilyJoin -> FamilyJoinArt()
             HelpArt.ImportFile -> ImportArt(c, Icons.Default.FileOpen)
             HelpArt.ImportCalendar -> ImportArt(c, Icons.Default.Event)
+            HelpArt.PlanTable -> PlanTableArt(c)
         }
     }
 }
@@ -793,6 +794,45 @@ private fun ImportArt(c: ArtColors, icon: ImageVector) {
                     )
                     Spacer(Modifier.width(4.dp))
                     MiniCard(c.schedule, width = 96.dp, modifier = Modifier.height(28.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanTableArt(c: ArtColors) {
+    val rows = listOf(
+        Triple(0, "なぜ" to c.goal, "引越し"),
+        Triple(1, "どう" to c.milestone, "業者選び"),
+        Triple(2, "何を" to c.schedule, "見積もり依頼")
+    )
+    Column(
+        modifier = Modifier
+            .width(250.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        rows.forEach { (depth, level, title) ->
+            Row(
+                modifier = Modifier.padding(start = 14.dp * depth),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.width(4.dp).height(22.dp).background(level.second, RoundedCornerShape(2.dp)))
+                Spacer(Modifier.width(6.dp))
+                Text(level.first, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = level.second, modifier = Modifier.width(28.dp))
+                Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(start = 28.dp)) {
+            listOf("11/3", "パパ", "駅前").forEach { label ->
+                Box(
+                    Modifier
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }

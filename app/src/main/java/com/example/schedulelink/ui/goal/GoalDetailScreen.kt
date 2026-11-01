@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -64,6 +65,7 @@ fun GoalDetailScreen(
     goalId: String,
     viewModel: GoalDetailViewModel,
     onEdit: (String) -> Unit,
+    onPlanTable: (String) -> Unit,
     onBack: () -> Unit,
     onAddMilestone: (String) -> Unit,
     onMilestoneClick: (String) -> Unit,
@@ -84,6 +86,9 @@ fun GoalDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onPlanTable(goalId) }) {
+                        Icon(Icons.Default.TableChart, contentDescription = "表で計画")
+                    }
                     IconButton(onClick = { onEdit(goalId) }) {
                         Icon(Icons.Default.Edit, contentDescription = "編集")
                     }
