@@ -1,8 +1,6 @@
 package com.example.schedulelink.ui.common
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -101,35 +99,38 @@ data class ShiftDialogItem(val id: String, val title: String, val before: String
 /** 確認ダイアログの見出しごとのまとまり(大目的の「中日程」「予定」など)。[header]がnullなら見出しなし。 */
 data class ShiftDialogGroup(val header: String?, val items: List<ShiftDialogItem>)
 
-fun ScheduleEntity.toShiftDialogItem(days: Long, prefix: String? = null): ShiftDialogItem = ShiftDialogItem(
-    id = id,
-    title = title,
-    before = prefix?.let { "$it ・ " }.orEmpty() + date.format(shortDateFormatter),
-    after = prefix?.let { "$it ・ " }.orEmpty() + "${date.format(shortDateFormatter)} → ${date.plusDays(days).format(shortDateFormatter)}"
-)
+// ずらす・ずらさないのどちらを選んでも、もう一方にした場合の日付が分かるように両方を書く。
+fun ScheduleEntity.toShiftDialogItem(days: Long, prefix: String? = null): ShiftDialogItem {
+    val head = prefix?.let { "$it ・ " }.orEmpty()
+    val old = date.format(shortDateFormatter)
+    val new = date.plusDays(days).format(shortDateFormatter)
+    return ShiftDialogItem(id = id, title = title, before = "$head${old}のまま(ずらすと$new)", after = "$head$old → $new")
+}
 
 fun MilestoneEntity.toShiftDialogItem(days: Long): ShiftDialogItem {
     fun range(offset: Long): String =
         "${startDate?.plusDays(offset)?.format(monthDayFormatter).orEmpty()}〜" +
             endDate?.plusDays(offset)?.format(monthDayFormatter).orEmpty()
-    return ShiftDialogItem(id = id, title = title, before = range(0), after = "${range(0)} → ${range(days)}")
+    return ShiftDialogItem(
+        id = id,
+        title = title,
+        before = "${range(0)}のまま(ずらすと${range(days)})",
+        after = "${range(0)} → ${range(days)}"
+    )
 }
 
 /**
  * 日付を変えて保存するとき、リンクした項目も同じ日数ずらすかを聞くダイアログ。
- * 最初は全件チェック済みで、外したものはずらさない。[onShiftAndSave]には見出しごとに選ばれたidを
- * [groups]と同じ順で渡す。「〜だけ保存」は本体だけ保存し、キャンセル(戻る・枠外タップ)は保存しない。
+ * 最初は全件チェック済みで、外したものはずらさない(全部外せば本体だけ保存する)。[onSave]には
+ * 見出しごとに選ばれたidを[groups]と同じ順で渡す。キャンセル(戻る・枠外タップ)は保存しない。
  * 一覧は開いた時点の内容で固定する(呼び出し側で作って渡す)ので、操作中に並びが変わらない。
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShiftLinkedDialog(
     title: String,
     days: Long,
     groups: List<ShiftDialogGroup>,
-    saveOnlyLabel: String,
-    onShiftAndSave: (List<Set<String>>) -> Unit,
-    onSaveOnly: () -> Unit,
+    onSave: (List<Set<String>>) -> Unit,
     onCancel: () -> Unit
 ) {
     // 外したものを「見出しの番号:id」で持つ(中日程と予定でidが重なっても混ざらないように)
@@ -155,10 +156,11 @@ fun ShiftLinkedDialog(
                     }
                 )
                 groups.forEachIndexed { index, group ->
-                    if (group.header != null || group.items.size > 3) {
+                    // 件数にかかわらず、まとめてオン/オフできるようにする
+                    run {
                         val allSelected = group.items.all { key(index, it.id) !in excluded }
                         ShiftSectionHeader(
-                            text = group.header ?: "対象",
+                            text = group.header ?: "ずらす予定",
                             allSelected = allSelected,
                             onToggleAll = {
                                 val keys = group.items.map { key(index, it.id) }.toSet()
@@ -182,15 +184,11 @@ fun ShiftLinkedDialog(
                 }
             }
         },
-        // ボタンが3つあるので、狭い画面では折り返す
         confirmButton = {
-            FlowRow(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = onCancel) { Text("キャンセル") }
-                TextButton(onClick = onSaveOnly) { Text(saveOnlyLabel) }
-                TextButton(onClick = { onShiftAndSave(selected) }, enabled = selectedCount > 0) {
-                    Text("${selectedCount}件ずらして保存")
-                }
+            TextButton(onClick = { onSave(selected) }) {
+                Text(if (selectedCount > 0) "${selectedCount}件ずらして保存" else "ずらさずに保存")
             }
-        }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text("キャンセル") } }
     )
 }

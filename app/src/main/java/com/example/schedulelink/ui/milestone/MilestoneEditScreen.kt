@@ -259,14 +259,9 @@ fun MilestoneEditScreen(
             title = "この中日程の予定もずらしますか？",
             days = days,
             groups = groups,
-            saveOnlyLabel = "中日程だけ保存",
-            onShiftAndSave = { selected ->
+            onSave = { selected ->
                 shiftDialog = null
                 save(selected.first(), days)
-            },
-            onSaveOnly = {
-                shiftDialog = null
-                save(emptySet(), 0L)
             },
             onCancel = { shiftDialog = null }
         )

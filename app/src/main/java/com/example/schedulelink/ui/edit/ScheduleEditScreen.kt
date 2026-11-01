@@ -338,14 +338,9 @@ fun ScheduleEditScreen(
             title = "リンクした予定もずらしますか？",
             days = dayShift,
             groups = groups,
-            saveOnlyLabel = "この予定だけ保存",
-            onShiftAndSave = { selected ->
+            onSave = { selected ->
                 shiftDialog = null
                 save(selected.first(), dayShift)
-            },
-            onSaveOnly = {
-                shiftDialog = null
-                save(emptySet(), 0L)
             },
             onCancel = { shiftDialog = null }
         )

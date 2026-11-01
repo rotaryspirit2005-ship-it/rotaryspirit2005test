@@ -280,8 +280,7 @@ fun GoalEditScreen(
             title = "中日程・予定もずらしますか？",
             days = days,
             groups = groups,
-            saveOnlyLabel = "目的だけ保存",
-            onShiftAndSave = { selected ->
+            onSave = { selected ->
                 shiftDialog = null
                 val milestoneIndex = groups.indexOfFirst { it.header == "中日程の期間" }
                 val scheduleIndex = groups.indexOfFirst { it.header == "予定の日付" }
@@ -290,10 +289,6 @@ fun GoalEditScreen(
                     selected.getOrNull(scheduleIndex).orEmpty(),
                     days
                 )
-            },
-            onSaveOnly = {
-                shiftDialog = null
-                save(emptySet(), emptySet(), 0L)
             },
             onCancel = { shiftDialog = null }
         )
