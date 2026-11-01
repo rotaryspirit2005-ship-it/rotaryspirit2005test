@@ -1,6 +1,15 @@
 package com.example.schedulelink.ui.plan
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.material3.Switch
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.example.schedulelink.ui.settings.AiPreferences
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -195,7 +204,20 @@ fun PlanTableScreen(
     var panelOpen by rememberSaveable { mutableStateOf(true) }
     val shorthandTags = LocalTagController.current?.tags?.map { ShorthandTag(it.id, it.name) }.orEmpty()
     val fillSummary = remember(rows) { summarizeFill(rows) }
-    val displayItems = remember(rows) { planListItems(rows) }
+    val aiStates by viewModel.ai.collectAsState()
+    val displayItems = remember(rows, aiStates.keys) { planListItems(rows, aiStates.keys) }
+    val aiPrefs = remember { AiPreferences(context) }
+    var showAiSettings by remember { mutableStateOf(false) }
+    var pendingAiAnchor by remember { mutableStateOf<String?>(null) }
+    fun startBreakdown(id: String) {
+        if (aiPrefs.isReady) {
+            viewModel.requestBreakdown(id, aiPrefs.apiKey)
+        } else {
+            // 初めては、送る内容と料金の説明を先に見せる
+            pendingAiAnchor = id
+            showAiSettings = true
+        }
+    }
 
     // 書きかけはViewModelが変更のたびに端末へ残す
     LaunchedEffect(Unit) { viewModel.initialize(store, goalId) }
@@ -251,6 +273,10 @@ fun PlanTableScreen(
                             Icon(Icons.Default.MoreVert, contentDescription = "その他")
                         }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("AIの設定") },
+                                onClick = { menu = false; showAiSettings = true }
+                            )
                             DropdownMenuItem(
                                 text = { Text("ひな形から追加") },
                                 onClick = { menu = false; showTemplates = true }
@@ -380,6 +406,15 @@ fun PlanTableScreen(
                     }
                     items(displayItems, key = { it.key }) { item ->
                         when (item) {
+                            is PlanListItem.Ai -> AiBlock(
+                                state = aiStates[item.anchorId],
+                                depth = (rows.firstOrNull { it.id == item.anchorId }?.level?.depth ?: 0) + 1,
+                                onAccept = { group -> viewModel.acceptSuggestion(item.anchorId, group) },
+                                onReject = { group -> viewModel.dropSuggestion(item.anchorId, group) },
+                                onAcceptAll = { viewModel.acceptAll(item.anchorId) },
+                                onClose = { viewModel.cancelBreakdown(item.anchorId) },
+                                onRetry = { startBreakdown(item.anchorId) }
+                            )
                             is PlanListItem.Ghost -> GhostRow(
                                 text = "最初にやることは？",
                                 onClick = { focusId = viewModel.insertAfter(item.afterId, PlanLevel.What) }
@@ -426,7 +461,8 @@ fun PlanTableScreen(
                                             viewModel.applyShorthand(row.id, shorthandTags)
                                         }
                                     },
-                                    onUndoAuto = { field -> viewModel.undoShorthand(row.id, field) }
+                                    onUndoAuto = { field -> viewModel.undoShorthand(row.id, field) },
+                                    onBreakdown = if (row.level != PlanLevel.What && row.title.isNotBlank()) ({ startBreakdown(row.id) }) else null
                                 )
                             }
                         }
@@ -589,6 +625,22 @@ fun PlanTableScreen(
         )
     }
 
+    if (showAiSettings) {
+        AiSettingsDialog(
+            prefs = aiPrefs,
+            onDismiss = {
+                showAiSettings = false
+                pendingAiAnchor = null
+            },
+            onSaved = {
+                showAiSettings = false
+                val anchor = pendingAiAnchor
+                pendingAiAnchor = null
+                if (anchor != null && aiPrefs.isReady) viewModel.requestBreakdown(anchor, aiPrefs.apiKey)
+            }
+        )
+    }
+
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
@@ -658,7 +710,8 @@ private fun PlanRowCard(
     fill: RowFill?,
     highlighted: Boolean,
     onFocusChange: (Boolean) -> Unit,
-    onUndoAuto: (String) -> Unit
+    onUndoAuto: (String) -> Unit,
+    onBreakdown: (() -> Unit)?
 ) {
     val color = levelColor(row.level)
     val focusRequester = remember { FocusRequester() }
@@ -739,6 +792,7 @@ private fun PlanRowCard(
                 if (fill != null) FillDots(fill)
                 RowMenu(
                     row = row,
+                    onBreakdown = onBreakdown,
                     canMoveUp = canMoveUp,
                     canMoveDown = canMoveDown,
                     onAddBelow = onAddBelow,
@@ -870,6 +924,7 @@ private fun FillDots(fill: RowFill) {
 @Composable
 private fun RowMenu(
     row: PlanRow,
+    onBreakdown: (() -> Unit)?,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onAddBelow: (PlanLevel) -> Unit,
@@ -883,6 +938,14 @@ private fun RowMenu(
             Icon(Icons.Default.MoreVert, contentDescription = "「${row.title.ifBlank { row.level.label }}」の操作")
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (onBreakdown != null) {
+                DropdownMenuItem(
+                    text = { Text("AIで分解") },
+                    leadingIcon = { Icon(Icons.Outlined.AutoAwesome, contentDescription = null) },
+                    onClick = { open = false; onBreakdown() }
+                )
+                HorizontalDivider()
+            }
             PlanLevel.entries.filter { it.depth >= row.level.depth }.forEach { level ->
                 DropdownMenuItem(
                     text = { Text("下に「${level.label}」を追加") },
@@ -1092,16 +1155,196 @@ private sealed interface PlanListItem {
     data class Ghost(val afterId: String) : PlanListItem {
         override val key: String get() = "ghost-$afterId"
     }
+
+    /** AIで分解の提案(元の行の子の最後に出す)。 */
+    data class Ai(val anchorId: String) : PlanListItem {
+        override val key: String get() = "ai-$anchorId"
+    }
 }
 
-private fun planListItems(rows: List<PlanRow>): List<PlanListItem> = buildList {
+private fun planListItems(rows: List<PlanRow>, aiAnchors: Set<String>): List<PlanListItem> = buildList {
+    // AIの提案は、元の行の子が終わる位置に出す
+    val aiAfter = aiAnchors.mapNotNull { id ->
+        val index = rows.indexOfFirst { it.id == id }
+        if (index < 0) return@mapNotNull null
+        var end = index
+        while (end + 1 < rows.size && rows[end + 1].level.depth > rows[index].level.depth) end++
+        end to id
+    }.groupBy({ it.first }, { it.second })
     rows.forEachIndexed { index, row ->
         add(PlanListItem.RowItem(row))
         val next = rows.getOrNull(index + 1)
         if (row.level == PlanLevel.How && row.title.isNotBlank() && next?.level != PlanLevel.What) {
             add(PlanListItem.Ghost(row.id))
         }
+        aiAfter[index]?.forEach { add(PlanListItem.Ai(it)) }
     }
+}
+
+/** AIで分解の結果。考え中・失敗・提案(1つずつ、またはまとめて受け入れる)。 */
+@Composable
+private fun AiBlock(
+    state: PlanTableViewModel.AiState?,
+    depth: Int,
+    onAccept: (SuggestionGroup) -> Unit,
+    onReject: (SuggestionGroup) -> Unit,
+    onAcceptAll: () -> Unit,
+    onClose: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(start = 18.dp * depth.coerceAtMost(2)),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        when (state) {
+            null -> Unit
+            PlanTableViewModel.AiState.Loading -> {
+                val pulse = rememberInfiniteTransition(label = "aiLoading")
+                val alpha by pulse.animateFloat(
+                    initialValue = 0.3f,
+                    targetValue = 0.7f,
+                    animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+                    label = "aiPulse"
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("AIが考えています…", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onClose) { Text("取り消す") }
+                }
+                repeat(3) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .graphicsLayer { this.alpha = alpha }
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                    )
+                }
+            }
+            is PlanTableViewModel.AiState.Failed -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(12.dp))
+                    .padding(start = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    state.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.weight(1f).padding(vertical = 8.dp)
+                )
+                TextButton(onClick = onRetry) { Text("再試行") }
+                IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "閉じる") }
+            }
+            is PlanTableViewModel.AiState.Ready -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("AIの提案", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onAcceptAll) { Text("すべて追加") }
+                    TextButton(onClick = onClose) { Text("すべて却下") }
+                }
+                state.groups.forEach { group ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .dashedBorder(MaterialTheme.colorScheme.primary, 12.dp)
+                            .padding(start = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
+                            group.rows.forEach { row ->
+                                Row(
+                                    modifier = Modifier.padding(start = if (row.level == PlanLevel.What && group.rows.size > 1) 14.dp else 0.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        row.level.label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = levelColor(row.level),
+                                        modifier = Modifier.widthIn(min = 52.dp)
+                                    )
+                                    Text(
+                                        row.title + (whenText(row.level, row.start, row.end)?.let { "  $it" }.orEmpty()),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = { onAccept(group) }) {
+                            Icon(Icons.Default.Check, contentDescription = "「${group.rows.first().title}」を追加", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = { onReject(group) }) {
+                            Icon(Icons.Default.Close, contentDescription = "「${group.rows.first().title}」を却下")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** AIで分解に使うAPIキーと、送信への同意。 */
+@Composable
+private fun AiSettingsDialog(prefs: AiPreferences, onDismiss: () -> Unit, onSaved: () -> Unit) {
+    var key by remember { mutableStateOf(prefs.apiKey) }
+    var consent by remember { mutableStateOf(prefs.consent) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("AIの設定") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "「AIで分解」を押すと、その行と上の行のタイトル・日付、下にある行のタイトルがAnthropic社(Claude)に送信されます。" +
+                        "誰が(タグ名)と場所は送りません。APIキーはこの端末にだけ保存され、家族には共有されません。料金はキーの持ち主に請求されます。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = key,
+                    onValueChange = { key = it },
+                    label = { Text("Anthropic APIキー") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(value = consent, role = Role.Switch, onValueChange = { consent = it })
+                        .heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("上の内容を送ることに同意する", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(checked = consent, onCheckedChange = null)
+                }
+                if (prefs.apiKey.isNotBlank()) {
+                    TextButton(onClick = {
+                        prefs.clear()
+                        key = ""
+                        consent = false
+                    }) { Text("キーを削除する") }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    prefs.apiKey = key
+                    prefs.consent = consent
+                    onSaved()
+                },
+                enabled = key.isNotBlank() && consent
+            ) { Text("保存して使う") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } }
+    )
 }
 
 /** 次に書くとよい行の誘い(押すとその行ができて入力できる)。 */

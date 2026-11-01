@@ -83,6 +83,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Claude API(Anthropic公式SDK)と、その依存(Jackson・OpenTelemetryなど)が持つ同名ファイルの重なりを除く
+            excludes += "/META-INF/{DEPENDENCIES,LICENSE,LICENSE.txt,LICENSE.md,NOTICE,NOTICE.txt,NOTICE.md,INDEX.LIST}"
+            excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
 }
@@ -124,6 +127,11 @@ dependencies {
     // Glanceのウィジェットごとの状態保存(PreferencesGlanceStateDefinition)で使う型を
     // 確実にコンパイル時に解決できるよう、推移的依存に頼らず明示的に追加する。
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // 「表で計画」のAIで分解(Claude API)。利用者が自分のAPIキーを入れたときだけ使う
+    implementation("com.anthropic:anthropic-java:3.2.0")
+    // SDKが使うkotlin-reflectを、アプリのKotlinと同じ版にそろえる
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.0.21")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

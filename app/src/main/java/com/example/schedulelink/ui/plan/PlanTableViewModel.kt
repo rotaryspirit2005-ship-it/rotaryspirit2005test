@@ -279,6 +279,74 @@ class PlanTableViewModel(
         setRows(listOf(PlanRow(level = PlanLevel.Why)))
     }
 
+    // ---- AIで分解 ----
+
+    /** 分解の状態。提案は確認画面にも下書きにも入れず、受け入れたものだけを行にする。 */
+    sealed interface AiState {
+        data object Loading : AiState
+        data class Failed(val message: String) : AiState
+        data class Ready(val groups: List<SuggestionGroup>) : AiState
+    }
+
+    private val _ai = MutableStateFlow<Map<String, AiState>>(emptyMap())
+    val ai: StateFlow<Map<String, AiState>> = _ai.asStateFlow()
+    private val aiJobs = mutableMapOf<String, kotlinx.coroutines.Job>()
+
+    fun requestBreakdown(anchorId: String, apiKey: String) {
+        val rows = _rows.value
+        val anchor = rows.firstOrNull { it.id == anchorId } ?: return
+        val parents = parentsOf(rows)
+        val resolved = resolvePlan(rows, emptyList(), emptyList()).firstOrNull { it.row.id == anchorId }
+        val children = rows.filter { parents[it.id]?.id == anchorId }.map { it.title }.filter { it.isNotBlank() }
+        aiJobs[anchorId]?.cancel()
+        _ai.value = _ai.value + (anchorId to AiState.Loading)
+        aiJobs[anchorId] = viewModelScope.launch {
+            val state = try {
+                AiState.Ready(
+                    breakDownWithClaude(
+                        apiKey = apiKey,
+                        anchor = anchor,
+                        anchorStart = resolved?.start,
+                        anchorEnd = resolved?.end,
+                        context = parents[anchorId]?.title,
+                        existingChildren = children
+                    )
+                )
+            } catch (e: PlanAiException) {
+                AiState.Failed(e.message.orEmpty())
+            }
+            _ai.value = _ai.value + (anchorId to state)
+        }
+    }
+
+    fun cancelBreakdown(anchorId: String) {
+        aiJobs.remove(anchorId)?.cancel()
+        _ai.value = _ai.value - anchorId
+    }
+
+    /** 提案のまとまりを受け入れ、元の行の下(その行の子の最後)に足す。 */
+    fun acceptSuggestion(anchorId: String, group: SuggestionGroup) {
+        val list = _rows.value.toMutableList()
+        val index = list.indexOfFirst { it.id == anchorId }
+        if (index < 0) return
+        var insertAt = index + 1
+        while (insertAt < list.size && list[insertAt].level.depth > list[index].level.depth) insertAt++
+        list.addAll(insertAt, group.rows)
+        setRows(list)
+        dropSuggestion(anchorId, group)
+    }
+
+    fun dropSuggestion(anchorId: String, group: SuggestionGroup) {
+        val state = _ai.value[anchorId] as? AiState.Ready ?: return
+        val left = state.groups - group
+        _ai.value = if (left.isEmpty()) _ai.value - anchorId else _ai.value + (anchorId to AiState.Ready(left))
+    }
+
+    fun acceptAll(anchorId: String) {
+        val state = _ai.value[anchorId] as? AiState.Ready ?: return
+        state.groups.forEach { acceptSuggestion(anchorId, it) }
+    }
+
     // ---- 確認と登録 ----
 
     private val _existing = MutableStateFlow<Pair<List<GoalEntity>, List<MilestoneEntity>>?>(null)
