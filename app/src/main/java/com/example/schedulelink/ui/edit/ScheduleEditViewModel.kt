@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -45,14 +46,22 @@ class ScheduleEditViewModel(
         // 日付の変更に合わせて、同じ日数だけ日付をずらす予定(0日なら何もしない)。
         shiftIds: Set<String> = emptySet(),
         shiftDays: Long = 0,
+        // 写真のアップロードや保存に失敗したとき(画面側で保存ボタンを戻し、知らせる)
+        onError: () -> Unit = {},
         onSaved: (String) -> Unit
     ) {
         viewModelScope.launch {
-            val idForPath = schedule.id.ifBlank { UUID.randomUUID().toString() }
-            val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("schedules", idForPath, uri) }
-            val id = repository.saveSchedule(schedule.copy(photoUrls = schedule.photoUrls + uploadedUrls), linkedIds, shiftIds, shiftDays)
-            removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
-            onSaved(id)
+            try {
+                val idForPath = schedule.id.ifBlank { UUID.randomUUID().toString() }
+                val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("schedules", idForPath, uri) }
+                val id = repository.saveSchedule(schedule.copy(photoUrls = schedule.photoUrls + uploadedUrls), linkedIds, shiftIds, shiftDays)
+                removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
+                onSaved(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError()
+            }
         }
     }
 }

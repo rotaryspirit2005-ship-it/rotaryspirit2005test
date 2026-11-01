@@ -10,6 +10,7 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -36,19 +37,27 @@ class MilestoneEditViewModel(
         // この中日程の日付変更に合わせて、同じ日数だけ日付をずらす予定(0日なら何もしない)。
         shiftScheduleIds: Set<String> = emptySet(),
         shiftDays: Long = 0,
+        // 写真のアップロードや保存に失敗したとき(画面側で保存ボタンを戻し、知らせる)
+        onError: () -> Unit = {},
         onSaved: (String) -> Unit
     ) {
         viewModelScope.launch {
-            // 本体の保存より先にずらす(本体の保存はオフラインだと応答待ちになり、その間に画面を
-            // 離れると後のずらし処理が実行されず、予定だけ元の日付に残ってしまうため)。
-            if (shiftDays != 0L && shiftScheduleIds.isNotEmpty()) {
-                scheduleRepository.shiftSchedulesByDays(shiftScheduleIds, shiftDays)
+            try {
+                // 本体の保存より先にずらす(本体の保存はオフラインだと応答待ちになり、その間に画面を
+                // 離れると後のずらし処理が実行されず、予定だけ元の日付に残ってしまうため)。
+                if (shiftDays != 0L && shiftScheduleIds.isNotEmpty()) {
+                    scheduleRepository.shiftSchedulesByDays(shiftScheduleIds, shiftDays)
+                }
+                val idForPath = milestone.id.ifBlank { UUID.randomUUID().toString() }
+                val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("milestones", idForPath, uri) }
+                val id = repository.saveMilestone(milestone.copy(photoUrls = milestone.photoUrls + uploadedUrls))
+                removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
+                onSaved(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError()
             }
-            val idForPath = milestone.id.ifBlank { UUID.randomUUID().toString() }
-            val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("milestones", idForPath, uri) }
-            val id = repository.saveMilestone(milestone.copy(photoUrls = milestone.photoUrls + uploadedUrls))
-            removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
-            onSaved(id)
         }
     }
 }

@@ -131,7 +131,10 @@ fun MilestoneEditScreen(
             photoUrls = existingPhotoUrls,
             tagIds = tagIds
         )
-        viewModel.save(milestone, pendingPhotoUris, removedPhotoUrls, shiftScheduleIds, shiftDays) {
+        viewModel.save(milestone, pendingPhotoUris, removedPhotoUrls, shiftScheduleIds, shiftDays, onError = {
+            saving = false
+            errorMessage = "保存できませんでした。通信状態を確かめて、もう一度お試しください"
+        }) {
             if (shiftDays != 0L && shiftScheduleIds.isNotEmpty()) {
                 Toast.makeText(
                     context,

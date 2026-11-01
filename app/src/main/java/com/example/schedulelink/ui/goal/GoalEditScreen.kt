@@ -146,7 +146,10 @@ fun GoalEditScreen(
             if (shiftMilestoneIds.isNotEmpty()) "中日程 ${shiftMilestoneIds.size}件" else null,
             if (shiftScheduleIds.isNotEmpty()) "予定 ${shiftScheduleIds.size}件" else null
         )
-        viewModel.save(goal, pendingPhotoUris, removedPhotoUrls, shiftMilestoneIds, shiftScheduleIds, shiftDays) {
+        viewModel.save(goal, pendingPhotoUris, removedPhotoUrls, shiftMilestoneIds, shiftScheduleIds, shiftDays, onError = {
+            saving = false
+            errorMessage = "保存できませんでした。通信状態を確かめて、もう一度お試しください"
+        }) {
             if (shiftDays != 0L && parts.isNotEmpty()) {
                 Toast.makeText(
                     context,

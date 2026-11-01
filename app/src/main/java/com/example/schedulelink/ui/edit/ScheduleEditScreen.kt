@@ -47,7 +47,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.tag.TagPickerSection
@@ -58,7 +57,6 @@ import com.example.schedulelink.ui.common.SectionHeader
 import com.example.schedulelink.ui.common.ShiftDialogGroup
 import com.example.schedulelink.ui.common.ShiftLinkedDialog
 import com.example.schedulelink.ui.common.toShiftDialogItem
-import com.example.schedulelink.ui.common.shortDateFormatter
 import com.example.schedulelink.ui.common.signedDays
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import java.time.Instant
@@ -155,7 +153,10 @@ fun ScheduleEditScreen(
             photoUrls = existingPhotoUrls,
             tagIds = tagIds
         )
-        viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftIds, shiftDays) {
+        viewModel.save(schedule, linkedIds, pendingPhotoUris, removedPhotoUrls, shiftIds, shiftDays, onError = {
+            saving = false
+            errorMessage = "保存できませんでした。通信状態を確かめて、もう一度お試しください"
+        }) {
             if (shiftDays != 0L && shiftIds.isNotEmpty()) {
                 Toast.makeText(
                     context,
@@ -309,19 +310,12 @@ fun ScheduleEditScreen(
                                 )
                                 Column {
                                     Text(candidate.title, style = MaterialTheme.typography.bodyLarge)
-                                    val willShift = canShiftLinked && checked
+                                    // 日付を変えて保存するときは、ずらすかどうかを保存時のダイアログで選ぶ。
                                     Text(
-                                        text = if (willShift) {
-                                            // 保存するとどの日になるかを先に見せる。
-                                            "${candidate.date.format(shortDateFormatter)} → " +
-                                                candidate.date.plusDays(dayShift).format(shortDateFormatter)
-                                        } else {
-                                            "${candidate.date.format(dateFormatter)} " +
-                                                "${candidate.startTime.format(commonTimeFormatter)}〜${candidate.endTime.format(commonTimeFormatter)}"
-                                        },
+                                        text = "${candidate.date.format(dateFormatter)} " +
+                                            "${candidate.startTime.format(commonTimeFormatter)}〜${candidate.endTime.format(commonTimeFormatter)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = if (willShift) FontWeight.Bold else null,
-                                        color = if (willShift) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }

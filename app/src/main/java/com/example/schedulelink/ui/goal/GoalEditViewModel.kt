@@ -13,6 +13,7 @@ import com.example.schedulelink.data.ScheduleRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -48,19 +49,27 @@ class GoalEditViewModel(
         shiftMilestoneIds: Set<String> = emptySet(),
         shiftScheduleIds: Set<String> = emptySet(),
         shiftDays: Long = 0,
+        // 写真のアップロードや保存に失敗したとき(画面側で保存ボタンを戻し、知らせる)
+        onError: () -> Unit = {},
         onSaved: (String) -> Unit
     ) {
         viewModelScope.launch {
-            // 本体の保存より先にずらす(理由はMilestoneEditViewModelと同じ)。
-            if (shiftDays != 0L) {
-                if (shiftMilestoneIds.isNotEmpty()) milestoneRepository.shiftMilestonesByDays(shiftMilestoneIds, shiftDays)
-                if (shiftScheduleIds.isNotEmpty()) scheduleRepository.shiftSchedulesByDays(shiftScheduleIds, shiftDays)
+            try {
+                // 本体の保存より先にずらす(理由はMilestoneEditViewModelと同じ)。
+                if (shiftDays != 0L) {
+                    if (shiftMilestoneIds.isNotEmpty()) milestoneRepository.shiftMilestonesByDays(shiftMilestoneIds, shiftDays)
+                    if (shiftScheduleIds.isNotEmpty()) scheduleRepository.shiftSchedulesByDays(shiftScheduleIds, shiftDays)
+                }
+                val idForPath = goal.id.ifBlank { UUID.randomUUID().toString() }
+                val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("goals", idForPath, uri) }
+                val id = repository.saveGoal(goal.copy(photoUrls = goal.photoUrls + uploadedUrls))
+                removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
+                onSaved(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError()
             }
-            val idForPath = goal.id.ifBlank { UUID.randomUUID().toString() }
-            val uploadedUrls = newPhotoUris.map { uri -> photoStorageRepository.upload("goals", idForPath, uri) }
-            val id = repository.saveGoal(goal.copy(photoUrls = goal.photoUrls + uploadedUrls))
-            removedPhotoUrls.forEach { photoStorageRepository.delete(it) }
-            onSaved(id)
         }
     }
 }

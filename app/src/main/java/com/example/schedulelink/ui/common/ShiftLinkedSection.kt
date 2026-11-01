@@ -76,6 +76,8 @@ fun ShiftTargetRow(
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(
                 text = detail,
+                // 読み上げでは「→」を矢印と読ませず、「AからBへ」と読む
+                modifier = Modifier.semantics { contentDescription = detail.replace(" → ", "から") + if (" → " in detail) "へ" else "" },
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (highlighted) FontWeight.Bold else null,
                 color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
