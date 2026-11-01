@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -279,6 +280,9 @@ fun SwimlaneTimeline(
     Canvas(
         modifier = modifier
             .fillMaxSize()
+            // Canvasは枠の外にも描けてしまうので、下へスクロールしたとき上の凡例・タグ欄に
+            // 帯や予定がはみ出して重ならないよう、自分の領域で切り取る
+            .clipToBounds()
             .onSizeChanged { viewSize = it }
             .pointerInput(Unit) {
                 detectTransformGestures { centroid, pan, zoom, _ ->

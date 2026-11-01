@@ -39,7 +39,8 @@ private const val DAY_FULL_DAY_DP = 24f
 /** 1日の幅がこれ以上のとき、日付の数字を毎日出す(未満は月曜だけ)。 */
 private const val EVERY_DAY_LABEL_DP = 22f
 
-private const val RULER_BACKGROUND_ALPHA = 0.94f
+// 下を通る帯や予定の文字が透けて月日と重なって見えないよう、目盛りの背景は不透明にする
+private const val RULER_BACKGROUND_ALPHA = 1f
 
 private class GridAlphas(
     val band: Float,
