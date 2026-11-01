@@ -10,6 +10,12 @@ import java.util.UUID
 // 行は字下げの深さ(level)だけを持つ平らな並びにし、親子は「直前にある1段浅い行」で決める
 // (字下げの上げ下げや並べ替えが、行の数値を変えるだけで済むように)。
 
+/** [PlanRow.autoTokens]の特別なキー: 前の行から先に入れた値(ひと言入力で上書きしてよい)。 */
+const val PREFILLED_WHEN = "~when"
+const val PREFILLED_WHO = "~who"
+/** [PlanRow.autoTokens]のキーの前置き: ×で取り消した語(もう読み取らない)。 */
+const val UNDONE = "!"
+
 /** なぜ(大目的)・どう進める(中日程)・何を(予定)の3段。 */
 enum class PlanLevel(val depth: Int, val label: String, val hint: String) {
     Why(0, "なぜ", "大目的"),

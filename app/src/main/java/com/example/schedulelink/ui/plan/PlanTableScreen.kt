@@ -501,7 +501,7 @@ fun PlanTableScreen(
                 onDismiss = { dateRowId = null },
                 onConfirm = { start, end ->
                     viewModel.update(
-                        row.copy(start = start, end = if (row.level == PlanLevel.What) null else end, autoTokens = row.autoTokens - "when")
+                        row.copy(start = start, end = if (row.level == PlanLevel.What) null else end, autoTokens = row.autoTokens - "when" - PREFILLED_WHEN)
                     )
                     dateRowId = null
                 }
@@ -519,7 +519,7 @@ fun PlanTableScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("誰が「${row.title.ifBlank { row.level.label }}」をしますか？", style = MaterialTheme.typography.titleMedium)
-                    TagPickerSection(selectedIds = row.tagIds, onChange = { viewModel.update(row.copy(tagIds = it, autoTokens = row.autoTokens - "who")) })
+                    TagPickerSection(selectedIds = row.tagIds, onChange = { viewModel.update(row.copy(tagIds = it, autoTokens = row.autoTokens - "who" - PREFILLED_WHO)) })
                     Button(onClick = { tagRowId = null }, modifier = Modifier.fillMaxWidth()) { Text("決定") }
                 }
             }
@@ -1302,8 +1302,9 @@ private fun AiSettingsDialog(prefs: AiPreferences, onDismiss: () -> Unit, onSave
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "「AIで分解」を押すと、その行と上の行のタイトル・日付、下にある行のタイトルがAnthropic社(Claude)に送信されます。" +
-                        "誰が(タグ名)と場所は送りません。APIキーはこの端末にだけ保存され、家族には共有されません。料金はキーの持ち主に請求されます。",
+                    "「AIで分解」を押すと、その行のタイトルと期間、上の大目的のタイトル、下にある行のタイトル、今日の日付がAnthropic社(Claude)に送信されます。" +
+                        "誰が(タグ)と場所は送りません(タイトル中の「@」「#」の語も外して送ります)。" +
+                        "APIキーはこの端末にだけ保存され、家族にもバックアップにも共有されません。料金はキーの持ち主に請求されます。",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 OutlinedTextField(

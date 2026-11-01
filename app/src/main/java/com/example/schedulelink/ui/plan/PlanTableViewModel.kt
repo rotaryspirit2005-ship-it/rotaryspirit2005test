@@ -160,11 +160,13 @@ class PlanTableViewModel(
         val previous = list.getOrNull(insertAt - 1)
         // 予定を続けて書くときは、すぐ上の予定の翌日を先に入れておく(違えば直すだけで済む)
         val start = if (level == PlanLevel.What && previous?.level == PlanLevel.What) previous.start?.plusDays(1) else null
-        val row = PlanRow(
-            level = level,
-            start = start,
-            tagIds = if (level == PlanLevel.What) list.getOrNull(index)?.tagIds.orEmpty() else emptyList()
-        )
+        val tags = if (level == PlanLevel.What) list.getOrNull(index)?.tagIds.orEmpty() else emptyList()
+        // 先に入れた値には印を付け、ひと言入力で書いた日付や人のほうを優先できるようにする
+        val prefilled = buildMap {
+            if (start != null) put(PREFILLED_WHEN, "")
+            if (tags.isNotEmpty()) put(PREFILLED_WHO, "")
+        }
+        val row = PlanRow(level = level, start = start, tagIds = tags, autoTokens = prefilled)
         list.add(insertAt, row)
         setRows(list)
         return row.id
@@ -182,8 +184,13 @@ class PlanTableViewModel(
         var next = row.copy(title = parsed.title)
         val leftover = mutableListOf<String>()
         val tokens = row.autoTokens.toMutableMap()
+        // ×で取り消した語は、もう一度読み取らない
+        fun undone(field: String, text: String?) = text != null && row.autoTokens["$UNDONE$field"] == text
+        val whenFree = row.start == null || PREFILLED_WHEN in row.autoTokens
+        val whoFree = row.tagIds.isEmpty() || PREFILLED_WHO in row.autoTokens
         if (parsed.start != null && parsed.dateText != null) {
-            if (row.start == null) {
+            if (whenFree && !undone("when", parsed.dateText)) {
+                tokens.remove(PREFILLED_WHEN)
                 next = next.copy(start = parsed.start, end = if (row.level == PlanLevel.What) null else parsed.end ?: parsed.start)
                 tokens["when"] = parsed.dateText
             } else {
@@ -191,7 +198,7 @@ class PlanTableViewModel(
             }
         }
         if (parsed.location != null && parsed.locationText != null) {
-            if (row.level == PlanLevel.What && row.location.isBlank()) {
+            if (row.level == PlanLevel.What && row.location.isBlank() && !undone("where", parsed.locationText)) {
                 next = next.copy(location = parsed.location)
                 tokens["where"] = parsed.locationText
             } else {
@@ -199,7 +206,8 @@ class PlanTableViewModel(
             }
         }
         if (parsed.tagIds.isNotEmpty() && parsed.tagText != null) {
-            if (row.tagIds.isEmpty()) {
+            if (whoFree && !undone("who", parsed.tagText)) {
+                tokens.remove(PREFILLED_WHO)
                 next = next.copy(tagIds = parsed.tagIds)
                 tokens["who"] = parsed.tagText
             } else {
@@ -225,7 +233,7 @@ class PlanTableViewModel(
         update(
             cleared.copy(
                 title = listOf(row.title, token).filter { it.isNotBlank() }.joinToString(" "),
-                autoTokens = row.autoTokens - field
+                autoTokens = row.autoTokens - field + ("$UNDONE$field" to token)
             )
         )
     }
@@ -326,6 +334,9 @@ class PlanTableViewModel(
 
     /** 提案のまとまりを受け入れ、元の行の下(その行の子の最後)に足す。 */
     fun acceptSuggestion(anchorId: String, group: SuggestionGroup) {
+        // 2度押しで同じ行が二重に入らないよう、まだ提案に残っているものだけを受け入れる
+        val state = _ai.value[anchorId] as? AiState.Ready ?: return
+        if (group !in state.groups) return
         val list = _rows.value.toMutableList()
         val index = list.indexOfFirst { it.id == anchorId }
         if (index < 0) return

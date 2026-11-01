@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +68,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -277,6 +280,7 @@ private fun StructureMap(rows: List<PlanRow>, editingId: String?, onRowTap: (Str
                 }
             }
             nodes.forEach { node ->
+                key(node.id) {
                 MapNodeChip(
                     node = node,
                     width = nodeWidth,
@@ -286,6 +290,7 @@ private fun StructureMap(rows: List<PlanRow>, editingId: String?, onRowTap: (Str
                         if (node.placeholderFor != null) onGhostTap(node.placeholderFor) else onRowTap(node.id)
                     }
                 )
+                }
             }
         }
     }
@@ -476,13 +481,13 @@ private fun MiniGantt(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(minDate, totalDays, dayPx, lanes.size, maxWidth) {
+                .pointerInput(minDate, totalDays, dayPx, lanes.size, maxWidth, maxHeight) {
                     detectTapGestures { position ->
                         val target = hit(position)?.first ?: laneAt(position.y).takeIf { position.y >= rulerPx }
                         currentLanes.getOrNull(target ?: -1)?.let { currentOnDate(it.row.id) }
                     }
                 }
-                .pointerInput(minDate, totalDays, dayPx, lanes.size, maxWidth) {
+                .pointerInput(minDate, totalDays, dayPx, lanes.size, maxWidth, maxHeight) {
                     detectDragGestures(
                         onDragStart = { position ->
                             val target = hit(position)
@@ -517,7 +522,7 @@ private fun MiniGantt(
                                 before.copy(
                                     start = start,
                                     end = if (before.level == PlanLevel.What) null else end,
-                                    autoTokens = before.autoTokens - "when"
+                                    autoTokens = before.autoTokens - "when" - PREFILLED_WHEN
                                 )
                             )
                         },
@@ -534,7 +539,7 @@ private fun MiniGantt(
                     drawLine(colors.outlineVariant, Offset(x, rulerPx), Offset(x, size.height), 1f)
                 }
                 if (day.dayOfMonth == 1 || day == minDate) {
-                    drawText(measurer, "${day.monthValue}月", Offset(x + 3f, 3f), rulerStyle)
+                    safeDrawText(measurer, "${day.monthValue}月", Offset(x + 3f, 3f), rulerStyle)
                 }
                 day = day.plusDays(1)
             }
@@ -544,7 +549,7 @@ private fun MiniGantt(
                 val left = xOf(gap.from)
                 val width = xOf(gap.to) + dayPx - left
                 drawRect(colors.errorContainer, Offset(left, top + 2f), Size(width, lanePx - 4f))
-                drawText(
+                safeDrawText(
                     measurer, "${gap.days}日空き", Offset(left + 3f, top + 4f),
                     labelStyle.copy(color = colors.onErrorContainer, fontSize = 10.sp),
                     overflow = TextOverflow.Clip, maxLines = 1,
@@ -567,14 +572,14 @@ private fun MiniGantt(
                     PlanLevel.Why -> {
                         val h = 6.dp.toPx()
                         drawRoundRect(color.copy(alpha = alpha), Offset(left, centerY - h / 2), Size(right - left, h), CornerRadius(h / 2))
-                        drawText(measurer, title, Offset(left + 2f, top), labelStyle.copy(fontSize = 9.sp, color = color), maxLines = 1)
+                        safeDrawText(measurer, title, Offset(left + 2f, top), labelStyle.copy(fontSize = 9.sp, color = color), maxLines = 1)
                     }
                     PlanLevel.How -> {
                         val h = 16.dp.toPx()
                         val corner = CornerRadius(4.dp.toPx())
                         drawRoundRect(color.copy(alpha = 0.3f * alpha), Offset(left, centerY - h / 2), Size(right - left, h), corner)
                         drawRoundRect(color.copy(alpha = alpha), Offset(left, centerY - h / 2), Size(right - left, h), corner, style = Stroke(1.5.dp.toPx()))
-                        drawText(
+                        safeDrawText(
                             measurer, title, Offset(left + 4f, centerY - h / 2 + 1f), labelStyle,
                             overflow = TextOverflow.Ellipsis, maxLines = 1,
                             size = Size((right - left - 6f).coerceAtLeast(1f), h)
@@ -585,7 +590,7 @@ private fun MiniGantt(
                         val dot = if (lane.warning == "中日程の期間外") colors.error else color.copy(alpha = alpha)
                         drawCircle(dot, 5.dp.toPx(), Offset(cx, centerY))
                         val label = if (lane.warning == "中日程の期間外") "$title(期間外)" else title
-                        drawText(
+                        safeDrawText(
                             measurer, label, Offset(cx + 8.dp.toPx(), centerY - 8.dp.toPx()),
                             labelStyle.copy(color = if (lane.warning == "中日程の期間外") colors.error else colors.onSurface.copy(alpha = alpha)),
                             maxLines = 1
@@ -616,13 +621,13 @@ private fun MiniGantt(
             day = minDate
             while (!day.isAfter(maxDate)) {
                 if (day.dayOfMonth == 1 || day == minDate) {
-                    drawText(measurer, "${day.monthValue}月", Offset(xOf(day) + 3f, 3f), rulerStyle)
+                    safeDrawText(measurer, "${day.monthValue}月", Offset(xOf(day) + 3f, 3f), rulerStyle)
                 } else if (day.dayOfWeek == DayOfWeek.MONDAY && dayPx >= 12.dp.toPx()) {
-                    drawText(measurer, "${day.dayOfMonth}", Offset(xOf(day) + 2f, 5f), rulerStyle.copy(fontWeight = FontWeight.Normal))
+                    safeDrawText(measurer, "${day.dayOfMonth}", Offset(xOf(day) + 2f, 5f), rulerStyle.copy(fontWeight = FontWeight.Normal))
                 }
                 day = day.plusDays(1)
             }
-            drawText(measurer, "今日", Offset(tx - 10.dp.toPx(), rulerPx - 12.dp.toPx()), rulerStyle.copy(color = todayColor, fontSize = 9.sp))
+            safeDrawText(measurer, "今日", Offset(tx - 10.dp.toPx(), rulerPx - 12.dp.toPx()), rulerStyle.copy(color = todayColor, fontSize = 9.sp))
         }
     }
 }
@@ -702,4 +707,21 @@ private fun ShareHeatmap(rows: List<PlanRow>, onRowTap: (String) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * 画面の外から始まる文字を描くと、幅や高さがマイナスになって落ちるので、見えない文字は描かない。
+ * (日程表は横にも縦にも画面より広いため)
+ */
+private fun DrawScope.safeDrawText(
+    measurer: TextMeasurer,
+    text: String,
+    topLeft: Offset,
+    style: TextStyle,
+    overflow: TextOverflow = TextOverflow.Clip,
+    maxLines: Int = Int.MAX_VALUE,
+    size: Size = Size.Unspecified
+) {
+    if (topLeft.x >= this.size.width - 1f || topLeft.y >= this.size.height - 1f) return
+    drawText(measurer, text, topLeft, style, overflow = overflow, maxLines = maxLines, size = size)
 }

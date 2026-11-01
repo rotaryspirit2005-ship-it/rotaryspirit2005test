@@ -86,6 +86,9 @@ android {
             // Claude API(Anthropic公式SDK)と、その依存(Jackson・OpenTelemetryなど)が持つ同名ファイルの重なりを除く
             excludes += "/META-INF/{DEPENDENCIES,LICENSE,LICENSE.txt,LICENSE.md,NOTICE,NOTICE.txt,NOTICE.md,INDEX.LIST}"
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            excludes += "/META-INF/versions/9/module-info.class"
+            excludes += "/META-INF/versions/9/previous-compilation-data.bin"
+            excludes += "/META-INF/FastDoubleParser-*"
         }
     }
 }

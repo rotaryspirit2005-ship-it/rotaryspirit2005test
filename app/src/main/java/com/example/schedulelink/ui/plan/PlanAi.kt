@@ -69,6 +69,11 @@ private fun parseDate(text: String): LocalDate? = try {
  * [anchor](大目的か中日程)を分解した案を返す。[context]は上位の大目的のタイトル(中日程の分解のとき)、
  * [existingChildren]はすでに下にある行のタイトル。通信はIOスレッドで行う。
  */
+/** 送る前に、タイトルから「@場所」「#名前」の語を外す(場所と人は送らない約束のため)。 */
+private fun privateFree(title: String): String =
+    title.split(Regex("[\\s\u3000]+")).filterNot { it.startsWith("@") || it.startsWith("＠") || it.startsWith("#") || it.startsWith("＃") }
+        .joinToString(" ")
+
 suspend fun breakDownWithClaude(
     apiKey: String,
     anchor: PlanRow,
@@ -79,18 +84,18 @@ suspend fun breakDownWithClaude(
     today: LocalDate = LocalDate.now()
 ): List<SuggestionGroup> = withContext(Dispatchers.IO) {
     val period = if (anchorStart != null) "期間: $anchorStart 〜 ${anchorEnd ?: anchorStart}" else "期間: 未定(今日から現実的な範囲で)"
-    val existing = if (existingChildren.isEmpty()) "なし" else existingChildren.joinToString("、")
+    val existing = if (existingChildren.isEmpty()) "なし" else existingChildren.joinToString("、") { privateFree(it) }
     val prompt = if (anchor.level == PlanLevel.Why) {
         """今日は $today です。
-大目的「${anchor.title}」を、3〜5個の中日程(進め方の段階)に分け、それぞれに2〜4個の予定を付けてください。
+大目的「${privateFree(anchor.title)}」を、3〜5個の中日程(進め方の段階)に分け、それぞれに2〜4個の予定を付けてください。
 $period
 すでにある中日程: $existing"""
     } else {
         """今日は $today です。
-${context?.let { "大目的「$it」の中の、" }.orEmpty()}中日程「${anchor.title}」でやることを、3〜6個の予定にしてください。
+${context?.let { "大目的「${privateFree(it)}」の中の、" }.orEmpty()}中日程「${privateFree(anchor.title)}」でやることを、3〜6個の予定にしてください。
 $period
 すでにある予定: $existing
-milestones には、この中日程「${anchor.title}」を1つだけ入れ、その schedules に予定を入れてください。"""
+milestones には、この中日程「${privateFree(anchor.title)}」を1つだけ入れ、その schedules に予定を入れてください。"""
     }
 
     val client = AnthropicOkHttpClient.builder().apiKey(apiKey).build()

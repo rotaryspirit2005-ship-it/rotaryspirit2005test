@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11以前のバックアップ: AIのAPIキーは端末の外へ出さない -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="ai_prefs.xml" />
+</full-backup-content>
