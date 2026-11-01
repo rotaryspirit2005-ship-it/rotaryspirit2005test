@@ -230,6 +230,13 @@ class PlanTableViewModel(
         )
     }
 
+    /** ひな形などの行をまとめて足す。表が空の1行だけなら、置き換える。 */
+    fun appendRows(newRows: List<PlanRow>) {
+        val current = _rows.value
+        val blank = current.size == 1 && current[0].existingId == null && current[0].title.isBlank()
+        setRows(if (blank || current.isEmpty()) newRows else current + newRows)
+    }
+
     fun append(level: PlanLevel): String {
         val row = PlanRow(level = level)
         setRows(_rows.value + row)

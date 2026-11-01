@@ -1,6 +1,10 @@
 package com.example.schedulelink.ui.plan
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -181,6 +185,10 @@ fun PlanTableScreen(
     var tagRowId by remember { mutableStateOf<String?>(null) }
     var locationRowId by remember { mutableStateOf<String?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showTemplates by remember { mutableStateOf(false) }
+    var showSaveTemplate by remember { mutableStateOf(false) }
+    var templateToApply by remember { mutableStateOf<PlanTemplate?>(null) }
+    val templateStore = remember { PlanTemplateStore(context) }
     // いま入力中の行(見える化で強調する)
     var editingId by remember { mutableStateOf<String?>(null) }
     // 見える化パネル(構造・日程・分担)を開いているか
@@ -243,6 +251,15 @@ fun PlanTableScreen(
                             Icon(Icons.Default.MoreVert, contentDescription = "その他")
                         }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("ひな形から追加") },
+                                onClick = { menu = false; showTemplates = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("今の表をひな形として保存") },
+                                onClick = { menu = false; showSaveTemplate = true }
+                            )
+                            HorizontalDivider()
                             DropdownMenuItem(
                                 text = { Text("表を空にする") },
                                 onClick = { menu = false; showClearConfirm = true }
@@ -355,7 +372,12 @@ fun PlanTableScreen(
                     contentPadding = PaddingValues(horizontal = Dimens.ScreenPadding, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    item(key = "legend") { FiveW1HLegend() }
+                    item(key = "legend") {
+                        FiveW1HLegend(
+                            // まだ何も書いていなければ、ひな形から始められるようにする
+                            onTemplates = if (rows.all { it.title.isBlank() }) ({ showTemplates = true }) else null
+                        )
+                    }
                     items(displayItems, key = { it.key }) { item ->
                         when (item) {
                             is PlanListItem.Ghost -> GhostRow(
@@ -495,6 +517,78 @@ fun PlanTableScreen(
         }
     }
 
+    if (showTemplates) {
+        var userTemplates by remember { mutableStateOf(templateStore.load()) }
+        TemplatePickerDialog(
+            userTemplates = userTemplates,
+            onPick = { template ->
+                showTemplates = false
+                templateToApply = template
+            },
+            onDelete = { template ->
+                templateStore.delete(template.id)
+                userTemplates = templateStore.load()
+            },
+            onDismiss = { showTemplates = false }
+        )
+    }
+
+    templateToApply?.let { template ->
+        val state = rememberDatePickerState(initialSelectedDateMillis = LocalDate.now().plusMonths(1).toMillis())
+        DatePickerDialog(
+            onDismissRequest = { templateToApply = null },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.selectedDateMillis?.toLocalDate()?.let { base -> viewModel.appendRows(template.toRows(base)) }
+                        templateToApply = null
+                    },
+                    enabled = state.selectedDateMillis != null
+                ) { Text("この日で作る") }
+            },
+            dismissButton = { TextButton(onClick = { templateToApply = null }) { Text("キャンセル") } }
+        ) {
+            DatePicker(
+                state = state,
+                title = {
+                    Text(
+                        "「${template.name}」の基準日(${template.baseLabel})",
+                        modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)
+                    )
+                }
+            )
+        }
+    }
+
+    if (showSaveTemplate) {
+        var name by remember { mutableStateOf(rows.firstOrNull { it.level == PlanLevel.Why }?.title.orEmpty()) }
+        val template = templateFromRows(name.trim(), rows)
+        AlertDialog(
+            onDismissRequest = { showSaveTemplate = false },
+            title = { Text("ひな形として保存") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (template == null) "日付の入った行がないため保存できません。" else "いちばん早い日を基準に、日数の差で保存します。次からは基準日を選ぶだけで同じ形が作れます。",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("ひな形の名前") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        template?.let { templateStore.add(it) }
+                        showSaveTemplate = false
+                        scope.launch { snackbarHostState.showSnackbar("ひな形「${name.trim()}」を保存しました") }
+                    },
+                    enabled = template != null && name.isNotBlank()
+                ) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { showSaveTemplate = false }) { Text("キャンセル") } }
+        )
+    }
+
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
@@ -514,7 +608,7 @@ fun PlanTableScreen(
 /** 5W1Hの対応を示す見出し。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FiveW1HLegend() {
+private fun FiveW1HLegend(onTemplates: (() -> Unit)? = null) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -532,6 +626,14 @@ private fun FiveW1HLegend() {
                 "誰が = タグ",
                 "どこで = 場所"
             ).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        Text(
+            "ひと言入力: 「見積もり依頼 来週金曜 @駅前 #パパ」と書くと、いつ・どこで・誰がに入ります",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (onTemplates != null) {
+            FilledTonalButton(onClick = onTemplates) { Text("ひな形から始める") }
         }
     }
 }
@@ -1070,4 +1172,58 @@ private fun FillBand(summary: PlanFillSummary, panelOpen: Boolean, onTogglePanel
             )
         }
     }
+}
+
+/** ひな形の一覧。自分で保存したものは長押しで消せる。 */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun TemplatePickerDialog(
+    userTemplates: List<PlanTemplate>,
+    onPick: (PlanTemplate) -> Unit,
+    onDelete: (PlanTemplate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ひな形から作る") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                (BUILT_IN_TEMPLATES + userTemplates).forEach { template ->
+                    val stages = template.items.count { it.level == PlanLevel.How }
+                    val todos = template.items.count { it.level == PlanLevel.What }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { onPick(template) },
+                                onLongClick = if (template.builtIn) null else ({ onDelete(template) }),
+                                onLongClickLabel = if (template.builtIn) null else "このひな形を削除"
+                            )
+                            .heightIn(min = 48.dp)
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Text(
+                            template.name + if (template.builtIn) "" else "(自分のひな形)",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            "中日程${stages}件・予定${todos}件・基準日=${template.baseLabel}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (userTemplates.isNotEmpty()) {
+                    Text(
+                        "自分のひな形は長押しで削除できます",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("閉じる") } }
+    )
 }
