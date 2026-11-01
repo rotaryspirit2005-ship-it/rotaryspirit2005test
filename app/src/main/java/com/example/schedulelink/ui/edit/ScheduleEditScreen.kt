@@ -49,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
@@ -190,6 +192,7 @@ fun ScheduleEditScreen(
         },
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.ScheduleEdit) },
                 title = { Text(if (scheduleId == null) "予定を追加" else "予定を編集") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

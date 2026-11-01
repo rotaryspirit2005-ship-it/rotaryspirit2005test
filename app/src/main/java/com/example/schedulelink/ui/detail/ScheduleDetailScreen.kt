@@ -45,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.InfoPanel
@@ -101,6 +103,7 @@ fun ScheduleDetailScreen(
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "削除")
                     }
+                    HelpAction(HelpTopic.ScheduleDetail)
                 }
             )
         }

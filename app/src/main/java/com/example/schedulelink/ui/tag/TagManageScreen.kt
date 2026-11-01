@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.TagEntity
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.EmptyState
@@ -55,6 +57,7 @@ fun TagManageScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.TagManage) },
                 title = { Text("タグの管理") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

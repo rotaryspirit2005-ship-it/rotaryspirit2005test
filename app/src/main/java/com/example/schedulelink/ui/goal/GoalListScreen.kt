@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalType
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.EmptyState
@@ -47,6 +49,7 @@ fun GoalListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.GoalList) },
                 title = { Text("目的マップ") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

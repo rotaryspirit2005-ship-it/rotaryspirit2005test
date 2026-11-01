@@ -80,6 +80,8 @@ import androidx.compose.ui.unit.dp
 import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.WidgetErrorLog
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.TodayBadge
 import com.example.schedulelink.ui.list.FlowLegend
@@ -228,6 +230,7 @@ fun MonthScreen(
                     IconButton(onClick = onGoalMapClick) {
                         Icon(Icons.Default.Flag, contentDescription = "目的マップ")
                     }
+                    HelpAction(HelpTopic.Month)
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "その他")
                     }

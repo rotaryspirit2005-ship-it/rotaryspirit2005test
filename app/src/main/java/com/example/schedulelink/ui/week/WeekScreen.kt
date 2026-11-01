@@ -45,6 +45,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.TodayBadge
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import com.example.schedulelink.ui.theme.Dimens
@@ -100,6 +102,7 @@ fun WeekScreen(
                     IconButton(onClick = { viewModel.goToNextWeek() }) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "次の週")
                     }
+                    HelpAction(HelpTopic.Week)
                 }
             )
         }

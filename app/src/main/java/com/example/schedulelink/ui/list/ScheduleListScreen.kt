@@ -21,6 +21,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -73,6 +75,7 @@ fun ScheduleListScreen(
                     IconButton(onClick = { viewModel.goToNextDay() }) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "次の日")
                     }
+                    HelpAction(HelpTopic.DayList)
                 }
             )
         },

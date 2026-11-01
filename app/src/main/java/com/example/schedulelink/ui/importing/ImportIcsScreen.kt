@@ -38,6 +38,8 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.importing.ImportedEvent
 import com.example.schedulelink.importing.IcsParser
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.commonDateFormatter
 import com.example.schedulelink.ui.common.commonTimeFormatter
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +89,7 @@ fun ImportIcsScreen(repository: ScheduleRepository, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.ImportIcs) },
                 title = { Text(".icsファイルから読み込む") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

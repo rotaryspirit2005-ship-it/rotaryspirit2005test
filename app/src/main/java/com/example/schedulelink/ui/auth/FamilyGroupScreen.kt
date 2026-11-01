@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.FamilyRepository
 import com.example.schedulelink.data.familyErrorMessage
 import kotlinx.coroutines.launch
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -54,7 +56,10 @@ fun FamilyGroupScreen(
         topBar = {
             TopAppBar(
                 title = { Text("家族グループ") },
-                actions = { TextButton(onClick = onSignOut) { Text("サインアウト") } }
+                actions = {
+                    HelpAction(HelpTopic.Family)
+                    TextButton(onClick = onSignOut) { Text("サインアウト") }
+                }
             )
         }
     ) { padding ->

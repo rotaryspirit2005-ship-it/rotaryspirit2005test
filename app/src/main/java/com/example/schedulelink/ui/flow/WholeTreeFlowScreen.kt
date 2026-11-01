@@ -68,6 +68,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.tag.LocalTagController
@@ -173,6 +175,7 @@ fun WholeTreeFlowScreen(
                     IconButton(onClick = onGoalListClick) {
                         Icon(Icons.Default.FormatListBulleted, contentDescription = "大目的をリストで見る")
                     }
+                    HelpAction(HelpTopic.WholeTree)
                 }
             )
         },

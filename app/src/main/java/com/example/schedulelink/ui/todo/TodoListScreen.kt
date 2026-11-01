@@ -42,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.TodoEntity
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.Motion
@@ -82,6 +84,7 @@ fun TodoListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.Todo) },
                 title = { Text("やること") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

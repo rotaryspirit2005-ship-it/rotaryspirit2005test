@@ -41,6 +41,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.GoalEntity
 import com.example.schedulelink.data.GoalType
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.FormLabel
@@ -189,6 +191,7 @@ fun GoalEditScreen(
         },
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.GoalEdit) },
                 title = { Text(if (goalId == null) "大目的を追加" else "大目的を編集") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

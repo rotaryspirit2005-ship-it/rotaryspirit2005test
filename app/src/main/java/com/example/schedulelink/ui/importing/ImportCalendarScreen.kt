@@ -48,6 +48,8 @@ import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.importing.DeviceCalendar
 import com.example.schedulelink.importing.DeviceCalendarReader
 import com.example.schedulelink.importing.ImportedEvent
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.FormLabel
 import com.example.schedulelink.ui.common.PickerField
 import com.example.schedulelink.ui.common.commonDateFormatter
@@ -101,6 +103,7 @@ fun ImportCalendarScreen(repository: ScheduleRepository, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.ImportCalendar) },
                 title = { Text("端末のカレンダーから読み込む") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

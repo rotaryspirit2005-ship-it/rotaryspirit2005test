@@ -41,6 +41,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.tag.TagPickerSection
 import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.FormLabel
@@ -165,6 +167,7 @@ fun MilestoneEditScreen(
         },
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.MilestoneEdit) },
                 title = { Text(if (milestoneId == null) "中日程を追加" else "中日程を編集") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

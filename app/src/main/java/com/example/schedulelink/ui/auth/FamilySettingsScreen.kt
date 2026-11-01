@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.schedulelink.data.FamilyRepository
 import com.example.schedulelink.data.familyErrorMessage
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.InfoPanel
 import kotlinx.coroutines.launch
@@ -62,6 +64,7 @@ fun FamilySettingsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                actions = { HelpAction(HelpTopic.Family) },
                 title = { Text("家族グループの設定") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

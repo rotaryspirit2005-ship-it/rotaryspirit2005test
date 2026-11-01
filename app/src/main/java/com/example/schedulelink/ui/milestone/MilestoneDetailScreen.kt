@@ -35,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.DestructiveTextButton
@@ -79,6 +81,7 @@ fun MilestoneDetailScreen(
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "削除")
                     }
+                    HelpAction(HelpTopic.MilestoneDetail)
                 }
             )
         },

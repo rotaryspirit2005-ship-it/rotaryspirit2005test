@@ -46,6 +46,8 @@ import com.example.schedulelink.data.GoalProgress
 import com.example.schedulelink.data.GoalType
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.help.HelpAction
+import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.AppProgressBar
@@ -88,6 +90,7 @@ fun GoalDetailScreen(
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "削除")
                     }
+                    HelpAction(HelpTopic.GoalDetail)
                 }
             )
         },
