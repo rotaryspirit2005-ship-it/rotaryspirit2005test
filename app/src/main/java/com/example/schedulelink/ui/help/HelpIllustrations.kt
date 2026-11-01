@@ -237,7 +237,7 @@ private fun HierarchyDiagram(c: ArtColors, highlight: Int?) {
                 // 親から子へ下りる線(L字)
                 Canvas(
                     Modifier
-                        .padding(start = (index - 1) * 36.dp + 18.dp)
+                        .padding(start = 36.dp * (index - 1) + 18.dp)
                         .size(width = 36.dp, height = 18.dp)
                         .alpha(if (dim) 0.35f else 1f)
                 ) {
@@ -248,7 +248,7 @@ private fun HierarchyDiagram(c: ArtColors, highlight: Int?) {
             }
             Row(
                 modifier = Modifier
-                    .padding(start = index * 36.dp)
+                    .padding(start = 36.dp * index)
                     .alpha(if (dim) 0.35f else 1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
