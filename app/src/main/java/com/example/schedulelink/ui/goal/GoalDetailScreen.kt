@@ -46,6 +46,7 @@ import com.example.schedulelink.data.GoalProgress
 import com.example.schedulelink.data.GoalType
 import com.example.schedulelink.data.MilestoneEntity
 import com.example.schedulelink.data.MilestoneStatus
+import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.DestructiveTextButton
@@ -109,7 +110,7 @@ fun GoalDetailScreen(
                 InfoPanel {
                     Text(current.title, style = MaterialTheme.typography.headlineSmall)
                     if (current.memo.isNotBlank()) {
-                        Text(current.memo, style = MaterialTheme.typography.bodyLarge)
+                        CollapsibleMemo(current.memo)
                     }
                     if (isPhotoFeatureEnabled) {
                         PhotoGallery(urls = current.photoUrls)

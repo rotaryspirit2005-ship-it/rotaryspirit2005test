@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoGallery
@@ -133,7 +134,7 @@ fun ScheduleDetailScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     if (current.memo.isNotBlank()) {
-                        Text(current.memo, style = MaterialTheme.typography.bodyLarge)
+                        CollapsibleMemo(current.memo)
                     }
                     if (isPhotoFeatureEnabled) {
                         PhotoGallery(urls = current.photoUrls)

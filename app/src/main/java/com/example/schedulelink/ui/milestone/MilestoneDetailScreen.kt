@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.EmptyState
@@ -96,7 +97,8 @@ fun MilestoneDetailScreen(
                         top = Dimens.ScreenPadding
                     )
                 ) {
-                    memo?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                    // この画面は外側がスクロールしないので、開いても下の一覧が残るよう高さを抑える
+                    memo?.let { CollapsibleMemo(it, expandedMaxHeight = 280.dp) }
                     photoUrls?.let { urls -> PhotoGallery(urls = urls) }
                 }
             }
