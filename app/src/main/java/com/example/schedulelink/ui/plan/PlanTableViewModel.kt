@@ -49,6 +49,12 @@ fun resolvePlan(
     rows.filter { it.level == PlanLevel.Why }.forEach { row ->
         goalMatch[row.id] = row.existingId ?: existingGoals.firstOrNull { it.title.trim() == row.title.trim() }?.id
     }
+    val milestoneMatch = mutableMapOf<String, MilestoneEntity?>()
+    rows.filter { it.level == PlanLevel.How }.forEach { row ->
+        val goalId = parents[row.id]?.let { goalMatch[it.id] }
+        milestoneMatch[row.id] = existingMilestones.firstOrNull { it.id == row.existingId }
+            ?: goalId?.let { id -> existingMilestones.firstOrNull { it.goalId == id && it.title.trim() == row.title.trim() } }
+    }
 
     fun rangeOf(row: PlanRow): Pair<LocalDate?, LocalDate?> {
         val own = row.start to (row.end ?: row.start)
@@ -65,15 +71,14 @@ fun resolvePlan(
         var (start, end) = rangeOf(row)
         val matchedId = when (row.level) {
             PlanLevel.Why -> goalMatch[row.id]
-            PlanLevel.How -> row.existingId ?: parent?.let { goalMatch[it.id] }?.let { goalId ->
-                existingMilestones.firstOrNull { it.goalId == goalId && it.title.trim() == row.title.trim() }?.id
-            }
+            PlanLevel.How -> row.existingId ?: milestoneMatch[row.id]?.id
             PlanLevel.What -> null
         }
         if (error == null && matchedId == null) {
             when (row.level) {
                 PlanLevel.What -> if (start == null) {
-                    val parentStart = parent?.let { rangeOf(it).first }
+                    // 登録済みの中日程の下なら、その中日程の開始日を使う
+                    val parentStart = parent?.let { milestoneMatch[it.id]?.startDate ?: rangeOf(it).first }
                     if (parentStart == null) {
                         error = "「いつ」を選んでください"
                     } else {
@@ -102,11 +107,20 @@ class PlanTableViewModel(
     val rows: StateFlow<List<PlanRow>> = _rows.asStateFlow()
 
     private var initialized = false
+    private var store: PlanDraftStore? = null
+
+    /** 行が変わるたびに端末へ残す。登録の途中で画面を離れても、登録済みの印が失われないようにする。 */
+    private fun setRows(rows: List<PlanRow>) {
+        _rows.value = rows
+        store?.let { if (rows.isEmpty()) it.clear() else it.save(rows) }
+    }
 
     /** 画面を開いたときに1度だけ、下書きと(大目的の画面から来たときは)その大目的を読み込む。 */
-    fun initialize(saved: List<PlanRow>, goalId: String?) {
+    fun initialize(store: PlanDraftStore, goalId: String?) {
         if (initialized) return
         initialized = true
+        this.store = store
+        val saved = store.load()
         _rows.value = saved
         if (goalId != null && saved.none { it.existingId == goalId }) {
             viewModelScope.launch {
@@ -116,17 +130,21 @@ class PlanTableViewModel(
                     throw e
                 } catch (e: Exception) {
                     null
-                } ?: return@launch
+                }
+                if (goal == null) {
+                    if (_rows.value.isEmpty()) setRows(listOf(PlanRow(level = PlanLevel.Why)))
+                    return@launch
+                }
                 val goalRow = PlanRow(level = PlanLevel.Why, title = goal.title, existingId = goal.id, tagIds = goal.tagIds)
-                _rows.value = _rows.value + goalRow + PlanRow(level = PlanLevel.How)
+                setRows(_rows.value + goalRow + PlanRow(level = PlanLevel.How))
             }
         } else if (saved.isEmpty()) {
-            _rows.value = listOf(PlanRow(level = PlanLevel.Why))
+            setRows(listOf(PlanRow(level = PlanLevel.Why)))
         }
     }
 
     fun update(row: PlanRow) {
-        _rows.value = _rows.value.map { if (it.id == row.id) row else it }
+        setRows(_rows.value.map { if (it.id == row.id) row else it })
     }
 
     /** [afterId]の行のすぐ下に、[level]の行を足す。足した行のIDを返す(入力欄を移すため)。 */
@@ -140,13 +158,13 @@ class PlanTableViewModel(
             while (insertAt < list.size && list[insertAt].level.depth > level.depth) insertAt++
         }
         list.add(insertAt.coerceIn(0, list.size), row)
-        _rows.value = list
+        setRows(list)
         return row.id
     }
 
     fun append(level: PlanLevel): String {
         val row = PlanRow(level = level)
-        _rows.value = _rows.value + row
+        setRows(_rows.value + row)
         return row.id
     }
 
@@ -154,14 +172,14 @@ class PlanTableViewModel(
         val index = _rows.value.indexOfFirst { it.id == id }
         if (index < 0) return null
         val row = _rows.value[index]
-        _rows.value = _rows.value.filterNot { it.id == id }
+        setRows(_rows.value.filterNot { it.id == id })
         return index to row
     }
 
     fun restore(index: Int, row: PlanRow) {
         val list = _rows.value.toMutableList()
         list.add(index.coerceIn(0, list.size), row)
-        _rows.value = list
+        setRows(list)
     }
 
     fun move(id: String, delta: Int) {
@@ -170,18 +188,20 @@ class PlanTableViewModel(
         val target = index + delta
         if (index < 0 || target !in list.indices) return
         list.add(target, list.removeAt(index))
-        _rows.value = list
+        setRows(list)
     }
 
     /** 字下げを1段深く(+1)・浅く(-1)する。登録済みの行は段を変えない。 */
     fun indent(id: String, delta: Int) {
-        _rows.value = _rows.value.map {
-            if (it.id == id && it.existingId == null) it.copy(level = PlanLevel.ofDepth(it.level.depth + delta)) else it
-        }
+        setRows(
+            _rows.value.map {
+                if (it.id == id && it.existingId == null) it.copy(level = PlanLevel.ofDepth(it.level.depth + delta)) else it
+            }
+        )
     }
 
     fun clear() {
-        _rows.value = listOf(PlanRow(level = PlanLevel.Why))
+        setRows(listOf(PlanRow(level = PlanLevel.Why)))
     }
 
     // ---- 確認と登録 ----
@@ -221,7 +241,10 @@ class PlanTableViewModel(
             val ids = mutableMapOf<String, String>()
             val goalIds = mutableListOf<String>()
             var created = 0
-            val milestoneCount = milestones.groupingBy { it.goalId }.eachCount().toMutableMap()
+            // 既存の並び順の最大値の次から付ける(番号が飛んでいても重ならないように)
+            val nextOrder = milestones.groupBy { it.goalId }
+                .mapValues { (_, list) -> list.maxOf { it.orderIndex } + 1 }
+                .toMutableMap()
             try {
                 resolved.forEach { r ->
                     val row = r.row
@@ -244,7 +267,7 @@ class PlanTableViewModel(
                         }
                         PlanLevel.How -> {
                             if (parentId == null) return@forEach
-                            val order = milestoneCount[parentId] ?: 0
+                            val order = nextOrder[parentId] ?: 0
                             val id = r.matchedId ?: milestoneRepository.saveMilestone(
                                 MilestoneEntity(
                                     goalId = parentId,
@@ -256,7 +279,7 @@ class PlanTableViewModel(
                                 )
                             ).also {
                                 created++
-                                milestoneCount[parentId] = order + 1
+                                nextOrder[parentId] = order + 1
                             }
                             ids[row.id] = id
                             markExisting(row.id, id)
@@ -279,7 +302,7 @@ class PlanTableViewModel(
                                 emptySet()
                             )
                             created++
-                            _rows.value = _rows.value.filterNot { it.id == row.id }
+                            setRows(_rows.value.filterNot { it.id == row.id })
                         }
                     }
                 }
@@ -294,7 +317,7 @@ class PlanTableViewModel(
     }
 
     private fun markExisting(rowId: String, id: String) {
-        _rows.value = _rows.value.map { if (it.id == rowId) it.copy(existingId = id) else it }
+        setRows(_rows.value.map { if (it.id == rowId) it.copy(existingId = id) else it })
     }
 
     /** 登録済みになった大目的・中日程のうち、下に未登録の行が残っていないものを下書きから外す。 */
@@ -304,6 +327,6 @@ class PlanTableViewModel(
         fun hasPendingDescendant(row: PlanRow): Boolean = list.any { child ->
             parents[child.id]?.id == row.id && (child.existingId == null || hasPendingDescendant(child))
         }
-        _rows.value = list.filter { it.existingId == null || hasPendingDescendant(it) }
+        setRows(list.filter { it.existingId == null || hasPendingDescendant(it) })
     }
 }

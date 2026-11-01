@@ -22,8 +22,11 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -86,6 +89,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -104,7 +108,6 @@ import com.example.schedulelink.ui.theme.MilestoneColorDark
 import com.example.schedulelink.ui.theme.MilestoneColorLight
 import com.example.schedulelink.ui.theme.ScheduleColorDark
 import com.example.schedulelink.ui.theme.ScheduleColorLight
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -163,12 +166,13 @@ fun PlanTableScreen(
     var locationRowId by remember { mutableStateOf<String?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { viewModel.initialize(store.load(), goalId) }
-    // 書きかけを端末に残す(入力のたびに書かないよう、少し待ってから)
-    LaunchedEffect(rows) {
-        if (rows.isEmpty()) return@LaunchedEffect
-        delay(400)
-        store.save(rows)
+    // 書きかけはViewModelが変更のたびに端末へ残す
+    LaunchedEffect(Unit) { viewModel.initialize(store, goalId) }
+    val listState = rememberLazyListState()
+    // 足した行が画面の外なら、そこまで送ってから入力欄を移す(先頭の凡例の分だけ1つずらす)
+    LaunchedEffect(focusId) {
+        val index = rows.indexOfFirst { it.id == focusId }
+        if (index >= 0) listState.animateScrollToItem(index + 1)
     }
 
     fun openConfirm() {
@@ -181,6 +185,8 @@ fun PlanTableScreen(
     }
 
     BackHandler(enabled = confirming && !saving) { confirming = false }
+    // 登録中に画面を離れると途中で止まってしまうので、終わるまで戻る操作を受け付けない
+    BackHandler(enabled = saving) { }
 
     val resolved = existing?.let { (goals, milestones) -> resolvePlan(rows, goals, milestones) }
     // 実際に登録する行: チェックが入っていて、問題がなく、親も登録される(または登録済み)行
@@ -233,13 +239,11 @@ fun PlanTableScreen(
                             onDone = { count, goalIds ->
                                 saving = false
                                 confirming = false
-                                if (viewModel.rows.value.isEmpty()) store.clear() else store.save(viewModel.rows.value)
                                 android.widget.Toast.makeText(context, "${count}件を登録しました", android.widget.Toast.LENGTH_SHORT).show()
                                 onFinished(goalIds)
                             },
                             onError = { count ->
                                 saving = false
-                                store.save(viewModel.rows.value)
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
                                         "途中で登録できませんでした(${count}件は登録済み)。通信状態を確かめて、もう一度お試しください"
@@ -283,6 +287,7 @@ fun PlanTableScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),
                 contentPadding = PaddingValues(horizontal = Dimens.ScreenPadding, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -340,9 +345,7 @@ fun PlanTableScreen(
 
     dateRowId?.let { id ->
         val row = rows.firstOrNull { it.id == id }
-        if (row == null) {
-            dateRowId = null
-        } else {
+        if (row != null) {
             // 前の行の日付から始めると、続けて選ぶときにめくる手間が少ない
             val index = rows.indexOf(row)
             val hintDate = row.start ?: rows.take(index).lastOrNull { it.start != null }?.let { it.end ?: it.start } ?: LocalDate.now()
@@ -360,9 +363,7 @@ fun PlanTableScreen(
 
     tagRowId?.let { id ->
         val row = rows.firstOrNull { it.id == id }
-        if (row == null) {
-            tagRowId = null
-        } else {
+        if (row != null) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ModalBottomSheet(onDismissRequest = { tagRowId = null }, sheetState = sheetState) {
                 Column(
@@ -379,9 +380,7 @@ fun PlanTableScreen(
 
     locationRowId?.let { id ->
         val row = rows.firstOrNull { it.id == id }
-        if (row == null) {
-            locationRowId = null
-        } else {
+        if (row != null) {
             var text by remember(id) { mutableStateOf(row.location) }
             AlertDialog(
                 onDismissRequest = { locationRowId = null },
@@ -495,7 +494,7 @@ private fun PlanRowCard(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = color,
-                    modifier = Modifier.width(64.dp)
+                    modifier = Modifier.widthIn(min = 64.dp).padding(end = 6.dp)
                 )
                 BasicTextField(
                     value = row.title,
@@ -509,8 +508,7 @@ private fun PlanRowCard(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 40.dp)
-                        .focusRequester(focusRequester)
-                        .semantics { contentDescription = "${row.level.label}(${row.level.hint})" },
+                        .focusRequester(focusRequester),
                     decorationBox = { inner ->
                         Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.heightIn(min = 40.dp)) {
                             if (row.title.isEmpty()) {
@@ -756,7 +754,11 @@ private fun ConfirmList(
                         RoundedCornerShape(12.dp)
                     )
                     .then(
-                        if (r.error == null) Modifier.clickable { onToggle(row.id, row.id in excluded) } else Modifier
+                        if (r.error == null) {
+                            Modifier.toggleable(value = checked, role = Role.Checkbox) { onToggle(row.id, row.id in excluded) }
+                        } else {
+                            Modifier
+                        }
                     )
                     .padding(end = 12.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -788,11 +790,17 @@ private fun ConfirmList(
                     if (details.isNotEmpty()) {
                         Text(details.joinToString("  "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    (r.error ?: r.note)?.let {
+                    // 親の行が登録されないときは、その理由を出す(チェックだけ外れて見えないように)
+                    val blockedByParent = r.error == null && !checked && row.id !in excluded
+                    (r.error ?: if (blockedByParent) "上の行が登録されないため、この行も登録されません" else r.note)?.let {
                         Text(
                             it,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (r.error != null) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.primary
+                            color = when {
+                                r.error != null -> MaterialTheme.colorScheme.onErrorContainer
+                                blockedByParent -> MaterialTheme.colorScheme.onSurfaceVariant
+                                else -> MaterialTheme.colorScheme.primary
+                            }
                         )
                     }
                 }
