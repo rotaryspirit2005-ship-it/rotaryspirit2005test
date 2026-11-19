@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -295,7 +295,7 @@ private fun TreeLegend() {
                     .background(connectorColor(0, isDark))
             )
         }
-        TreeLegendItem("予定") { LegendDot(connectorColor(0, isDark)) }
+        TreeLegendItem("予定") { LegendSquare(connectorColor(0, isDark)) }
         TreeLegendItem("リンク") {
             LegendLine(listOf(if (isDark) PeerLinkColorDark else PeerLinkColorLight), dashed = true)
         }
@@ -327,8 +327,9 @@ private fun TreeLegendItem(label: String, swatch: @Composable () -> Unit) {
 }
 
 @Composable
-private fun LegendDot(color: Color) {
-    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+private fun LegendSquare(color: Color) {
+    // 予定の印は四角(人のタグの丸と見分けるため)
+    Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(1.5.dp)).background(color))
 }
 
 /** 凡例の線の見本。色が複数のときは、同じ長さで色を並べる。 */

@@ -588,7 +588,8 @@ private fun MiniGantt(
                     PlanLevel.What -> {
                         val cx = left + dayPx / 2
                         val dot = if (lane.warning == "中日程の期間外") colors.error else color.copy(alpha = alpha)
-                        drawCircle(dot, 5.dp.toPx(), Offset(cx, centerY))
+                        // 予定は四角(人のタグの丸と見分けるため)
+                        drawRoundRect(dot, Offset(cx - 4.5.dp.toPx(), centerY - 4.5.dp.toPx()), Size(9.dp.toPx(), 9.dp.toPx()), CornerRadius(1.5.dp.toPx()))
                         val label = if (lane.warning == "中日程の期間外") "$title(期間外)" else title
                         safeDrawText(
                             measurer, label, Offset(cx + 8.dp.toPx(), centerY - 8.dp.toPx()),

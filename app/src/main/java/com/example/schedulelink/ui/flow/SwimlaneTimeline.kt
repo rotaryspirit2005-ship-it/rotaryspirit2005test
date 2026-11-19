@@ -22,6 +22,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.luminance
@@ -343,7 +346,8 @@ fun SwimlaneTimeline(
             val tags = tagController?.resolve(tagIds).orEmpty().take(3)
             var x = startX
             tags.forEach { tag ->
-                drawCircle(tagColor(tag.colorIndex, isDark).copy(alpha = alpha), geometry.px(3.5f), Offset(x + geometry.px(3.5f), centerY))
+                // 人のタグは丸のまま。予定の四角(drawScheduleMarker)より小さくして、形と大きさで見分ける。
+                drawCircle(tagColor(tag.colorIndex, isDark).copy(alpha = alpha), geometry.px(3f), Offset(x + geometry.px(3f), centerY))
                 x += geometry.px(10f)
             }
         }
@@ -453,14 +457,16 @@ fun SwimlaneTimeline(
                 if (center.x < -geometry.px(220f) || center.x > width + geometry.px(10f)) return
                 val schedule = chip.schedule
                 val alpha = alphaOf(schedule.id, schedule.tagIds)
-                val radius = geometry.px(4.5f)
+                // 予定は四角。人のタグの丸と形で見分けられるようにする。
+                val half = geometry.px(4f)
                 if (chip.past) {
-                    drawCircle(colorScheme.onSurfaceVariant.copy(alpha = alpha), radius, center, style = Stroke(width = geometry.px(1.5f)))
+                    val stroke = geometry.px(1.5f)
+                    drawScheduleMarker(colorScheme.onSurfaceVariant.copy(alpha = alpha), center, half - stroke / 2f, geometry.px(1f), Stroke(width = stroke))
                 } else {
-                    drawCircle(color.copy(alpha = alpha), radius, center)
+                    drawScheduleMarker(color.copy(alpha = alpha), center, half, geometry.px(1.5f))
                 }
                 if (schedule.id == selectedId) {
-                    drawCircle(colorScheme.onSurface, radius + geometry.px(3f), center, style = Stroke(width = geometry.px(1.5f)))
+                    drawScheduleMarker(colorScheme.onSurface, center, half + geometry.px(3f), geometry.px(3f), Stroke(width = geometry.px(1.5f)))
                 }
                 if (chip.label.isNotEmpty()) {
                     val text = measurer.measure(
@@ -537,3 +543,20 @@ fun SwimlaneTimeline(
     }
 }
 
+
+/** 予定の印(角を少し丸めた四角)。[half]は中心から辺までの長さ。 */
+private fun DrawScope.drawScheduleMarker(
+    color: Color,
+    center: Offset,
+    half: Float,
+    cornerRadius: Float,
+    style: DrawStyle = Fill
+) {
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(center.x - half, center.y - half),
+        size = Size(half * 2f, half * 2f),
+        cornerRadius = CornerRadius(cornerRadius),
+        style = style
+    )
+}

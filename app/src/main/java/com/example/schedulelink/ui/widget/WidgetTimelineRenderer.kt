@@ -204,11 +204,11 @@ fun renderWidgetTimeline(
                 stroke.color = subText
                 stroke.strokeWidth = 1.2f
                 stroke.pathEffect = null
-                canvas.drawCircle(cx, cy, 2.2f, stroke)
+                canvas.drawRoundRect(cx - 2.2f, cy - 2.2f, cx + 2.2f, cy + 2.2f, 0.8f, 0.8f, stroke)
             } else {
                 fill.color = color
                 fill.alpha = 255
-                canvas.drawCircle(cx, cy, 2.5f, fill)
+                canvas.drawRoundRect(cx - 2.5f, cy - 2.5f, cx + 2.5f, cy + 2.5f, 0.8f, 0.8f, fill)
             }
         }
         band.bars.forEach { bar ->
