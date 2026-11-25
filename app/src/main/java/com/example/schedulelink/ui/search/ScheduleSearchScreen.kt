@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
@@ -65,6 +66,7 @@ fun ScheduleSearchScreen(
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
     val loaded by viewModel.loaded.collectAsState()
+    val sortedResults = remember(results) { results.sortedByDescending { it.date } }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     // 開いたらすぐ書き始められるようにする
@@ -129,7 +131,7 @@ fun ScheduleSearchScreen(
                         )
                     }
                     // 新しい日付から並べる(これからの予定が見つけやすい)
-                    items(results.sortedByDescending { it.date }, key = { it.id }) { schedule ->
+                    items(sortedResults, key = { it.id }) { schedule ->
                         ResultRow(schedule, onClick = { onScheduleClick(schedule.id) })
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -170,7 +172,7 @@ private fun ResultRow(schedule: ScheduleEntity, onClick: () -> Unit) {
                     Icons.Outlined.Place,
                     contentDescription = "場所",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 4.dp).heightIn(max = 16.dp)
+                    modifier = Modifier.padding(end = 4.dp).size(16.dp)
                 )
                 Text(
                     schedule.location,
