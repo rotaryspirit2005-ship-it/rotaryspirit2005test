@@ -60,6 +60,7 @@ import com.example.schedulelink.reminder.ReminderPreferences
 import com.example.schedulelink.reminder.ReminderScheduler
 import com.example.schedulelink.reminder.canPostNotifications
 import com.example.schedulelink.reminder.reminderLabel
+import com.example.schedulelink.reminder.reminderWarning
 import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.common.LoadingState
 import kotlinx.coroutines.flow.map
@@ -205,6 +206,9 @@ fun ScheduleDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 6.dp)
                         )
+                    }
+                    reminderWarning(reminder, current.date, current.startTime)?.let { warning ->
+                        Text(warning, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                     if (showReminderPicker) {
                         ReminderChooser(

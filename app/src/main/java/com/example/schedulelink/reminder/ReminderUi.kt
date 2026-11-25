@@ -54,6 +54,16 @@ fun reminderLabel(reminder: Reminder?, date: LocalDate, startTime: LocalTime): S
     else -> "${reminder.option.label}頃"
 }
 
+/** 通知の時刻についての注意(過ぎている・予定の開始より後)。問題なければnull。 */
+fun reminderWarning(reminder: Reminder?, date: LocalDate, startTime: LocalTime): String? {
+    val at = reminder?.triggerAt(date, startTime) ?: return null
+    return when {
+        at.isBefore(LocalDateTime.now()) -> "通知の時刻が過ぎているため届きません"
+        at.isAfter(LocalDateTime.of(date, startTime)) -> "予定の開始より後に通知します"
+        else -> null
+    }
+}
+
 /**
  * 通知の選択欄。押すと選択肢が開く。通知を初めて選んだとき(Android 13以降)に、
  * 通知の許可を聞く。許可がないときは、その旨と設定を開くボタンを出す。
@@ -67,7 +77,7 @@ fun ReminderField(reminder: Reminder?, date: LocalDate, startTime: LocalTime, on
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         allowed = canPostNotifications(context)
     }
-    val passed = reminder != null && reminder.triggerAt(date, startTime).isBefore(LocalDateTime.now())
+    val warning = reminderWarning(reminder, date, startTime)
     Column {
         PickerField(
             label = "通知(この端末だけ)",
@@ -85,8 +95,8 @@ fun ReminderField(reminder: Reminder?, date: LocalDate, startTime: LocalTime, on
                 )
                 TextButton(onClick = { openNotificationSettings(context) }) { Text("設定を開く") }
             }
-            passed -> Text(
-                "通知の時刻が過ぎているため届きません",
+            warning != null -> Text(
+                warning,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
@@ -159,7 +169,7 @@ fun ReminderChooser(
                     }
                     val customAt = current?.takeIf { it.option == ReminderOption.Custom }?.triggerAt(date, startTime)
                     ChoiceRow(
-                        label = if (customAt != null) "日時を指定(${customAt.format(customFormatter)})" else "日時を指定…",
+                        label = if (customAt != null) "日時を指定: ${customAt.format(customFormatter)}" else "日時を指定…",
                         selected = current?.option == ReminderOption.Custom,
                         onClick = { step = ChooserStep.Date }
                     )
@@ -173,7 +183,8 @@ fun ReminderChooser(
                 initialSelectedDateMillis = pickedDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
             )
             DatePickerDialog(
-                onDismissRequest = onDismiss,
+                // 外側を押したり戻ったりしたときは、1つ前(選択肢の一覧)に戻る
+                onDismissRequest = { step = ChooserStep.List },
                 confirmButton = {
                     TextButton(onClick = {
                         state.selectedDateMillis?.let { pickedDate = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
