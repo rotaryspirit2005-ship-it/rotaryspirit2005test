@@ -158,7 +158,8 @@ fun MonthScreen(
     var helpTopic by rememberSaveable { mutableStateOf(HelpTopic.Month) }
     if (showHelp) HelpSheet(topic = helpTopic, onDismiss = { showHelp = false })
     // 初めて開いたときだけ、最初の一歩を案内する
-    val onboarding = remember { OnboardingPreferences(LocalContext.current) }
+    val appContext = LocalContext.current
+    val onboarding = remember { OnboardingPreferences(appContext) }
     var showWelcome by rememberSaveable { mutableStateOf(!onboarding.welcomeSeen) }
     if (showWelcome) {
         AlertDialog(
