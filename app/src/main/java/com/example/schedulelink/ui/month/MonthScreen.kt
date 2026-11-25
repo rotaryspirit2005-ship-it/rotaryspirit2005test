@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
@@ -83,6 +84,7 @@ import com.example.schedulelink.BuildConfig
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.data.WidgetErrorLog
 import com.example.schedulelink.ui.help.HelpSheet
+import com.example.schedulelink.ui.settings.OnboardingPreferences
 import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.TodayBadge
@@ -138,6 +140,7 @@ fun MonthScreen(
     onGoalMapClick: () -> Unit,
     onTodoListClick: () -> Unit,
     onPlanTableClick: () -> Unit,
+    onSearchClick: () -> Unit,
     onFamilySettingsClick: () -> Unit,
     onTagManageClick: () -> Unit,
     onImportIcsClick: () -> Unit,
@@ -152,7 +155,42 @@ fun MonthScreen(
     val tagController = LocalTagController.current
     var tagFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
     var showHelp by rememberSaveable { mutableStateOf(false) }
-    if (showHelp) HelpSheet(topic = HelpTopic.Month, onDismiss = { showHelp = false })
+    var helpTopic by rememberSaveable { mutableStateOf(HelpTopic.Month) }
+    if (showHelp) HelpSheet(topic = helpTopic, onDismiss = { showHelp = false })
+    // 初めて開いたときだけ、最初の一歩を案内する
+    val onboarding = remember { OnboardingPreferences(LocalContext.current) }
+    var showWelcome by rememberSaveable { mutableStateOf(!onboarding.welcomeSeen) }
+    if (showWelcome) {
+        AlertDialog(
+            onDismissRequest = {
+                onboarding.welcomeSeen = true
+                showWelcome = false
+            },
+            title = { Text("Slatchへようこそ") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("予定を「つなげて」管理するアプリです。まずは次の3つから。")
+                    Text("① 右下の＋で、最初の予定を足す")
+                    Text("② 家族と使うなら、︙の「家族グループの設定」で招待コードを共有する")
+                    Text("③ 迷ったら、各画面の「？」で図解つきの使い方を見る")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onboarding.welcomeSeen = true
+                    showWelcome = false
+                }) { Text("はじめる") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    onboarding.welcomeSeen = true
+                    showWelcome = false
+                    helpTopic = HelpTopic.Intro
+                    showHelp = true
+                }) { Text("使い方を見る") }
+            }
+        )
+    }
     val knownTagIds = remember(tagController) { tagController?.byId?.keys.orEmpty() }
     val activeTagFilter = remember(tagFilter, knownTagIds) {
         tagFilter.filter { it == NO_TAG_FILTER || it in knownTagIds }.toSet()
@@ -243,16 +281,21 @@ fun MonthScreen(
                         DropdownMenuItem(
                             text = { Text("この画面の使い方") },
                             leadingIcon = { Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null) },
-                            onClick = { showMenu = false; showHelp = true }
+                            onClick = { showMenu = false; helpTopic = HelpTopic.Month; showHelp = true }
                         )
                         HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("予定をさがす") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            onClick = { showMenu = false; onSearchClick() }
+                        )
                         DropdownMenuItem(
                             text = { Text("やることリスト") },
                             leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null) },
                             onClick = { showMenu = false; onTodoListClick() }
                         )
                         DropdownMenuItem(
-                            text = { Text("表で計画する") },
+                            text = { Text("表で計画") },
                             leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) },
                             onClick = { showMenu = false; onPlanTableClick() }
                         )

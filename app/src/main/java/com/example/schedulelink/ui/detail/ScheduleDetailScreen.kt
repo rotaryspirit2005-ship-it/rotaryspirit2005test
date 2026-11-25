@@ -190,7 +190,7 @@ fun ScheduleDetailScreen(
                     placeholder = "この予定のやることを追加"
                 )
 
-                SectionHeader("関連する行動予定 (${linked.size})")
+                SectionHeader("つながる予定 (${linked.size})")
 
                 if (linked.isEmpty()) {
                     Text(

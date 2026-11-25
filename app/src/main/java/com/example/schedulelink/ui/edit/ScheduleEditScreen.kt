@@ -297,7 +297,7 @@ fun ScheduleEditScreen(
                     )
                 }
 
-                SectionHeader("関連する行動予定")
+                SectionHeader("つながる予定")
 
                 if (candidateLinks.isEmpty()) {
                     Text(

@@ -8,7 +8,7 @@ enum class HelpArt {
     LinkChain, DateShift, Tags, TagRemove,
     MonthSwipe, Fab, MapMenu, WeekCols, WeekMore, DayList, Tap,
     Checklist, ChecklistDone, Progress, Status, Form, Swimlane, CollapseMemo,
-    FamilyCreate, FamilyJoin, ImportFile, ImportCalendar, PlanTable
+    FamilyCreate, FamilyJoin, ImportFile, ImportCalendar, PlanTable, Search
 }
 
 data class HelpPage(val title: String, val body: String, val art: HelpArt)
@@ -49,7 +49,7 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
             ),
             HelpPage(
                 "旗マークで全体マップへ",
-                "旗のボタンで、目的・中日程・予定をまとめて見渡せる全体マップへ。右上の︙メニューには、やること・家族・タグ・読み込み・この使い方ガイドがあります。",
+                "旗のボタンで、目的・中日程・予定をまとめて見渡せる全体マップへ。右上の︙メニューには、予定をさがす・やること・表で計画・家族・タグ・読み込み・この使い方ガイドがあります。",
                 HelpArt.MapMenu
             )
         )
@@ -189,7 +189,7 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
             ),
             HelpPage(
                 "予定どうしをリンク",
-                "「関連する行動予定」でチェックした予定とつながります。所属する中日程も選べます。",
+                "「つながる予定」でチェックした予定とつながります。所属する中日程も選べます。",
                 HelpArt.LinkChain
             ),
             HelpPage(
@@ -281,6 +281,31 @@ enum class HelpTopic(val label: String, val pages: List<HelpPage>) {
                 "確かめてから登録",
                 "「確認へ」でツリーの形で確かめ、チェックした行だけを登録します。同じ名前の大目的・中日程があれば、そこに追加します。書きかけは自動で残ります。",
                 HelpArt.Hierarchy
+            ),
+            HelpPage(
+                "上の図で、形を見ながら書く",
+                "「構造・日程・分担」の図が、書くそばから育ちます。日程の帯は指でつかんで動かせます。「計画の具体度」の帯が、次に埋めるとよい所を教えてくれます。",
+                HelpArt.Swimlane
+            ),
+            HelpPage(
+                "ひな形とAIで、書く手間を減らす",
+                "︙の「ひな形から追加」で、引越しや旅行などの骨組みが日付つきで並びます。「AIで分解」は、ご自身のAnthropic APIキーを入れたときだけ使え、使った分の料金がかかります(使わなくても大丈夫です)。",
+                HelpArt.PlanTable
+            )
+        )
+    ),
+    Search(
+        "予定をさがす",
+        listOf(
+            HelpPage(
+                "言葉を入れるだけで見つかる",
+                "予定のタイトル・場所・メモから、入れた言葉を含むものをさがします。空白で区切ると「歯医者 駅前」のように、すべてを含む予定に絞れます。",
+                HelpArt.Search
+            ),
+            HelpPage(
+                "押すと詳細へ",
+                "見つかった予定を押すと詳細が開きます。新しい日付の予定から順に並びます。",
+                HelpArt.Tap
             )
         )
     ),

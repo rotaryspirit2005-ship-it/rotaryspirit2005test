@@ -86,7 +86,7 @@ fun InfoPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
     }
 }
 
-/** 画面内のセクション見出し(「中日程」「関連する行動予定」など)。 */
+/** 画面内のセクション見出し(「中日程」「つながる予定」など)。 */
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -117,7 +117,10 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     // 狭い領域(月画面の下半分など)ではアイコンを省いて高さを抑える。
-    showIcon: Boolean = true
+    showIcon: Boolean = true,
+    // もう1つの進み方(例: 「表でまとめて作る」)。文字だけのボタンで添える。
+    secondaryActionLabel: String? = null,
+    onSecondaryAction: (() -> Unit)? = null
 ) {
     Box(modifier = modifier.padding(Dimens.ScreenPadding), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -143,6 +146,9 @@ fun EmptyState(
                     Spacer(modifier = Modifier.size(8.dp))
                     Text(actionLabel)
                 }
+            }
+            if (secondaryActionLabel != null && onSecondaryAction != null) {
+                TextButton(onClick = onSecondaryAction) { Text(secondaryActionLabel) }
             }
         }
     }

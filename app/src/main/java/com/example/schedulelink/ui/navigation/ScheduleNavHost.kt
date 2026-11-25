@@ -30,6 +30,8 @@ import com.example.schedulelink.data.TagRepository
 import com.example.schedulelink.data.TodoRepository
 import com.example.schedulelink.ui.AppViewModelFactory
 import com.example.schedulelink.ui.plan.PlanTableScreen
+import com.example.schedulelink.ui.search.ScheduleSearchScreen
+import com.example.schedulelink.ui.search.ScheduleSearchViewModel
 import com.example.schedulelink.ui.plan.PlanTableViewModel
 import com.example.schedulelink.ui.auth.FamilySettingsScreen
 import com.example.schedulelink.ui.detail.ScheduleDetailScreen
@@ -82,6 +84,7 @@ private const val ROUTE_IMPORT_ICS = "importIcs"
 private const val ROUTE_IMPORT_CALENDAR = "importCalendar"
 private const val ROUTE_TODOS = "todos"
 private const val ROUTE_TAGS = "tags"
+private const val ROUTE_SEARCH = "search"
 private const val ROUTE_PLAN_TABLE = "planTable?goalId={goalId}"
 
 // 画面遷移(Material 3の「Z軸」モーション)。階層を深く進むときは新しい画面が少し小さい所から
@@ -159,6 +162,7 @@ fun ScheduleNavHost(
                     onGoalMapClick = { navController.navigate(ROUTE_WHOLE_TREE) },
                     onTodoListClick = { navController.navigate(ROUTE_TODOS) },
                     onPlanTableClick = { navController.navigate("planTable") },
+                    onSearchClick = { navController.navigate(ROUTE_SEARCH) },
                     onFamilySettingsClick = { navController.navigate(ROUTE_FAMILY_SETTINGS) },
                     onTagManageClick = { navController.navigate(ROUTE_TAGS) },
                     onImportIcsClick = { navController.navigate(ROUTE_IMPORT_ICS) },
@@ -265,6 +269,7 @@ fun ScheduleNavHost(
                 onMilestoneClick = { id -> navController.navigate("milestoneDetail/$id") },
                 onScheduleClick = { id -> navController.navigate("detail/$id") },
                 onAddGoalClick = { navController.navigate("goalEdit") },
+                onPlanTableClick = { navController.navigate("planTable") },
                 onGoalListClick = { navController.navigate(ROUTE_GOALS) },
                 onBack = { navController.popBackStack() }
             )
@@ -278,6 +283,7 @@ fun ScheduleNavHost(
                 onMilestoneClick = { id -> navController.navigate("milestoneDetail/$id") },
                 onScheduleClick = { id -> navController.navigate("detail/$id") },
                 onAddGoalClick = { navController.navigate("goalEdit") },
+                onPlanTableClick = { navController.navigate("planTable") },
                 onGoalListClick = { navController.navigate(ROUTE_GOALS) },
                 onBack = { navController.popBackStack() }
             )
@@ -305,12 +311,22 @@ fun ScheduleNavHost(
             )
         }
 
+        composable(ROUTE_SEARCH) {
+            val vm: ScheduleSearchViewModel = viewModel(factory = factory)
+            ScheduleSearchScreen(
+                viewModel = vm,
+                onScheduleClick = { id -> navController.navigate("detail/$id") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable(ROUTE_GOALS) {
             val vm: GoalListViewModel = viewModel(factory = factory)
             GoalListScreen(
                 viewModel = vm,
                 onAddClick = { navController.navigate("goalEdit") },
                 onItemClick = { id -> navController.navigate("goalDetail/$id") },
+                onPlanTable = { navController.navigate("planTable") },
                 onBack = { navController.popBackStack() }
             )
         }

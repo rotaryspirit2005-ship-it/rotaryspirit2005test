@@ -42,6 +42,7 @@ fun GoalListScreen(
     viewModel: GoalListViewModel,
     onAddClick: () -> Unit,
     onItemClick: (String) -> Unit,
+    onPlanTable: () -> Unit,
     onBack: () -> Unit
 ) {
     val goals by viewModel.goals.collectAsState()
@@ -68,7 +69,9 @@ fun GoalListScreen(
                 message = "まだ大目的がありません",
                 modifier = Modifier.fillMaxSize().padding(padding),
                 actionLabel = "大目的を追加",
-                onAction = onAddClick
+                onAction = onAddClick,
+                secondaryActionLabel = "表でまとめて作る",
+                onSecondaryAction = onPlanTable
             )
         } else {
             LazyColumn(

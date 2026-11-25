@@ -282,7 +282,7 @@ fun PlanTableScreen(
                                 onClick = { menu = false; showTemplates = true }
                             )
                             DropdownMenuItem(
-                                text = { Text("今の表をひな形として保存") },
+                                text = { Text("この表をひな形に保存") },
                                 onClick = { menu = false; showSaveTemplate = true }
                             )
                             HorizontalDivider()

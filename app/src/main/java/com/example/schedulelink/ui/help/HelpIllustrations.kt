@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
@@ -128,6 +129,7 @@ fun HelpIllustration(art: HelpArt, modifier: Modifier = Modifier) {
             HelpArt.ImportFile -> ImportArt(c, Icons.Default.FileOpen)
             HelpArt.ImportCalendar -> ImportArt(c, Icons.Default.Event)
             HelpArt.PlanTable -> PlanTableArt(c)
+            HelpArt.Search -> SearchArt(c)
         }
     }
 }
@@ -836,5 +838,25 @@ private fun PlanTableArt(c: ArtColors) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SearchArt(c: ArtColors) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier
+                .width(230.dp)
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(50))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("歯医者 駅前", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+        }
+        MiniCard(c.schedule, width = 230.dp, label = "歯医者(駅前クリニック)")
+        MiniCard(c.schedule, width = 230.dp, label = "歯医者の予約電話")
     }
 }

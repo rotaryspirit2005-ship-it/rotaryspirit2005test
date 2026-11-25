@@ -86,7 +86,7 @@ fun MilestoneDetailScreen(
             )
         },
         floatingActionButton = {
-            AppFab(onClick = { onAddSchedule(milestoneId) }, icon = Icons.Default.Add, contentDescription = "小日程を追加")
+            AppFab(onClick = { onAddSchedule(milestoneId) }, icon = Icons.Default.Add, contentDescription = "予定を追加")
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -109,13 +109,13 @@ fun MilestoneDetailScreen(
             if (schedules.isEmpty()) {
                 EmptyState(
                     icon = Icons.Outlined.EventNote,
-                    message = "まだ小日程がありません",
+                    message = "まだ予定がありません",
                     modifier = Modifier.fillMaxSize(),
-                    actionLabel = "小日程を追加",
+                    actionLabel = "予定を追加",
                     onAction = { onAddSchedule(milestoneId) }
                 )
             } else {
-                SectionHeader("小日程", modifier = Modifier.padding(horizontal = Dimens.ScreenPadding))
+                SectionHeader("予定", modifier = Modifier.padding(horizontal = Dimens.ScreenPadding))
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(

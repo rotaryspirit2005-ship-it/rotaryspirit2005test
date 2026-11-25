@@ -51,6 +51,7 @@ import com.example.schedulelink.ui.help.HelpAction
 import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
+import com.example.schedulelink.ui.common.EmptyState
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.InfoPanel
@@ -141,11 +142,16 @@ fun GoalDetailScreen(
 
                 SectionHeader("中日程")
                 if (milestones.isEmpty()) {
-                    Text(
-                        "まだ中日程がありません",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                    // 次にすることが分かるよう、追加の入口をここにも出す
+                    EmptyState(
+                        icon = Icons.Default.Add,
+                        message = "まだ中日程がありません",
+                        modifier = Modifier.fillMaxWidth(),
+                        showIcon = false,
+                        actionLabel = "中日程を追加",
+                        onAction = { onAddMilestone(goalId) },
+                        secondaryActionLabel = "表でまとめて作る",
+                        onSecondaryAction = { onPlanTable(goalId) }
                     )
                 } else {
                     milestones.forEach { milestone ->

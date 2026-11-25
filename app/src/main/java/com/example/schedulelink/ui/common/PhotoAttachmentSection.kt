@@ -161,9 +161,9 @@ private fun PhotoThumbnail(model: Any, onRemove: () -> Unit) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                // 見た目のバッジ(22dp)は変えず、実際のタップ領域だけ32dpに広げる
+                // 見た目のバッジ(22dp)は変えず、実際のタップ領域だけ最低サイズの48dpに広げる
                 // (横スクロール中の誤タップ・タップ精度の問題を減らすため)。
-                .size(32.dp)
+                .size(48.dp)
                 .clickable(onClick = onRemove),
             contentAlignment = Alignment.Center
         ) {

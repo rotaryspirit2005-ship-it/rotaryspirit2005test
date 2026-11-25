@@ -18,6 +18,7 @@ import com.example.schedulelink.ui.milestone.MilestoneDetailViewModel
 import com.example.schedulelink.ui.milestone.MilestoneEditViewModel
 import com.example.schedulelink.ui.month.MonthViewModel
 import com.example.schedulelink.ui.plan.PlanTableViewModel
+import com.example.schedulelink.ui.search.ScheduleSearchViewModel
 import com.example.schedulelink.ui.todo.TodoListViewModel
 import com.example.schedulelink.ui.week.WeekViewModel
 
@@ -57,6 +58,8 @@ class AppViewModelFactory(
                 WholeTreeViewModel(goalRepository, milestoneRepository, repository) as T
             modelClass.isAssignableFrom(PlanTableViewModel::class.java) ->
                 PlanTableViewModel(goalRepository, milestoneRepository, repository) as T
+            modelClass.isAssignableFrom(ScheduleSearchViewModel::class.java) ->
+                ScheduleSearchViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }

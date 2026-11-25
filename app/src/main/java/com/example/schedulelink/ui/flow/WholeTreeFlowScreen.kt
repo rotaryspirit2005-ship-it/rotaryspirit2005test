@@ -121,6 +121,7 @@ fun WholeTreeFlowScreen(
     onMilestoneClick: (String) -> Unit,
     onScheduleClick: (String) -> Unit,
     onAddGoalClick: () -> Unit,
+    onPlanTableClick: () -> Unit,
     onGoalListClick: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -250,7 +251,9 @@ fun WholeTreeFlowScreen(
                                         message = "まだ大目的がありません",
                                         modifier = Modifier.fillMaxSize(),
                                         actionLabel = "大目的を追加",
-                                        onAction = onAddGoalClick
+                                        onAction = onAddGoalClick,
+                                        secondaryActionLabel = "表でまとめて作る",
+                                        onSecondaryAction = onPlanTableClick
                                     )
                                 } else {
                                     SwimlaneTimeline(
