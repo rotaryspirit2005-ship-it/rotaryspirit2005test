@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -151,6 +153,17 @@ fun EmptyState(
                 TextButton(onClick = onSecondaryAction) { Text(secondaryActionLabel) }
             }
         }
+    }
+}
+
+/**
+ * 読み込み中の表示。データが届く前に「まだ〜がありません」が一瞬出て、
+ * 空だと勘違いされないようにする。
+ */
+@Composable
+fun LoadingState(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.padding(Dimens.ScreenPadding), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(modifier = Modifier.size(32.dp).semantics { contentDescription = "読み込み中" })
     }
 }
 

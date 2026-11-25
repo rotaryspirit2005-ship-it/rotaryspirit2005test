@@ -26,3 +26,6 @@ data class ScheduleWithLinkCount(val schedule: ScheduleEntity, val linkedCount: 
 
 /** 日表示のフロー風レイアウトで使う、リンク先の詳細(時刻・タイトル)まで含めた表示用データ。 */
 data class ScheduleWithLinks(val schedule: ScheduleEntity, val linkedSchedules: List<ScheduleEntity>)
+
+/** 削除した予定の控え(「元に戻す」用)。[todoIds]は、ひもづいていたやること。 */
+data class DeletedSchedule(val schedule: ScheduleEntity, val todoIds: List<String>)

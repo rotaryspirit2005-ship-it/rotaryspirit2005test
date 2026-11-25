@@ -52,6 +52,7 @@ import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.common.LoadingState
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.InfoPanel
@@ -73,7 +74,8 @@ fun GoalDetailScreen(
     isPhotoFeatureEnabled: Boolean
 ) {
     val goal by viewModel.goal(goalId).collectAsState(initial = null)
-    val milestones by viewModel.milestones(goalId).collectAsState(initial = emptyList())
+    // nullは読み込み中(空の案内が一瞬出ないように)
+    val milestones by viewModel.milestones(goalId).collectAsState(initial = null)
     val progress by viewModel.progress(goalId).collectAsState(initial = GoalProgress(0, 0))
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -141,7 +143,10 @@ fun GoalDetailScreen(
                 }
 
                 SectionHeader("中日程")
-                if (milestones.isEmpty()) {
+                val milestoneList = milestones
+                if (milestoneList == null) {
+                    LoadingState(modifier = Modifier.fillMaxWidth())
+                } else if (milestoneList.isEmpty()) {
                     // 次にすることが分かるよう、追加の入口をここにも出す
                     EmptyState(
                         icon = Icons.Default.Add,
@@ -154,7 +159,7 @@ fun GoalDetailScreen(
                         onSecondaryAction = { onPlanTable(goalId) }
                     )
                 } else {
-                    milestones.forEach { milestone ->
+                    milestoneList.forEach { milestone ->
                         MilestoneRow(milestone = milestone, onClick = { onMilestoneClick(milestone.id) })
                     }
                 }

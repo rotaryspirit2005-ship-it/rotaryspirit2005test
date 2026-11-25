@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 object DeepLinks {
     const val TODOS = "todos"
     const val WHOLE_MAP = "wholeMap"
+    const val DETAIL = "detail"
 
     val pending = MutableStateFlow<String?>(null)
 
@@ -32,5 +33,17 @@ object DeepLinks {
             .setData(Uri.parse("schedulelink://$WHOLE_MAP"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
-    fun destinationOf(intent: Intent?): String? = intent?.data?.takeIf { it.scheme == "schedulelink" }?.host
+    /** 予定の詳細を開くIntent(通知から)。予定ごとにURIを変えて、別々の通知として扱わせる。 */
+    fun scheduleDetailIntent(context: Context, scheduleId: String): Intent =
+        Intent(context, MainActivity::class.java)
+            .setData(Uri.parse("schedulelink://$DETAIL/$scheduleId"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+    /** 開く画面。予定の詳細は「detail/予定のID」、それ以外は画面の名前だけ。 */
+    fun destinationOf(intent: Intent?): String? {
+        val data = intent?.data?.takeIf { it.scheme == "schedulelink" } ?: return null
+        val host = data.host ?: return null
+        val id = data.pathSegments.firstOrNull()
+        return if (host == DETAIL && id != null) "$DETAIL/$id" else host
+    }
 }

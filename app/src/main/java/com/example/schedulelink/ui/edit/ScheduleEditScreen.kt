@@ -53,6 +53,9 @@ import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.help.HelpAction
 import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.tag.TagPickerSection
+import com.example.schedulelink.reminder.ReminderField
+import com.example.schedulelink.reminder.ReminderPreferences
+import com.example.schedulelink.reminder.ReminderScheduler
 import com.example.schedulelink.ui.common.SaveBottomBar
 import com.example.schedulelink.ui.common.PhotoAttachmentSection
 import com.example.schedulelink.ui.common.PickerField
@@ -81,9 +84,11 @@ fun ScheduleEditScreen(
     // その日にしておくための引数。新規作成時のみ使う(編集時は既存の日付を使う)。
     initialDate: LocalDate? = null,
     viewModel: ScheduleEditViewModel,
-    onSaved: () -> Unit,
+    onSaved: (String) -> Unit,
     onBack: () -> Unit,
-    isPhotoFeatureEnabled: Boolean
+    isPhotoFeatureEnabled: Boolean,
+    // この予定をもとにコピーして作るとき、その予定のID(リンク・写真・やることはコピーしない)
+    copyFromId: String? = null
 ) {
     var title by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
@@ -98,8 +103,11 @@ fun ScheduleEditScreen(
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var linkedIds by remember { mutableStateOf(setOf<String>()) }
     var milestoneId by remember { mutableStateOf(initialMilestoneId) }
-    var loaded by remember { mutableStateOf(scheduleId == null) }
+    var loaded by remember { mutableStateOf(scheduleId == null && copyFromId == null) }
     val context = LocalContext.current
+    // 通知の選択はこの端末だけに保存する(家族には共有しない)
+    val reminderPrefs = remember { ReminderPreferences(context) }
+    var reminder by remember { mutableStateOf((scheduleId ?: copyFromId)?.let { reminderPrefs.optionOf(it) }) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -110,6 +118,22 @@ fun ScheduleEditScreen(
     var removedPhotoUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    LaunchedEffect(copyFromId) {
+        if (scheduleId == null && copyFromId != null) {
+            viewModel.loadForEdit(copyFromId) { schedule, _ ->
+                title = schedule.title
+                memo = schedule.memo
+                location = schedule.location
+                date = schedule.date
+                startTime = schedule.startTime
+                endTime = schedule.endTime
+                milestoneId = schedule.milestoneId
+                tagIds = schedule.tagIds
+                loaded = true
+            }
+        }
+    }
 
     LaunchedEffect(scheduleId) {
         if (scheduleId != null) {
@@ -170,7 +194,9 @@ fun ScheduleEditScreen(
                     Toast.LENGTH_SHORT
                 ).show()
             }
-            onSaved()
+            reminderPrefs.setOption(it, reminder)
+            ReminderScheduler(context).schedule(schedule.copy(id = it))
+            onSaved(it)
         }
     }
 
@@ -197,7 +223,15 @@ fun ScheduleEditScreen(
         topBar = {
             TopAppBar(
                 actions = { HelpAction(HelpTopic.ScheduleEdit) },
-                title = { Text(if (scheduleId == null) "予定を追加" else "予定を編集") },
+                title = {
+                    Text(
+                        when {
+                            scheduleId != null -> "予定を編集"
+                            copyFromId != null -> "予定をコピー"
+                            else -> "予定を追加"
+                        }
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "戻る")
@@ -249,6 +283,13 @@ fun ScheduleEditScreen(
                     icon = Icons.Outlined.CalendarMonth,
                     onClick = { showDatePicker = true }
                 )
+                if (copyFromId != null && scheduleId == null) {
+                    Text(
+                        "コピー元と同じ日付です。必要なら変えてください(つながる予定・写真・やることはコピーしません)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -276,6 +317,8 @@ fun ScheduleEditScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+
+                ReminderField(option = reminder, onChange = { reminder = it })
 
                 PickerField(
                     label = "所属する中日程",

@@ -23,7 +23,8 @@ class GoalListViewModel(
 ) : ViewModel() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val goals: StateFlow<List<GoalListItem>> = goalRepository.allGoals()
+    /** nullは読み込み中。 */
+    val goals: StateFlow<List<GoalListItem>?> = goalRepository.allGoals()
         .flatMapLatest { list ->
             if (list.isEmpty()) {
                 flowOf(emptyList())
@@ -33,7 +34,7 @@ class GoalListViewModel(
                 }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun deleteGoal(id: String) {
         viewModelScope.launch {

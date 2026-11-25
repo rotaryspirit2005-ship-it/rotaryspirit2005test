@@ -3,6 +3,7 @@ package com.example.schedulelink.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.schedulelink.data.ScheduleEntity
+import com.example.schedulelink.data.DeletedSchedule
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.TodoEntity
 import com.example.schedulelink.data.TodoRepository
@@ -29,11 +30,11 @@ class ScheduleDetailViewModel(
     /** やることの編集シートでリンク先を選び直すための候補(シートを開いている間だけ購読する)。 */
     fun allSchedules(): Flow<List<ScheduleEntity>> = repository.allSchedules()
 
-    fun deleteSchedule(id: String, onDone: () -> Unit) {
+    /** 削除して、「元に戻す」用の控えを返す(読めなかったときはnull)。 */
+    fun deleteSchedule(id: String, onDone: (DeletedSchedule?) -> Unit) {
         viewModelScope.launch {
             // リンクしていたやることは、リンクだけ外れて残る(ScheduleRepository側で処理)。
-            repository.deleteSchedule(id)
-            onDone()
+            onDone(repository.deleteSchedule(id))
         }
     }
 

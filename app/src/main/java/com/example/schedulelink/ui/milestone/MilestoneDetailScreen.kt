@@ -41,6 +41,7 @@ import com.example.schedulelink.ui.common.CollapsibleMemo
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.DestructiveTextButton
 import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.common.LoadingState
 import com.example.schedulelink.ui.common.InfoPanel
 import com.example.schedulelink.ui.common.PhotoGallery
 import com.example.schedulelink.ui.common.SectionHeader
@@ -62,7 +63,8 @@ fun MilestoneDetailScreen(
     isPhotoFeatureEnabled: Boolean
 ) {
     val milestone by viewModel.milestone(milestoneId).collectAsState(initial = null)
-    val schedules by viewModel.schedules(milestoneId).collectAsState(initial = emptyList())
+    // nullは読み込み中(空の案内が一瞬出ないように)
+    val schedules by viewModel.schedules(milestoneId).collectAsState(initial = null)
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -106,7 +108,10 @@ fun MilestoneDetailScreen(
                 }
             }
 
-            if (schedules.isEmpty()) {
+            val scheduleList = schedules
+            if (scheduleList == null) {
+                LoadingState(modifier = Modifier.fillMaxSize())
+            } else if (scheduleList.isEmpty()) {
                 EmptyState(
                     icon = Icons.Outlined.EventNote,
                     message = "まだ予定がありません",
@@ -126,7 +131,7 @@ fun MilestoneDetailScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
                 ) {
-                    items(schedules, key = { it.id }) { schedule ->
+                    items(scheduleList, key = { it.id }) { schedule ->
                         ScheduleRow(
                             schedule = schedule,
                             onClick = { onScheduleClick(schedule.id) },

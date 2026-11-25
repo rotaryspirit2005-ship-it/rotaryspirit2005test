@@ -7,6 +7,7 @@ import androidx.work.WorkManager
 import com.example.schedulelink.data.AuthRepository
 import com.example.schedulelink.data.FamilyRepository
 import com.example.schedulelink.data.WidgetPreferences
+import com.example.schedulelink.reminder.createReminderChannel
 import com.example.schedulelink.ui.settings.PhotoFeaturePreferences
 import com.example.schedulelink.ui.theme.ThemePreferences
 import com.example.schedulelink.ui.widget.WidgetUpdateWorker
@@ -29,6 +30,7 @@ class ScheduleLinkApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        createReminderChannel(this)
         // ウィジェットは手動更新ボタンに加えて、30分おきの定期更新でも内容を最新化する。
         val request = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(30, TimeUnit.MINUTES).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

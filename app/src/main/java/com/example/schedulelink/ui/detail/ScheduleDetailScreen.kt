@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.outlined.Place
@@ -45,6 +46,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.schedulelink.data.DeletedSchedule
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.ui.platform.LocalContext
+import com.example.schedulelink.reminder.ReminderPickerDialog
+import com.example.schedulelink.reminder.ReminderPreferences
+import com.example.schedulelink.reminder.ReminderScheduler
+import com.example.schedulelink.reminder.canPostNotifications
+import com.example.schedulelink.reminder.reminderLabel
+import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.common.LoadingState
+import kotlinx.coroutines.flow.map
 import com.example.schedulelink.data.ScheduleEntity
 import com.example.schedulelink.ui.help.HelpAction
 import com.example.schedulelink.ui.help.HelpTopic
@@ -73,16 +91,25 @@ fun ScheduleDetailScreen(
     onEdit: (String) -> Unit,
     onBack: () -> Unit,
     onLinkedClick: (String) -> Unit,
+    onCopy: (String) -> Unit,
+    onDeleted: (DeletedSchedule?) -> Unit,
     isPhotoFeatureEnabled: Boolean
 ) {
     // 再描画のたびに購読し直さないよう、Flowは予定ごとに1度だけ作る。
-    val scheduleFlow = remember(scheduleId) { viewModel.schedule(scheduleId) }
+    // 「読み込み中」と「削除された(家族が消したなど)」を見分けるため、届いたかどうかも持つ
+    val scheduleFlow = remember(scheduleId) { viewModel.schedule(scheduleId).map { true to it } }
     val linkedFlow = remember(scheduleId) { viewModel.linkedSchedules(scheduleId) }
-    val schedule by scheduleFlow.collectAsState(initial = null)
+    val scheduleState by scheduleFlow.collectAsState(initial = false to null)
+    val schedule = scheduleState.second
     val linked by linkedFlow.collectAsState(initial = emptyList())
     val todosFlow = remember(scheduleId) { viewModel.todos(scheduleId) }
     val todos by todosFlow.collectAsState(initial = emptyList())
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val reminderPrefs = remember { ReminderPreferences(context) }
+    var reminder by remember(scheduleId) { mutableStateOf(reminderPrefs.optionOf(scheduleId)) }
+    var showReminderPicker by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var editingTodoId by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -101,6 +128,9 @@ fun ScheduleDetailScreen(
                     IconButton(onClick = { onEdit(scheduleId) }) {
                         Icon(Icons.Default.Edit, contentDescription = "編集")
                     }
+                    IconButton(onClick = { onCopy(scheduleId) }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = "コピーして追加")
+                    }
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "削除")
                     }
@@ -110,13 +140,16 @@ fun ScheduleDetailScreen(
         }
     ) { padding ->
         val current = schedule
-        if (current == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                Text(
-                    "読み込み中...",
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
+        if (current == null && !scheduleState.first) {
+            LoadingState(modifier = Modifier.fillMaxSize().padding(padding))
+        } else if (current == null) {
+            EmptyState(
+                icon = Icons.Default.Delete,
+                message = "この予定は削除されました",
+                modifier = Modifier.fillMaxSize().padding(padding),
+                secondaryActionLabel = "戻る",
+                onSecondaryAction = onBack
+            )
         } else {
             Column(
                 modifier = Modifier
@@ -151,6 +184,42 @@ fun ScheduleDetailScreen(
                                 modifier = Modifier.padding(start = 6.dp)
                             )
                         }
+                    }
+                    // 通知(この端末だけ)。押すとその場で変えられる(保存はいらない)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(onClickLabel = "通知を変える") { showReminderPicker = true },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.Notifications,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            "通知: ${reminderLabel(reminder)}(この端末)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                    if (showReminderPicker) {
+                        ReminderPickerDialog(
+                            current = reminder,
+                            onDismiss = { showReminderPicker = false },
+                            onPick = { picked ->
+                                showReminderPicker = false
+                                reminder = picked
+                                reminderPrefs.setOption(current.id, picked)
+                                ReminderScheduler(context).schedule(current)
+                                if (picked != null && !canPostNotifications(context) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                        )
                     }
                     if (current.memo.isNotBlank()) {
                         CollapsibleMemo(current.memo)
@@ -241,11 +310,11 @@ fun ScheduleDetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("予定を削除しますか?") },
-            text = { Text("この操作は取り消せません。関連するリンクも削除されます(リンクされたやることは残ります)。") },
+            text = { Text("つながる予定とのリンクも外れます(やることは残ります)。削除した直後なら、画面下の「元に戻す」で元どおりにできます。") },
             confirmButton = {
                 DestructiveTextButton("削除") {
                     showDeleteConfirm = false
-                    viewModel.deleteSchedule(scheduleId) { onBack() }
+                    viewModel.deleteSchedule(scheduleId) { deleted -> onDeleted(deleted) }
                 }
             },
             dismissButton = {

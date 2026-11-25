@@ -9,6 +9,22 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.example.schedulelink.data.DeletedSchedule
+import com.example.schedulelink.reminder.ReminderScheduler
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -70,7 +86,7 @@ private const val ROUTE_MONTH = "month"
 private const val ROUTE_WEEK = "week/{date}"
 private const val ROUTE_LIST = "list?date={date}"
 private const val ROUTE_DETAIL = "detail/{id}"
-private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}&date={date}"
+private const val ROUTE_EDIT = "edit?id={id}&milestoneId={milestoneId}&date={date}&copyFrom={copyFrom}"
 private const val ROUTE_GOALS = "goals"
 private const val ROUTE_WHOLE_TREE = "wholeTree"
 /** 全体マップをタイムライン表示で開く(ウィジェットのタイムラインから)。 */
@@ -132,6 +148,11 @@ fun ScheduleNavHost(
         } else if (pendingDestination == DeepLinks.WHOLE_MAP) {
             DeepLinks.pending.value = null
             navController.navigate(ROUTE_WHOLE_TREE_TIMELINE) { launchSingleTop = true }
+        } else if (pendingDestination?.startsWith("${DeepLinks.DETAIL}/") == true) {
+            // 通知から、その予定の詳細を開く
+            val target = pendingDestination
+            DeepLinks.pending.value = null
+            navController.navigate(target!!) { launchSingleTop = true }
         }
     }
     val factory = remember { AppViewModelFactory(repository, goalRepository, milestoneRepository, photoStorageRepository, todoRepository) }
@@ -140,7 +161,25 @@ fun ScheduleNavHost(
     val tags by remember(tagRepository) { tagRepository.allTags() }.collectAsState(initial = emptyList())
     val tagController = remember(tags, tagRepository) { TagController(tags, tagRepository) }
 
+    // 画面をまたいで出すお知らせ(予定を削除したあと、戻った先の画面で「元に戻す」を出すため)
+    val appSnackbar = remember { SnackbarHostState() }
+    val appScope = rememberCoroutineScope()
+    val appContext = LocalContext.current
+    fun offerUndo(deleted: DeletedSchedule?) {
+        if (deleted == null) return
+        appScope.launch {
+            appSnackbar.currentSnackbarData?.dismiss()
+            val result = appSnackbar.showSnackbar(
+                "「${deleted.schedule.title}」を削除しました",
+                actionLabel = "元に戻す",
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) repository.restoreSchedule(deleted)
+        }
+    }
+
     CompositionLocalProvider(LocalTagController provides tagController) {
+    Box(modifier = Modifier.fillMaxSize()) {
     SharedTransitionLayout {
         NavHost(
             navController = navController,
@@ -222,6 +261,13 @@ fun ScheduleNavHost(
                 onEdit = { editId -> navController.navigate("edit?id=$editId") },
                 onBack = { navController.popBackStack() },
                 onLinkedClick = { linkedId -> navController.navigate("detail/$linkedId") },
+                onCopy = { sourceId -> navController.navigate("edit?copyFrom=$sourceId") },
+                onDeleted = { deleted ->
+                    // 通知の予約は取り消す(選択は残すので、「元に戻す」とまた予約される)
+                    ReminderScheduler(appContext).cancel(id)
+                    navController.popBackStack()
+                    offerUndo(deleted)
+                },
                 isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
         }
@@ -233,21 +279,28 @@ fun ScheduleNavHost(
             arguments = listOf(
                 navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("milestoneId") { type = NavType.StringType; nullable = true; defaultValue = null },
-                navArgument("date") { type = NavType.StringType; nullable = true; defaultValue = null }
+                navArgument("date") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("copyFrom") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getString("id")
             val milestoneId = backStackEntry.arguments?.getString("milestoneId")
             val initialDate = backStackEntry.arguments?.getString("date")?.let { LocalDate.parse(it) }
+            val copyFrom = backStackEntry.arguments?.getString("copyFrom")
             val vm: ScheduleEditViewModel = viewModel(factory = factory)
             ScheduleEditScreen(
                 scheduleId = id,
                 initialMilestoneId = milestoneId,
                 initialDate = initialDate,
                 viewModel = vm,
-                onSaved = { navController.popBackStack() },
+                onSaved = { savedId ->
+                    navController.popBackStack()
+                    // コピーして作ったときは、元の予定と取り違えないよう新しい予定の詳細を開く
+                    if (copyFrom != null) navController.navigate("detail/$savedId")
+                },
                 onBack = { navController.popBackStack() },
-                isPhotoFeatureEnabled = isPhotoFeatureEnabled
+                isPhotoFeatureEnabled = isPhotoFeatureEnabled,
+                copyFromId = copyFrom
             )
         }
 
@@ -435,6 +488,12 @@ fun ScheduleNavHost(
             )
         }
         }
+    }
+    SnackbarHost(
+        appSnackbar,
+        // 右下の＋ボタンや下の保存バーと重ならない高さに出す
+        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 88.dp)
+    )
     }
     }
 }

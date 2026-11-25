@@ -3,6 +3,7 @@ package com.example.schedulelink.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -98,6 +100,13 @@ class ScheduleRepository(
             .documents.map { it.toSchedule() }.sortedWith(byDateTime)
 
     /** すべての予定の単発取得(ウィジェットのタイムライン用)。 */
+    /** 1件だけ、購読ではなくget()で読む(通知など、画面の外から使う)。無ければnull。 */
+    suspend fun scheduleByIdOnce(id: String): ScheduleEntity? =
+        collection.document(id).get().await().takeIf { it.exists() }?.toSchedule()
+
+    /** その予定がまだあるか(読めなければ例外)。 */
+    suspend fun existsOnce(id: String): Boolean = collection.document(id).get().await().exists()
+
     suspend fun allSchedulesOnce(): List<ScheduleEntity> =
         collection.get().await().documents.map { it.toSchedule() }.sortedWith(byDateTime)
 
@@ -185,32 +194,55 @@ class ScheduleRepository(
      * 予定を削除する。書き込みはサーバーの応答を待たない(オフラインだと応答待ちで止まり、
      * 画面が戻らなくなるため。書き込みは端末に保留され、通信が戻れば反映される)。
      */
-    suspend fun deleteSchedule(id: String) {
+    suspend fun deleteSchedule(id: String): DeletedSchedule? {
         // 端末のキャッシュからでも読めるので、オフラインでもリンク相手が分かる。
-        val linkedIds = runCatching { collection.document(id).get().await().toSchedule().linkedIds }
-            .getOrDefault(emptyList())
+        val schedule = runCatching { collection.document(id).get().await() }.getOrNull()
+            ?.takeIf { it.exists() }?.toSchedule()
+        val linkedIds = schedule?.linkedIds.orEmpty()
         linkedIds.forEach { otherId ->
             collection.document(otherId).update("linkedIds", FieldValue.arrayRemove(id))
         }
         collection.document(id).delete()
-        unlinkTodos(id)
+        val todoIds = unlinkTodos(id)
+        // 「元に戻す」で、リンクとやることのひもづきまで元どおりにするための控え
+        return schedule?.let { DeletedSchedule(it, todoIds) }
     }
 
     /**
-     * この予定にリンクしていたやることは残し、リンクだけ外す。完了は待たない(オフラインで
-     * サーバーの応答を待つと予定の削除まで止まってしまうため。書き込みは端末に保留され、
-     * 通信が戻れば反映される)。
+     * 削除した予定を、同じIDで元に戻す。リンクしていた相手の予定にもリンクを付け直し、
+     * ひもづいていたやることも付け直す。完了は待たない(オフラインでも画面を止めないため)。
+     * 相手の予定が同時に消されていた場合は、その相手だけ飛ばす。
      */
-    private fun unlinkTodos(scheduleId: String) {
-        firestore.collection("families").document(familyId).collection("todos")
+    fun restoreSchedule(deleted: DeletedSchedule) {
+        val schedule = deleted.schedule
+        collection.document(schedule.id).set(schedule.toMap() + mapOf("linkedIds" to schedule.linkedIds))
+        schedule.linkedIds.forEach { otherId ->
+            collection.document(otherId).update("linkedIds", FieldValue.arrayUnion(schedule.id))
+        }
+        if (deleted.todoIds.isNotEmpty()) {
+            val todos = firestore.collection("families").document(familyId).collection("todos")
+            val batch = firestore.batch()
+            deleted.todoIds.forEach { batch.update(todos.document(it), "scheduleId", schedule.id) }
+            batch.commit()
+        }
+    }
+
+    /**
+     * この予定にリンクしていたやることは残し、リンクだけ外す。外したやることのIDを返す。
+     * 書き込みの完了は待たない(オフラインでサーバーの応答を待つと予定の削除まで止まってしまうため。
+     * 書き込みは端末に保留され、通信が戻れば反映される)。一覧の読み取りは、つながらなければ
+     * 3秒で諦めて端末のキャッシュから読む。
+     */
+    private suspend fun unlinkTodos(scheduleId: String): List<String> {
+        val query = firestore.collection("families").document(familyId).collection("todos")
             .whereEqualTo("scheduleId", scheduleId)
-            .get()
-            .addOnSuccessListener { linked ->
-                if (linked.isEmpty) return@addOnSuccessListener
-                val batch = firestore.batch()
-                linked.documents.forEach { batch.update(it.reference, "scheduleId", null) }
-                batch.commit()
-            }
+        val linked = runCatching { withTimeoutOrNull(3_000) { query.get().await() } ?: query.get(Source.CACHE).await() }
+            .getOrNull() ?: return emptyList()
+        if (linked.isEmpty) return emptyList()
+        val batch = firestore.batch()
+        linked.documents.forEach { batch.update(it.reference, "scheduleId", null) }
+        batch.commit()
+        return linked.documents.map { it.id }
     }
 
     private suspend fun updateReciprocalLinks(scheduleId: String, previous: Set<String>, next: Set<String>) {

@@ -33,6 +33,7 @@ import com.example.schedulelink.ui.help.HelpTopic
 import com.example.schedulelink.ui.common.AppFab
 import com.example.schedulelink.ui.common.AppProgressBar
 import com.example.schedulelink.ui.common.EmptyState
+import com.example.schedulelink.ui.common.LoadingState
 import com.example.schedulelink.ui.theme.Dimens
 import com.example.schedulelink.ui.theme.Motion
 
@@ -63,7 +64,10 @@ fun GoalListScreen(
             AppFab(onClick = onAddClick, icon = Icons.Default.Add, contentDescription = "目的を追加")
         }
     ) { padding ->
-        if (goals.isEmpty()) {
+        val list = goals
+        if (list == null) {
+            LoadingState(modifier = Modifier.fillMaxSize().padding(padding))
+        } else if (list.isEmpty()) {
             EmptyState(
                 icon = Icons.Outlined.Flag,
                 message = "まだ大目的がありません",
@@ -84,7 +88,7 @@ fun GoalListScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(Dimens.ListGap)
             ) {
-                items(goals, key = { it.goal.id }) { item ->
+                items(list, key = { it.goal.id }) { item ->
                     GoalCard(
                         item = item,
                         onClick = { onItemClick(item.goal.id) },

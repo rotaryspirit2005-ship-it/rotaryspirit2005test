@@ -27,6 +27,7 @@ import com.example.schedulelink.data.PhotoStorageRepository
 import com.example.schedulelink.data.ScheduleRepository
 import com.example.schedulelink.data.TagRepository
 import com.example.schedulelink.data.TodoRepository
+import com.example.schedulelink.reminder.ReminderScheduler
 import com.example.schedulelink.ui.auth.FamilyGroupScreen
 import com.example.schedulelink.ui.auth.SignInScreen
 import com.example.schedulelink.ui.navigation.ScheduleNavHost
@@ -175,6 +176,14 @@ private fun MainApp(
             .drop(1)
             .debounce(1_500)
             .collect { runCatching { refreshMonthMiniWidgets(app) } }
+    }
+
+    // アプリを開いている間に予定が変わったら(家族の変更・日付のずらしも)、通知の時刻を合わせ直す
+    LaunchedEffect(scheduleRepository) {
+        val scheduler = ReminderScheduler(app)
+        scheduleRepository.allSchedules()
+            .debounce(2_000)
+            .collect { schedules -> runCatching { scheduler.reconcile(schedules) } }
     }
 
     ScheduleNavHost(
