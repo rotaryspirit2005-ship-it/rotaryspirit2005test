@@ -221,9 +221,8 @@ class ScheduleRepository(
         }
         if (deleted.todoIds.isNotEmpty()) {
             val todos = firestore.collection("families").document(familyId).collection("todos")
-            val batch = firestore.batch()
-            deleted.todoIds.forEach { batch.update(todos.document(it), "scheduleId", schedule.id) }
-            batch.commit()
+            // 1件ずつ書く(その間に消されたやることがあっても、ほかの付け直しは失われない)
+            deleted.todoIds.forEach { todos.document(it).update("scheduleId", schedule.id) }
         }
     }
 

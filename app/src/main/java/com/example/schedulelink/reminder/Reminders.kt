@@ -104,10 +104,8 @@ class ReminderScheduler(context: Context) {
         }
         val at = option.triggerAt(schedule).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val delay = at - System.currentTimeMillis()
-        if (delay <= 0) {
-            cancel(schedule.id)
-            return
-        }
+        // 時刻を過ぎていても取り消さない(省電力中は少し遅れて動くことがあり、その通知を消してしまうため)
+        if (delay <= 0) return
         if (prefs.scheduledAt(schedule.id) == at) return
         val request = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)

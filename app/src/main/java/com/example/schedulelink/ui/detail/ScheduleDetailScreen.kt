@@ -92,7 +92,7 @@ fun ScheduleDetailScreen(
     onBack: () -> Unit,
     onLinkedClick: (String) -> Unit,
     onCopy: (String) -> Unit,
-    onDeleted: (DeletedSchedule?) -> Unit,
+    onDelete: () -> Unit,
     isPhotoFeatureEnabled: Boolean
 ) {
     // 再描画のたびに購読し直さないよう、Flowは予定ごとに1度だけ作る。
@@ -314,7 +314,8 @@ fun ScheduleDetailScreen(
             confirmButton = {
                 DestructiveTextButton("削除") {
                     showDeleteConfirm = false
-                    viewModel.deleteSchedule(scheduleId) { deleted -> onDeleted(deleted) }
+                    // 削除はアプリ全体の側で行う(すぐ前の画面に戻り、削除の完了を待たせない)
+                    onDelete()
                 }
             },
             dismissButton = {

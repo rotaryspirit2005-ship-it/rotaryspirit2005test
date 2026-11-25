@@ -262,11 +262,12 @@ fun ScheduleNavHost(
                 onBack = { navController.popBackStack() },
                 onLinkedClick = { linkedId -> navController.navigate("detail/$linkedId") },
                 onCopy = { sourceId -> navController.navigate("edit?copyFrom=$sourceId") },
-                onDeleted = { deleted ->
+                onDelete = {
                     // 通知の予約は取り消す(選択は残すので、「元に戻す」とまた予約される)
                     ReminderScheduler(appContext).cancel(id)
                     navController.popBackStack()
-                    offerUndo(deleted)
+                    // 画面を離れても途中で止まらないよう、アプリ全体の側で削除して「元に戻す」を出す
+                    appScope.launch { offerUndo(repository.deleteSchedule(id)) }
                 },
                 isPhotoFeatureEnabled = isPhotoFeatureEnabled
             )
