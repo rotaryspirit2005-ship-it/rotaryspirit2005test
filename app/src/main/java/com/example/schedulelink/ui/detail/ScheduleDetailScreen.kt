@@ -55,7 +55,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.ui.platform.LocalContext
-import com.example.schedulelink.reminder.ReminderPickerDialog
+import com.example.schedulelink.reminder.ReminderChooser
 import com.example.schedulelink.reminder.ReminderPreferences
 import com.example.schedulelink.reminder.ReminderScheduler
 import com.example.schedulelink.reminder.canPostNotifications
@@ -107,7 +107,7 @@ fun ScheduleDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val reminderPrefs = remember { ReminderPreferences(context) }
-    var reminder by remember(scheduleId) { mutableStateOf(reminderPrefs.optionOf(scheduleId)) }
+    var reminder by remember(scheduleId) { mutableStateOf(reminderPrefs.reminderOf(scheduleId)) }
     var showReminderPicker by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var editingTodoId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -200,20 +200,22 @@ fun ScheduleDetailScreen(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            "通知: ${reminderLabel(reminder)}(この端末)",
+                            "通知: ${reminderLabel(reminder, current.date, current.startTime)}(この端末)",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 6.dp)
                         )
                     }
                     if (showReminderPicker) {
-                        ReminderPickerDialog(
+                        ReminderChooser(
                             current = reminder,
+                            date = current.date,
+                            startTime = current.startTime,
                             onDismiss = { showReminderPicker = false },
                             onPick = { picked ->
                                 showReminderPicker = false
                                 reminder = picked
-                                reminderPrefs.setOption(current.id, picked)
+                                reminderPrefs.setReminder(current.id, picked)
                                 ReminderScheduler(context).schedule(current)
                                 if (picked != null && !canPostNotifications(context) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)

@@ -35,39 +35,53 @@ import java.util.concurrent.TimeUnit
 
 const val REMINDER_CHANNEL_ID = "schedule_reminders"
 
-/** 通知のタイミングの選択肢。 */
+/** 通知のタイミングの選択肢。[Custom]は利用者が選んだ日時(予定の開始の何分前かで持つ)。 */
 enum class ReminderOption(val label: String) {
     Min30("30分前"),
     Hour1("1時間前"),
     Morning("当日の朝 8:00"),
-    EveningBefore("前日の夜 20:00");
+    EveningBefore("前日の夜 20:00"),
+    Custom("日時を指定")
+}
 
-    /** この予定で通知を出す日時。 */
-    fun triggerAt(schedule: ScheduleEntity): LocalDateTime {
-        val start = LocalDateTime.of(schedule.date, schedule.startTime)
-        return when (this) {
-            Min30 -> start.minusMinutes(30)
-            Hour1 -> start.minusHours(1)
-            Morning -> LocalDateTime.of(schedule.date, LocalTime.of(8, 0))
-            EveningBefore -> LocalDateTime.of(schedule.date.minusDays(1), LocalTime.of(20, 0))
+/**
+ * 1つの予定の通知の設定。日時を指定したときも「開始の何分前か」で持つので、
+ * 予定の日時が後から変わっても、通知は同じだけ前にずれて付いていく。
+ */
+data class Reminder(val option: ReminderOption, val minutesBefore: Long = 0) {
+    fun triggerAt(date: java.time.LocalDate, startTime: LocalTime): LocalDateTime {
+        val start = LocalDateTime.of(date, startTime)
+        return when (option) {
+            ReminderOption.Min30 -> start.minusMinutes(30)
+            ReminderOption.Hour1 -> start.minusHours(1)
+            ReminderOption.Morning -> LocalDateTime.of(date, LocalTime.of(8, 0))
+            ReminderOption.EveningBefore -> LocalDateTime.of(date.minusDays(1), LocalTime.of(20, 0))
+            ReminderOption.Custom -> start.minusMinutes(minutesBefore)
         }
     }
+
+    fun triggerAt(schedule: ScheduleEntity): LocalDateTime = triggerAt(schedule.date, schedule.startTime)
 }
 
 /** 予定ごとの通知の選択(この端末だけに保存。Firestoreには書かない)。 */
 class ReminderPreferences(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("reminder_prefs", Context.MODE_PRIVATE)
 
-    fun optionOf(scheduleId: String): ReminderOption? =
-        prefs.getString("opt_$scheduleId", null)?.let { name -> ReminderOption.entries.firstOrNull { it.name == name } }
+    fun reminderOf(scheduleId: String): Reminder? {
+        val option = prefs.getString("opt_$scheduleId", null)
+            ?.let { name -> ReminderOption.entries.firstOrNull { it.name == name } } ?: return null
+        return Reminder(option, prefs.getLong("min_$scheduleId", 0L))
+    }
 
-    fun setOption(scheduleId: String, option: ReminderOption?) {
+    fun setReminder(scheduleId: String, reminder: Reminder?) {
         prefs.edit().apply {
-            if (option == null) {
+            if (reminder == null) {
                 remove("opt_$scheduleId")
+                remove("min_$scheduleId")
                 remove("at_$scheduleId")
             } else {
-                putString("opt_$scheduleId", option.name)
+                putString("opt_$scheduleId", reminder.option.name)
+                putLong("min_$scheduleId", reminder.minutesBefore)
             }
         }.apply()
     }
@@ -97,12 +111,12 @@ class ReminderScheduler(context: Context) {
 
     /** この予定の通知を、いまの日時と選択に合わせて予約する(選択なし・過去なら取り消す)。 */
     fun schedule(schedule: ScheduleEntity) {
-        val option = prefs.optionOf(schedule.id)
-        if (option == null) {
+        val reminder = prefs.reminderOf(schedule.id)
+        if (reminder == null) {
             cancel(schedule.id)
             return
         }
-        val at = option.triggerAt(schedule).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val at = reminder.triggerAt(schedule).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val delay = at - System.currentTimeMillis()
         // 時刻を過ぎていても取り消さない(省電力中は少し遅れて動くことがあり、その通知を消してしまうため)
         if (delay <= 0) return
@@ -156,7 +170,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val id = inputData.getString(KEY_ID) ?: return Result.success()
         val prefs = ReminderPreferences(applicationContext)
         prefs.clearScheduledAt(id)
-        val option = prefs.optionOf(id) ?: return Result.success()
+        val reminder = prefs.reminderOf(id) ?: return Result.success()
         val familyId = WidgetPreferences(applicationContext).familyId
         // ウィジェットと同じく、1度きりの取得(collection.get系)で最新を読む
         val schedule = familyId?.let {
@@ -168,7 +182,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
             if (readable == false) return Result.success()
         }
         if (schedule != null) {
-            val trigger = option.triggerAt(schedule)
+            val trigger = reminder.triggerAt(schedule)
             // 家族が日時を変えていたら、新しい時刻に予約し直す
             if (Duration.between(LocalDateTime.now(), trigger).toMinutes() > 10) {
                 ReminderScheduler(applicationContext).schedule(schedule)

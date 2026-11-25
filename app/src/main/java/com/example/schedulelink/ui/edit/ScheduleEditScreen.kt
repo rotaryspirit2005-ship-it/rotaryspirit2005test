@@ -107,7 +107,7 @@ fun ScheduleEditScreen(
     val context = LocalContext.current
     // 通知の選択はこの端末だけに保存する(家族には共有しない)
     val reminderPrefs = remember { ReminderPreferences(context) }
-    var reminder by remember { mutableStateOf((scheduleId ?: copyFromId)?.let { reminderPrefs.optionOf(it) }) }
+    var reminder by remember { mutableStateOf((scheduleId ?: copyFromId)?.let { reminderPrefs.reminderOf(it) }) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -194,7 +194,7 @@ fun ScheduleEditScreen(
                     Toast.LENGTH_SHORT
                 ).show()
             }
-            reminderPrefs.setOption(it, reminder)
+            reminderPrefs.setReminder(it, reminder)
             ReminderScheduler(context).schedule(schedule.copy(id = it))
             onSaved(it)
         }
@@ -318,7 +318,7 @@ fun ScheduleEditScreen(
                     )
                 }
 
-                ReminderField(option = reminder, onChange = { reminder = it })
+                ReminderField(reminder = reminder, date = date, startTime = startTime, onChange = { reminder = it })
 
                 PickerField(
                     label = "所属する中日程",
